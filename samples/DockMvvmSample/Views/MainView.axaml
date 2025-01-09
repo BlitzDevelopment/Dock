@@ -18,15 +18,26 @@
     <StreamGeometry x:Key="DarkTheme">M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Zm0-2V4a8 8 0 1 1 0 16Z</StreamGeometry>
   </UserControl.Resources>
   <Grid RowDefinitions="Auto,*,25" ColumnDefinitions="Auto,*" Background="Transparent">
+    
     <Menu Grid.Row="0" Grid.Column="0" VerticalAlignment="Top">
       <MenuItem Header="_File">
+        <MenuItem Header="_New" />
+        <MenuItem Header="_Open Document" Command="{Binding OpenDocumentCommand}"/>
+        <MenuItem Header="_Save" />
+
+        <Separator />
+        
         <MenuItem Header="_New Layout" Command="{Binding NewLayout}" />
       </MenuItem>
+      
       <MenuItem Header="_Window" DataContext="{Binding Layout}">
         <MenuItem Header="_Exit Windows" Command="{Binding ExitWindows}" />
+        
         <Separator />
+        
         <MenuItem Header="_Show Windows" Command="{Binding ShowWindows}" />
       </MenuItem>
+      
       <MenuItem Header="_Options">
         <MenuItem x:Name="OptionsIsDragEnabled" Header="Enable Drag">
           <MenuItem.Icon>
@@ -35,7 +46,9 @@
                       IsHitTestVisible="False" />
           </MenuItem.Icon>
         </MenuItem>
+        
         <Separator />
+        
         <MenuItem x:Name="OptionsIsDropEnabled" Header="Enable Drop">
           <MenuItem.Icon>
             <CheckBox IsChecked="{Binding $parent[Window].(ids:DockProperties.IsDropEnabled)}"
@@ -45,6 +58,7 @@
         </MenuItem>
       </MenuItem>
     </Menu>
+    
     <Panel x:Name="ToolBar" DataContext="{Binding Layout}" Grid.Row="0" Grid.Column="1">
       <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,200,Auto,Auto"
             HorizontalAlignment="Right"

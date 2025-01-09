@@ -15,12 +15,22 @@
   <Import Project="..\..\build\Avalonia.Themes.Fluent.props" />
   <Import Project="..\..\build\Avalonia.Desktop.props" />
   <Import Project="..\..\build\Avalonia.Diagnostics.props" />
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Controls.TreeDataGrid" Version="11.1.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dock.Model.Mvvm\Dock.Model.Mvvm.csproj" />
     <ProjectReference Include="..\..\src\Dock.Model\Dock.Model.csproj" />
     <ProjectReference Include="..\..\src\Dock.Avalonia\Dock.Avalonia.csproj" />
     <ProjectReference Include="..\..\src\Dock.Serializer\Dock.Serializer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="CsXFL">
+      <HintPath>dlls\CsXFL.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

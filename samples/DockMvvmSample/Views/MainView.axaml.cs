@@ -2,6 +2,7 @@
 using Avalonia.Markup.Xaml;
 using Dock.Avalonia;
 using Dock.Settings;
+using DockMvvmSample.ViewModels;
 
 namespace DockMvvmSample.Views;
 
@@ -12,6 +13,7 @@ public partial class MainView : UserControl
         InitializeComponent();
         InitializeThemes();
         InitializeMenu();
+        DataContext = new MainWindowViewModel();
     }
 
     private void InitializeComponent()

@@ -5,11 +5,27 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
+using System;
+using CsXFL;
 
 namespace DockMvvmSample.ViewModels;
 
 public class MainWindowViewModel : ObservableObject
 {
+    public static MainWindowViewModel? Instance { get; private set; }
+
+    // MARK: CsXFL Vars
+    public CsXFL.Document _mainDocument;
+
+    private ICommand _openDocumentCommand;
+    public ICommand OpenDocumentCommand => _openDocumentCommand;
+
+    private async void OpenDocument()
+    {
+        _mainDocument = await CsXFL.An.OpenDocumentAsync("C:\\Users\\Administrator\\Downloads\\301_S1_Neoisi+Brunosky_Part2.fla");
+    }
+
+    // MARK: Dock Base
     private readonly IFactory? _factory;
     private IRootDock? _layout;
 
@@ -24,6 +40,9 @@ public class MainWindowViewModel : ObservableObject
     public MainWindowViewModel()
     {
         _factory = new DockFactory(new DemoData());
+
+        // MARK: CsXFL Commands
+        _openDocumentCommand = new RelayCommand(OpenDocument);
 
         DebugFactoryEvents(_factory);
 

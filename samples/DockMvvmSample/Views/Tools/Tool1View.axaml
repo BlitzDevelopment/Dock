@@ -8,10 +8,78 @@
              d:DesignWidth="300" d:DesignHeight="400"
              x:DataType="vm:Tool1ViewModel" x:CompileBindings="True">
   <Grid Focusable="True">
-    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-      <TextBlock Text="{Binding Id}" Padding="2" />
-      <TextBlock Text="{Binding Title}" Padding="2" />
-      <TextBlock Text="{Binding Context}" Padding="2" />
-    </StackPanel>
+
+      <Grid RowDefinitions="50, 4, 50, *, 50" ColumnDefinitions="*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+
+      <!--SVG Preview-->
+        <Border Background="Transparent"
+        BorderBrush="Transparent"
+        BorderThickness="0"
+        CornerRadius="3"
+        Padding="5" Margin="10">
+          <Rectangle Grid.Row="0" Fill="Red"/>
+        </Border>
+
+      <!--Resizer-->
+      <GridSplitter Grid.Row="1" Background="Black" ResizeDirection="Rows"/>
+
+      <!--Ribbon-->
+      <Grid Grid.Row="2">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="hi" VerticalAlignment="Center" HorizontalAlignment="Left" Grid.Column="0" Margin="10,5,0,5"/>
+        <Border Grid.Column="1" Background="Transparent" />
+        <AutoCompleteBox MinWidth="100" Width="250" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,5,10,5"/>
+      </Grid>
+
+      <!--Library-->
+      <!--<Rectangle Grid.Row="3" Fill="Blue"/>-->
+      <TreeDataGrid Grid.Row="3" Source="{Binding Source}"/>
+
+      <!--Footer-->
+      <StackPanel Grid.Row="4" Margin="5,5,0,5" Orientation="Horizontal" VerticalAlignment="Stretch">
+        
+        <Button ToolTip.Tip="New Symbol">
+          <Button.Content>
+            <StackPanel Orientation="Vertical">
+              <PathIcon Foreground="White"
+                Data="{StaticResource ico_lib_addsymbol}"/>
+            </StackPanel>
+          </Button.Content>
+        </Button>
+
+        <Button ToolTip.Tip="Add Folder">
+          <Button.Content>
+            <StackPanel Orientation="Vertical">
+              <PathIcon Foreground="White"
+                Data="{StaticResource ico_lib_addfolder}"/>
+            </StackPanel>
+          </Button.Content>
+        </Button>
+
+        <Button ToolTip.Tip="Properties">
+          <Button.Content>
+            <StackPanel Orientation="Vertical">
+              <PathIcon Foreground="White"
+                Data="{StaticResource ico_lib_properties}"/>
+            </StackPanel>
+          </Button.Content>
+        </Button>
+
+        <Button ToolTip.Tip="Delete">
+          <Button.Content>
+            <StackPanel Orientation="Vertical">
+              <PathIcon Foreground="White"
+                Data="{StaticResource ico_lib_delete}"/>
+            </StackPanel>
+          </Button.Content>
+        </Button>
+
+      </StackPanel>
+      
+    </Grid>
   </Grid>
 </UserControl>
