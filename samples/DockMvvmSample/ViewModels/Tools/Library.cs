@@ -1,7 +1,10 @@
 ﻿using Dock.Model.Mvvm.Controls;
 using System.Collections.ObjectModel;
+using Avalonia;
+using Avalonia.Media;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Data.Converters;
 using CommunityToolkit.Mvvm.ComponentModel;
 using static DockMvvmSample.Models.Tools.Tool1;
 using System;
@@ -14,15 +17,64 @@ using CsXFL;
 
 namespace DockMvvmSample.ViewModels.Tools;
 
+public class ItemTypeToIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        // Your conversion logic here
+        Console.WriteLine(value);
+        switch (value)
+        {
+            case "Component":
+                return Application.Current!.Resources["ico_lib_type_component"] as StreamGeometry ?? new StreamGeometry();
+            case "Movie Clip":
+                return Application.Current!.Resources["ico_lib_type_movie_clip"] as StreamGeometry ?? new StreamGeometry();
+            case "Graphic":
+                return Application.Current!.Resources["ico_lib_type_graphic"] as StreamGeometry ?? new StreamGeometry();
+            case "Button":
+                return Application.Current!.Resources["ico_lib_type_button"] as StreamGeometry ?? new StreamGeometry();
+            case "Puppet":
+                return Application.Current!.Resources["ico_lib_type_puppet"] as StreamGeometry ?? new StreamGeometry();
+            case "Puppetbase":
+                return Application.Current!.Resources["ico_lib_type_puppetBase"] as StreamGeometry ?? new StreamGeometry();
+            case "Folder":
+                return Application.Current!.Resources["ico_lib_type_folder"] as StreamGeometry ?? new StreamGeometry();
+            case "Font":
+                return Application.Current!.Resources["ico_lib_type_font"] as StreamGeometry ?? new StreamGeometry();
+            case "Sound":
+                return Application.Current!.Resources["ico_lib_type_sound"] as StreamGeometry ?? new StreamGeometry();
+            case "Bitmap":
+                return Application.Current!.Resources["ico_lib_type_bitmap"] as StreamGeometry ?? new StreamGeometry();
+            case "Compiled Clip":
+                return Application.Current!.Resources["ico_lib_type_compiled_clip"] as StreamGeometry ?? new StreamGeometry();
+            case "Screen":
+                return Application.Current!.Resources["ico_lib_type_screen"] as StreamGeometry ?? new StreamGeometry();
+            case "Video":
+                return Application.Current!.Resources["ico_lib_type_video"] as StreamGeometry ?? new StreamGeometry();
+            case "U ndefined":
+                return Application.Current!.Resources["ico_lib_type_undefined"] as StreamGeometry ?? new StreamGeometry();
+        }
+        return Application.Current!.Resources["ico_lib_type_undefined"] as StreamGeometry ?? new StreamGeometry();
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        // Your conversion back logic here
+        throw new NotImplementedException();
+    }
+}
+
 public partial class Tool1ViewModel : Tool
 {
     private MainWindowViewModel _mainWindowViewModel;
-
+    
     [ObservableProperty]
     private ObservableCollection<Models.Tools.Tool1.LibraryItem> _items = new ObservableCollection<Models.Tools.Tool1.LibraryItem>();
     [ObservableProperty]
     private string _itemCount = "-";
     public HierarchicalTreeDataGridSource<LibraryItem> Source { get; }
+    public Type LibraryItemType { get; set; } = typeof(Models.Tools.Tool1.LibraryItem);
+
 
     private void MainWindowViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -123,7 +175,7 @@ public partial class Tool1ViewModel : Tool
             Columns =
             {
                 new HierarchicalExpanderColumn<LibraryItem>(
-                    new TextColumn<LibraryItem, string>("Name", x => x.Name),
+                    new TemplateColumn<LibraryItem>("Name", "NameColumn"),
                     x => x.Children),
                 new TextColumn<LibraryItem, string>("Type", x => x.Type),
                 new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),

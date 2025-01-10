@@ -1,4 +1,5 @@
 ﻿using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Markup.Xaml;
 
 namespace DockMvvmSample.Views.Tools;

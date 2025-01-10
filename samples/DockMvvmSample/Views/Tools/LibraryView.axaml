@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vm="using:DockMvvmSample.ViewModels.Tools"
+             xmlns:m="clr-namespace:DockMvvmSample.Models.Tools"
              mc:Ignorable="d"
              d:DesignWidth="300" d:DesignHeight="400"
              x:DataType="vm:Tool1ViewModel" x:CompileBindings="True">
@@ -43,7 +44,24 @@
       </Grid>
 
       <!--Library-->
-      <TreeDataGrid Grid.Row="3" Source="{Binding Source}"/>
+      <TreeDataGrid Grid.Row="3" Source="{Binding Source}">
+        <TreeDataGrid.Resources>
+            <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
+              <DataTemplate x:Key="NameColumn" DataType="m:Tool1+LibraryItem">
+                <StackPanel Orientation="Horizontal">
+                  <Button Background = "Transparent">
+                    <PathIcon Foreground="White" Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
+                  </Button>
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </DataTemplate>
+        </TreeDataGrid.Resources>
+        <TreeDataGrid.Styles>
+          <Style Selector="TreeDataGrid TreeDataGridRow:nth-child(2n)">
+            <Setter Property="Background"  Value="#20808080"/>
+          </Style>
+        </TreeDataGrid.Styles>
+      </TreeDataGrid>
 
       <!--Footer-->
       <StackPanel Grid.Row="4" Margin="5,5,0,5" Orientation="Horizontal" VerticalAlignment="Stretch">
