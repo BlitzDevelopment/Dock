@@ -17,12 +17,14 @@ namespace DockMvvmSample.ViewModels;
 public class DockFactory : Factory
 {
     private readonly object _context;
+    private MainWindowViewModel _mainWindowViewModel;
     private IRootDock? _rootDock;
     private IDocumentDock? _documentDock;
 
-    public DockFactory(object context)
+    public DockFactory(MainWindowViewModel mainWindowViewModel, object context)
     {
         _context = context;
+        _mainWindowViewModel = mainWindowViewModel;
     }
 
     public override IDocumentDock CreateDocumentDock() => new CustomDocumentDock();
@@ -32,7 +34,7 @@ public class DockFactory : Factory
         var document1 = new DocumentViewModel {Id = "Document1", Title = "Document1"};
         var document2 = new DocumentViewModel {Id = "Document2", Title = "Document2"};
         var document3 = new DocumentViewModel {Id = "Document3", Title = "Document3", CanClose = true};
-        var tool1 = new Tool1ViewModel {Id = "Tool1", Title = "Library"};
+        var tool1 = new Tool1ViewModel(_mainWindowViewModel) {Id = "Tool1", Title = "Library"};
         var tool2 = new Tool2ViewModel {Id = "Tool2", Title = "Tool2"};
         var tool3 = new Tool3ViewModel {Id = "Tool3", Title = "Tool3"};
         var tool4 = new Tool4ViewModel {Id = "Tool4", Title = "Tool4"};

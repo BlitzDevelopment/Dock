@@ -1,28 +1,37 @@
 ﻿using System.Diagnostics;
 using System.Windows.Input;
+using System.Threading.Tasks;
 using DockMvvmSample.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
 using System;
+using System.Collections.Generic;
 using CsXFL;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Platform.Storage;
 
 namespace DockMvvmSample.ViewModels;
 
-public class MainWindowViewModel : ObservableObject
+public partial class MainWindowViewModel : ObservableObject
 {
-    public static MainWindowViewModel? Instance { get; private set; }
+    private readonly IFileService _fileService;
 
     // MARK: CsXFL Vars
-    public CsXFL.Document _mainDocument;
+    [ObservableProperty]
+    public CsXFL.Document? _mainDocument;
 
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
 
     private async void OpenDocument()
     {
-        _mainDocument = await CsXFL.An.OpenDocumentAsync("C:\\Users\\Administrator\\Downloads\\301_S1_Neoisi+Brunosky_Part2.fla");
+        var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
+        var filePath = await _fileService.OpenFileAsync(mainWindow);
+        MainDocument = await CsXFL.An.OpenDocumentAsync(filePath);
+        Console.WriteLine("I opened a document!");
     }
 
     // MARK: Dock Base
@@ -39,7 +48,8 @@ public class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel()
     {
-        _factory = new DockFactory(new DemoData());
+        _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
+        _factory = new DockFactory(this, new DemoData());
 
         // MARK: CsXFL Commands
         _openDocumentCommand = new RelayCommand(OpenDocument);

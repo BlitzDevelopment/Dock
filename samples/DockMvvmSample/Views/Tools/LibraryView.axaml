@@ -9,7 +9,14 @@
              x:DataType="vm:Tool1ViewModel" x:CompileBindings="True">
   <Grid Focusable="True">
 
-      <Grid RowDefinitions="50, 4, 50, *, 50" ColumnDefinitions="*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Grid ColumnDefinitions="*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="50" MinHeight="49"/>
+        <RowDefinition Height="4"/>
+        <RowDefinition Height="50"/>
+        <RowDefinition Height="*" MinHeight="150"/>
+        <RowDefinition Height="50" MinHeight="49"/>
+      </Grid.RowDefinitions>
 
       <!--SVG Preview-->
         <Border Background="Transparent"
@@ -17,7 +24,7 @@
         BorderThickness="0"
         CornerRadius="3"
         Padding="5" Margin="10">
-          <Rectangle Grid.Row="0" Fill="Red"/>
+        <Rectangle Grid.Row="0" Fill="Red"/>
         </Border>
 
       <!--Resizer-->
@@ -30,13 +37,12 @@
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBlock Text="hi" VerticalAlignment="Center" HorizontalAlignment="Left" Grid.Column="0" Margin="10,5,0,5"/>
+        <TextBlock Text="{Binding ItemCount}" VerticalAlignment="Center" HorizontalAlignment="Left" Grid.Column="0" Margin="10,5,0,5"/>
         <Border Grid.Column="1" Background="Transparent" />
         <AutoCompleteBox MinWidth="100" Width="250" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,5,10,5"/>
       </Grid>
 
       <!--Library-->
-      <!--<Rectangle Grid.Row="3" Fill="Blue"/>-->
       <TreeDataGrid Grid.Row="3" Source="{Binding Source}"/>
 
       <!--Footer-->
