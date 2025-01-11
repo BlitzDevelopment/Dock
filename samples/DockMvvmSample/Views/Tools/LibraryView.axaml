@@ -46,6 +46,7 @@
       <!--Library-->
       <TreeDataGrid Grid.Row="3" Source="{Binding Source}">
         <TreeDataGrid.Resources>
+            <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
               <DataTemplate x:Key="NameColumn" DataType="m:Tool1+LibraryItem">
                 <StackPanel Orientation="Horizontal">
@@ -59,6 +60,13 @@
         <TreeDataGrid.Styles>
           <Style Selector="TreeDataGrid TreeDataGridRow:nth-child(2n)">
             <Setter Property="Background"  Value="#20808080"/>
+          </Style>
+          <Style Selector="TreeDataGridRow">
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                  <Binding Converter="{StaticResource ItemTypeToContextMenuConverter}" ConverterParameter="{Binding ContextMenuFactoryInstance, RelativeSource={RelativeSource FindAncestor, AncestorType=vm:Tool1ViewModel}}"/>
+                </Setter.Value>
+            </Setter>
           </Style>
         </TreeDataGrid.Styles>
       </TreeDataGrid>

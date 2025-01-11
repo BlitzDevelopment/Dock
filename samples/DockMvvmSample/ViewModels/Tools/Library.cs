@@ -6,23 +6,20 @@ using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Data.Converters;
 using CommunityToolkit.Mvvm.ComponentModel;
-using static DockMvvmSample.Models.Tools.Tool1;
 using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
-using Newtonsoft.Json.Linq;
-using CsXFL;
+using static DockMvvmSample.Models.Tools.Tool1;
 
 namespace DockMvvmSample.ViewModels.Tools;
 
+// MARK: LibItem Icons
 public class ItemTypeToIconConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        // Your conversion logic here
-        Console.WriteLine(value);
         switch (value)
         {
             case "Component":
@@ -51,7 +48,7 @@ public class ItemTypeToIconConverter : IValueConverter
                 return Application.Current!.Resources["ico_lib_type_screen"] as StreamGeometry ?? new StreamGeometry();
             case "Video":
                 return Application.Current!.Resources["ico_lib_type_video"] as StreamGeometry ?? new StreamGeometry();
-            case "U ndefined":
+            case "Undefined":
                 return Application.Current!.Resources["ico_lib_type_undefined"] as StreamGeometry ?? new StreamGeometry();
         }
         return Application.Current!.Resources["ico_lib_type_undefined"] as StreamGeometry ?? new StreamGeometry();
@@ -59,22 +56,20 @@ public class ItemTypeToIconConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        // Your conversion back logic here
         throw new NotImplementedException();
     }
 }
 
+// MARK: Library Partial VM
 public partial class Tool1ViewModel : Tool
 {
     private MainWindowViewModel _mainWindowViewModel;
+    public HierarchicalTreeDataGridSource<LibraryItem> Source { get; }
     
     [ObservableProperty]
     private ObservableCollection<Models.Tools.Tool1.LibraryItem> _items = new ObservableCollection<Models.Tools.Tool1.LibraryItem>();
     [ObservableProperty]
     private string _itemCount = "-";
-    public HierarchicalTreeDataGridSource<LibraryItem> Source { get; }
-    public Type LibraryItemType { get; set; } = typeof(Models.Tools.Tool1.LibraryItem);
-
 
     private void MainWindowViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -161,6 +156,7 @@ public partial class Tool1ViewModel : Tool
         }
     }
 
+    // MARK: Library Public VM
     public Tool1ViewModel(MainWindowViewModel mainWindowViewModel)
     {
         _mainWindowViewModel = mainWindowViewModel;
@@ -181,5 +177,6 @@ public partial class Tool1ViewModel : Tool
                 new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
             },
         };
+        
     }
 }
