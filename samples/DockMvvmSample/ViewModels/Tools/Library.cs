@@ -12,13 +12,14 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using static DockMvvmSample.Models.Tools.Tool1;
+using DockMvvmSample.Models.Tools;
 
 namespace DockMvvmSample.ViewModels.Tools;
 
 // MARK: LibItem Icons
 public class ItemTypeToIconConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         switch (value)
         {
@@ -54,7 +55,7 @@ public class ItemTypeToIconConverter : IValueConverter
         return Application.Current!.Resources["ico_lib_type_undefined"] as StreamGeometry ?? new StreamGeometry();
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
     }

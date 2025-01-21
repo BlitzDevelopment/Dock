@@ -6,13 +6,14 @@ using System.Collections.Generic;
 using System;
 using System.Globalization;
 using static DockMvvmSample.Models.Tools.Tool1;
+using DockMvvmSample.Views;
 
 // MARK: Library Contxt Menus
 namespace DockMvvmSample.ViewModels.Tools
 {
     public class ItemTypeToContextMenuConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             var libraryItem = value as LibraryItem;
             var itemType = libraryItem!.Type;
@@ -20,7 +21,7 @@ namespace DockMvvmSample.ViewModels.Tools
             return contextMenuFactory.CreateContextMenu(itemType!);
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
         }
@@ -30,7 +31,8 @@ namespace DockMvvmSample.ViewModels.Tools
     {
         public ContextMenu CreateContextMenu(string itemType)
         {
-            Console.WriteLine($"Creating context factory for {itemType} & {itemType.GetType()}");
+            // TODO: Factory spam, Soundman is a bad programmer. This much is known!
+            //Console.WriteLine($"Creating context factory for {itemType}");
             
             switch (itemType)
             {
@@ -116,7 +118,10 @@ namespace DockMvvmSample.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
-    }
+
+        // MARK: Context Menu Cmmds
+
+    }    
 
     public partial class Tool1ViewModel : Tool
     {

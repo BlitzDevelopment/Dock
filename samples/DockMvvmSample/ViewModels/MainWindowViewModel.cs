@@ -12,6 +12,8 @@ using CsXFL;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
+using DockMvvmSample.Views;
+using AutoMapper;
 
 namespace DockMvvmSample.ViewModels;
 
@@ -26,12 +28,39 @@ public partial class MainWindowViewModel : ObservableObject
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
 
+    private static CsXFL.Document CloneDocument(CsXFL.Document document)
+    {
+        var config = new MapperConfiguration(cfg => cfg.CreateMap<CsXFL.Document, CsXFL.Document>());
+        var mapper = config.CreateMapper();
+        return mapper.Map<CsXFL.Document>(document);
+    }
+
+    public class CsXFLDocumentMemento : IMemento
+    {
+        private CsXFL.Document _document;
+        private MainWindowViewModel _viewModel;
+
+        public CsXFLDocumentMemento(MainWindowViewModel viewModel, CsXFL.Document document)
+        {
+            _viewModel = viewModel;
+            _document = CloneDocument(document);
+        }
+
+        public string Description => $"Opened Document {_document.Filename}";
+
+        public void Restore()
+        {
+            _viewModel.MainDocument = _document;
+        }
+    }
+
     private async void OpenDocument()
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
         var filePath = await _fileService.OpenFileAsync(mainWindow);
         MainDocument = await CsXFL.An.OpenDocumentAsync(filePath);
-        Console.WriteLine("I opened a document!");
+        var memento = new CsXFLDocumentMemento(this, MainDocument);
+        ApplicationServices.MementoCaretaker.AddMemento(memento, $"You will never see this.");
     }
 
     // MARK: Dock Base
