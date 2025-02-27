@@ -20,12 +20,13 @@
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="PreferSystemChrome"
         ids:DockProperties.IsDragEnabled="True" ids:DockProperties.IsDropEnabled="True">
+
   <Window.Resources>
     <ExperimentalAcrylicMaterial BackgroundSource="Digger"
                                  TintColor="{DynamicResource SystemAltHighColor}"
                                  TintOpacity="1"
                                  FallbackColor="{DynamicResource AcrylicFallbackColor}"
-                                 MaterialOpacity="0.55"
+                                 MaterialOpacity="1"
                                  x:Key="AcrylicMaterial"/>
   </Window.Resources>
   <Design.DataContext>

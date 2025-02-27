@@ -7,6 +7,9 @@ using System;
 using System.Globalization;
 using static DockMvvmSample.Models.Tools.Tool1;
 using DockMvvmSample.Views;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using DialogHostAvalonia;
 
 // MARK: Library Contxt Menus
 namespace DockMvvmSample.ViewModels.Tools
@@ -27,7 +30,7 @@ namespace DockMvvmSample.ViewModels.Tools
         }
     }
 
-    public class ContextMenuFactory
+    public partial class ContextMenuFactory
     {
         public ContextMenu CreateContextMenu(string itemType)
         {
@@ -60,7 +63,7 @@ namespace DockMvvmSample.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Rename"});
+            contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new Separator());
@@ -120,6 +123,15 @@ namespace DockMvvmSample.ViewModels.Tools
         }
 
         // MARK: Context Menu Cmmds
+
+        [RelayCommand]
+        private void Rename()
+        {
+            // Code to rename the Graphic object goes here
+            Console.WriteLine("I am trying to rename something now");
+            //DialogHost.Show(Tool1ViewModel);
+            
+        }
 
     }    
 

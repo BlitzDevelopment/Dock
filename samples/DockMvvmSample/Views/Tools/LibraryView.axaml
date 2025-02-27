@@ -8,6 +8,7 @@
              mc:Ignorable="d"
              d:DesignWidth="300" d:DesignHeight="400"
              x:DataType="vm:Tool1ViewModel" x:CompileBindings="True">
+
   <Grid Focusable="True">
 
       <Grid ColumnDefinitions="*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -51,7 +52,7 @@
               <DataTemplate x:Key="NameColumn" DataType="m:Tool1+LibraryItem">
                 <StackPanel Orientation="Horizontal">
                   <Button Background = "Transparent">
-                    <PathIcon Foreground="White" Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
+                    <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
                   </Button>
                   <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -77,7 +78,7 @@
         <Button ToolTip.Tip="New Symbol">
           <Button.Content>
             <StackPanel Orientation="Vertical">
-              <PathIcon Foreground="White"
+              <PathIcon
                 Data="{StaticResource ico_lib_addsymbol}"/>
             </StackPanel>
           </Button.Content>
@@ -86,7 +87,7 @@
         <Button ToolTip.Tip="Add Folder">
           <Button.Content>
             <StackPanel Orientation="Vertical">
-              <PathIcon Foreground="White"
+              <PathIcon
                 Data="{StaticResource ico_lib_addfolder}"/>
             </StackPanel>
           </Button.Content>
@@ -95,7 +96,7 @@
         <Button ToolTip.Tip="Properties">
           <Button.Content>
             <StackPanel Orientation="Vertical">
-              <PathIcon Foreground="White"
+              <PathIcon
                 Data="{StaticResource ico_lib_properties}"/>
             </StackPanel>
           </Button.Content>
@@ -104,7 +105,7 @@
         <Button ToolTip.Tip="Delete">
           <Button.Content>
             <StackPanel Orientation="Vertical">
-              <PathIcon Foreground="White"
+              <PathIcon
                 Data="{StaticResource ico_lib_delete}"/>
             </StackPanel>
           </Button.Content>

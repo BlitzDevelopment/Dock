@@ -1,5 +1,6 @@
 ﻿<Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
              xmlns:local="using:DockMvvmSample"
              xmlns:core="using:Dock.Model.Core"
              Name="Dock Avalonia Demo"
@@ -38,7 +39,7 @@
   </Application.Resources>
 
   <Application.Styles>
-
+    <dialogHostAvalonia:DialogHostStyles />
     <StyleInclude Source="avares://Avalonia.Controls.TreeDataGrid/Themes/Fluent.axaml"/>
 
     <Style Selector="DockControl">
