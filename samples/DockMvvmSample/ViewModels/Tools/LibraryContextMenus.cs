@@ -129,8 +129,7 @@ namespace DockMvvmSample.ViewModels.Tools
         {
             // Code to rename the Graphic object goes here
             Console.WriteLine("I am trying to rename something now");
-            //DialogHost.Show(Tool1ViewModel);
-            
+            DialogHost.Show(new LibrarySingleRename());
         }
 
     }    

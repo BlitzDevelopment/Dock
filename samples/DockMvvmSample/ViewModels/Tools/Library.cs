@@ -178,6 +178,7 @@ public partial class Tool1ViewModel : Tool
                 new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
             },
         };
+        Source.RowSelection!.SingleSelect = false;
         
     }
 }
