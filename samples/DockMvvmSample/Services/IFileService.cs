@@ -2,6 +2,8 @@ using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using System.IO;
+using System.Diagnostics;
 
 public interface IFileService
 {
@@ -30,12 +32,23 @@ public class FileService : IFileService
             FileTypeFilter = new[] { BlitzCompatible }
         });
 
+        if (files.Count == 0)
+        {
+            return null!;
+        }
+
         if (files.Count > 1)
         {
             throw new NotImplementedException("Multiple document opening not yet implemented");
         }
 
         var filePath = Uri.UnescapeDataString(files[0].Path.AbsolutePath);
+
+        if (!File.Exists(filePath))
+        {
+            Debug.WriteLine($"Warning: File {filePath} does not exist.");
+            // You can also throw a custom exception here if needed
+        }
 
         return filePath;
     }

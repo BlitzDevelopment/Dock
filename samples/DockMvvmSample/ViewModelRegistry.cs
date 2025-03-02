@@ -5,8 +5,8 @@ namespace DockMvvmSample
 {
     public class ViewModelRegistry
     {
-        public static string Tool1ViewModel { get; } = "Tool1ViewModel";
-        private static ViewModelRegistry _instance;
+        public static string LibraryViewModel { get; } = "LibraryViewModel";
+        private static ViewModelRegistry _instance = new ViewModelRegistry();
 
         private ViewModelRegistry() { }
 
@@ -23,12 +23,19 @@ namespace DockMvvmSample
 
         public object GetViewModel(string key)
         {
-            return _viewModels.TryGetValue(key, out var viewModel) ? viewModel : null;
+            if (_viewModels.TryGetValue(key, out var viewModel))
+            {
+                return viewModel;
+            }
+            else
+            {
+                throw new KeyNotFoundException($"VMR failure. ViewModel with key '{key}' not found.");
+            }
         }
 
-        public Tool1ViewModel GetTool1ViewModel()
+        public LibraryViewModel GetLibraryViewModel()
         {
-            return (Tool1ViewModel)GetViewModel(nameof(Tool1ViewModel));
+            return (LibraryViewModel)GetViewModel(nameof(LibraryViewModel));
         }
     }
 }

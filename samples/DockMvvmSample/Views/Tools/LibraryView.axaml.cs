@@ -4,9 +4,9 @@ using Avalonia.Markup.Xaml;
 
 namespace DockMvvmSample.Views.Tools;
 
-public partial class Tool1View : UserControl
+public partial class LibraryView : UserControl
 {
-    public Tool1View()
+    public LibraryView()
     {
         InitializeComponent();
     }

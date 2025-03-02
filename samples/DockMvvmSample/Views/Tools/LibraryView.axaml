@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="DockMvvmSample.Views.Tools.Tool1View"
+﻿<UserControl x:Class="DockMvvmSample.Views.Tools.LibraryView"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
@@ -50,7 +50,7 @@
         <TreeDataGrid.Resources>
             <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
-              <DataTemplate x:Key="NameColumn" DataType="m:Tool1+LibraryItem">
+              <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
                 <StackPanel Orientation="Horizontal">
                   <Button Background = "Transparent">
                     <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
@@ -66,7 +66,7 @@
           <Style Selector="TreeDataGridRow">
             <Setter Property="ContextMenu">
                 <Setter.Value>
-                  <Binding Converter="{StaticResource ItemTypeToContextMenuConverter}" ConverterParameter="{Binding ContextMenuFactoryInstance, RelativeSource={RelativeSource FindAncestor, AncestorType=vm:Tool1ViewModel}}"/>
+                  <Binding Converter="{StaticResource ItemTypeToContextMenuConverter}" ConverterParameter="{Binding ContextMenuFactoryInstance, RelativeSource={RelativeSource FindAncestor, AncestorType=vm:LibraryViewModel}}"/>
                 </Setter.Value>
             </Setter>
           </Style>

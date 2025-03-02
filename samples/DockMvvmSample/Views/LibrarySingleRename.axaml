@@ -15,7 +15,7 @@
           <TextBox x:Name="InputRename" Grid.Column="1" Margin="5" VerticalAlignment="Center"/>
         </Grid>
       </Border>
-    <Button HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click">
+    <Button HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click" IsDefault="True">
       <TextBlock HorizontalAlignment="Center" FontWeight="Bold" Text="OK"/>
     </Button>
   </StackPanel>

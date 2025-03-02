@@ -11,8 +11,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
-using static DockMvvmSample.Models.Tools.Tool1;
-using DockMvvmSample.Models.Tools;
+using static DockMvvmSample.Models.Tools.Library;
 
 namespace DockMvvmSample.ViewModels.Tools;
 
@@ -62,11 +61,10 @@ public class ItemTypeToIconConverter : IValueConverter
 }
 
 // MARK: Library Partial VM
-public partial class Tool1ViewModel : Tool
+public partial class LibraryViewModel : Tool
 {
     private MainWindowViewModel _mainWindowViewModel;
     private CsXFL.Item[]? _userLibrarySelection;
-
     public CsXFL.Item[]? UserLibrarySelection
     {
         get => _userLibrarySelection;
@@ -79,7 +77,7 @@ public partial class Tool1ViewModel : Tool
     public HierarchicalTreeDataGridSource<LibraryItem> Source { get; }
     
     [ObservableProperty]
-    private ObservableCollection<Models.Tools.Tool1.LibraryItem> _items = new ObservableCollection<Models.Tools.Tool1.LibraryItem>();
+    private ObservableCollection<Models.Tools.Library.LibraryItem> _items = new ObservableCollection<Models.Tools.Library.LibraryItem>();
     [ObservableProperty]
     private string _itemCount = "-";
 
@@ -93,7 +91,7 @@ public partial class Tool1ViewModel : Tool
         }
     }
 
-    private void BuildLibrary(CsXFL.Document doc) {
+    public void BuildLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
 
@@ -170,7 +168,7 @@ public partial class Tool1ViewModel : Tool
     }
 
     // MARK: Library Public VM
-    public Tool1ViewModel(MainWindowViewModel mainWindowViewModel)
+    public LibraryViewModel(MainWindowViewModel mainWindowViewModel)
     {
         _mainWindowViewModel = mainWindowViewModel;
         _mainWindowViewModel.PropertyChanged += MainWindowViewModelPropertyChanged;
@@ -197,6 +195,5 @@ public partial class Tool1ViewModel : Tool
             var selectedItems = Source.RowSelection.SelectedItems.OfType<LibraryItem>();
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
         };
-        
     }
 }

@@ -8,6 +8,7 @@ using Dock.Model.Controls;
 using Dock.Model.Core;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using CsXFL;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -27,6 +28,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
+    public bool CanSaveDocument => MainDocument != null;
+    private ICommand _saveDocumentCommand;
+    public ICommand SaveDocumentCommand => _saveDocumentCommand;
+
+    partial void OnMainDocumentChanged(CsXFL.Document? value)
+    {
+        OnPropertyChanged(nameof(CanSaveDocument));
+    }
 
     private static CsXFL.Document CloneDocument(CsXFL.Document document)
     {
@@ -58,9 +67,19 @@ public partial class MainWindowViewModel : ObservableObject
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
         var filePath = await _fileService.OpenFileAsync(mainWindow);
-        MainDocument = await CsXFL.An.OpenDocumentAsync(filePath);
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+        {
+            Debug.WriteLine($"Warning: File {filePath} does not exist or is null.");
+            return;
+        }
+        MainDocument = await An.OpenDocumentAsync(filePath);
         var memento = new CsXFLDocumentMemento(this, MainDocument);
         ApplicationServices.MementoCaretaker.AddMemento(memento, $"You will never see this.");
+    }
+
+    private void SaveDocument()
+    {
+        MainDocument!.Save();
     }
 
     // MARK: Dock Base
@@ -82,6 +101,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         // MARK: CsXFL Commands
         _openDocumentCommand = new RelayCommand(OpenDocument);
+        _saveDocumentCommand = new RelayCommand(SaveDocument);
 
         DebugFactoryEvents(_factory);
 

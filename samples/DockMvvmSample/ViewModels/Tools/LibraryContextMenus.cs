@@ -3,10 +3,9 @@ using Dock.Model.Mvvm.Controls;
 using Avalonia.Controls;
 using System;
 using System.Globalization;
-using static DockMvvmSample.Models.Tools.Tool1;
+using static DockMvvmSample.Models.Tools.Library;
 using DockMvvmSample.Views;
 using CommunityToolkit.Mvvm.Input;
-using DockMvvmSample.Services;
 using DialogHostAvalonia;
 using System.Threading.Tasks;
 
@@ -32,9 +31,7 @@ namespace DockMvvmSample.ViewModels.Tools
     public partial class ContextMenuFactory
     {
         public ContextMenu CreateContextMenu(string itemType)
-        {
-            // TODO: Factory spam, Soundman is a bad programmer. This much is known!
-            
+        {            
             switch (itemType)
             {
                 case "Graphic":
@@ -121,19 +118,17 @@ namespace DockMvvmSample.ViewModels.Tools
         }
 
         // MARK: Context Menu Cmmds
-
         [RelayCommand]
         private async Task Rename()
         {
             var dialog = new LibrarySingleRename();
-            var dialogIdentifier = (string) await DialogHost.Show(dialog);
-            dialog.DialogIdentifier = dialogIdentifier;
-            dialog.CornerRadius = new Avalonia.CornerRadius(10);
+            var dialogIdentifier = await DialogHost.Show(dialog) as string;
+            dialog.DialogIdentifier = dialogIdentifier!;
         }
 
     }    
 
-    public partial class Tool1ViewModel : Tool
+    public partial class LibraryViewModel : Tool
     {
         public ContextMenuFactory ContextMenuFactoryInstance { get; } = new ContextMenuFactory();
     }

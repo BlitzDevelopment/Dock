@@ -1,29 +1,31 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using System;
 using System.Linq;
 using DockMvvmSample.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
+using DockMvvmSample.ViewModels;
 
 namespace DockMvvmSample.Views
 {
     public partial class LibrarySingleRename : UserControl
     {
-        private Tool1ViewModel _viewModel;
-        public string DialogIdentifier { get; set; }
+        private LibraryViewModel _viewModel;
+        private MainWindowViewModel _mainWindowViewModel;
+        public string? DialogIdentifier { get; set; }
 
         public LibrarySingleRename()
         {
             AvaloniaXamlLoader.Load(this);
             var _viewModelRegistry = ViewModelRegistry.Instance;
-            _viewModel = (Tool1ViewModel)_viewModelRegistry.GetViewModel(nameof(Tool1ViewModel));
+            _viewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+            _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
             SetTextBoxText();
         }
 
         private void SetTextBoxText()
         {
-            string path = _viewModel.UserLibrarySelection.FirstOrDefault()?.Name;
+            string path = _viewModel.UserLibrarySelection!.FirstOrDefault()?.Name!;
             int lastIndex = path.LastIndexOf('/');
             string fileName = lastIndex != -1 ? path.Substring(lastIndex + 1) : path;
             InputRename.Text = fileName;
@@ -31,8 +33,18 @@ namespace DockMvvmSample.Views
 
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
+            string ReName = InputRename.Text!;
+
+            // Model logic in VM, will fix soon
+            CsXFL.Item ItemToRename = _viewModel.UserLibrarySelection![0];
+
+            string originalPath = ItemToRename.Name.Contains("/") ? ItemToRename.Name.Substring(0, ItemToRename.Name.LastIndexOf('/') + 1) : "";
+            string newPath = originalPath + ReName;
+
+            _mainWindowViewModel.MainDocument!.Library.RenameItem(ItemToRename.Name, newPath);
+            _viewModel.BuildLibrary(_mainWindowViewModel.MainDocument);
+
             DialogHost.Close(DialogIdentifier);
-            Console.WriteLine();
         }
     }
 }

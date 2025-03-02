@@ -23,7 +23,7 @@
       <MenuItem Header="_File">
         <MenuItem Header="_New" />
         <MenuItem Header="_Open Document" Command="{Binding OpenDocumentCommand}"/>
-        <MenuItem Header="_Save" />
+        <MenuItem Header="_Save" Command="{Binding SaveDocumentCommand}" IsEnabled="{Binding CanSaveDocument}"/>
 
         <Separator />
         

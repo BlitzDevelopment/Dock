@@ -2,7 +2,7 @@
 
 namespace DockMvvmSample.Models.Tools;
 
-public class Tool1
+public class Library
 {
     public class LibraryItem
     {
