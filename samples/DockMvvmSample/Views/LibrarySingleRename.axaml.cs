@@ -5,6 +5,8 @@ using DockMvvmSample.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
 using DockMvvmSample.ViewModels;
+using System;
+using static DockMvvmSample.Models.Tools.Library;
 
 namespace DockMvvmSample.Views
 {
@@ -42,7 +44,15 @@ namespace DockMvvmSample.Views
             string newPath = originalPath + ReName;
 
             _mainWindowViewModel.MainDocument!.Library.RenameItem(ItemToRename.Name, newPath);
-            _viewModel.BuildLibrary(_mainWindowViewModel.MainDocument);
+            
+            // Rename source
+            var libraryItem = _viewModel.Source.RowSelection!.SelectedItems.OfType<LibraryItem>().FirstOrDefault();
+            if (libraryItem != null)
+            {
+                int lastIndex = newPath.LastIndexOf('/');
+                string newFileName = lastIndex != -1 ? newPath.Substring(lastIndex + 1) : newPath;
+                libraryItem.Name = newFileName;
+            }
 
             DialogHost.Close(DialogIdentifier);
         }
