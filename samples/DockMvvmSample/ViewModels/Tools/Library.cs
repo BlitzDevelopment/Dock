@@ -65,6 +65,17 @@ public class ItemTypeToIconConverter : IValueConverter
 public partial class Tool1ViewModel : Tool
 {
     private MainWindowViewModel _mainWindowViewModel;
+    private CsXFL.Item[]? _userLibrarySelection;
+
+    public CsXFL.Item[]? UserLibrarySelection
+    {
+        get => _userLibrarySelection;
+        private set
+        {
+            _userLibrarySelection = value;
+            OnPropertyChanged(nameof(UserLibrarySelection));
+        }
+    }
     public HierarchicalTreeDataGridSource<LibraryItem> Source { get; }
     
     [ObservableProperty]
@@ -93,7 +104,8 @@ public partial class Tool1ViewModel : Tool
             {
                 Name = item.Value.Name,
                 UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
-                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower())
+                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
+                CsXFLItem = item.Value
             };
 
             itemsByName[libraryItem.Name] = libraryItem;
@@ -179,6 +191,12 @@ public partial class Tool1ViewModel : Tool
             },
         };
         Source.RowSelection!.SingleSelect = false;
+
+        Source.RowSelection.SelectionChanged += (sender, e) =>
+        {
+            var selectedItems = Source.RowSelection.SelectedItems.OfType<LibraryItem>();
+            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
+        };
         
     }
 }

@@ -4,13 +4,11 @@
              xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:vm="using:DockMvvmSample.ViewModels.Tools"
+             xmlns:vm="using:DockMvvmSample.ViewModels.Tools" 
+             xmlns:vmr="clr-namespace:DockMvvmSample"
              xmlns:m="clr-namespace:DockMvvmSample.Models.Tools"
              mc:Ignorable="d"
-             d:DesignWidth="300" d:DesignHeight="400"
-             x:DataType="vm:Tool1ViewModel" x:CompileBindings="True">
-
-  <dialogHostAvalonia:DialogHost x:Name="DialogHost" CloseOnClickAway="True">
+             d:DesignWidth="300" d:DesignHeight="400">
 
   <Grid Focusable="True">
 
@@ -118,5 +116,4 @@
       
     </Grid>
   </Grid>
-  </dialogHostAvalonia:DialogHost>
 </UserControl>

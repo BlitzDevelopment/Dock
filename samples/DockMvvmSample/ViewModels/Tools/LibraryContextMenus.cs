@@ -1,15 +1,14 @@
-using System.Windows.Input;
 using Avalonia.Data.Converters;
 using Dock.Model.Mvvm.Controls;
 using Avalonia.Controls;
-using System.Collections.Generic;
 using System;
 using System.Globalization;
 using static DockMvvmSample.Models.Tools.Tool1;
 using DockMvvmSample.Views;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockMvvmSample.Services;
 using DialogHostAvalonia;
+using System.Threading.Tasks;
 
 // MARK: Library Contxt Menus
 namespace DockMvvmSample.ViewModels.Tools
@@ -35,7 +34,6 @@ namespace DockMvvmSample.ViewModels.Tools
         public ContextMenu CreateContextMenu(string itemType)
         {
             // TODO: Factory spam, Soundman is a bad programmer. This much is known!
-            //Console.WriteLine($"Creating context factory for {itemType}");
             
             switch (itemType)
             {
@@ -125,11 +123,12 @@ namespace DockMvvmSample.ViewModels.Tools
         // MARK: Context Menu Cmmds
 
         [RelayCommand]
-        private void Rename()
+        private async Task Rename()
         {
-            // Code to rename the Graphic object goes here
-            Console.WriteLine("I am trying to rename something now");
-            DialogHost.Show(new LibrarySingleRename());
+            var dialog = new LibrarySingleRename();
+            var dialogIdentifier = (string) await DialogHost.Show(dialog);
+            dialog.DialogIdentifier = dialogIdentifier;
+            dialog.CornerRadius = new Avalonia.CornerRadius(10);
         }
 
     }    

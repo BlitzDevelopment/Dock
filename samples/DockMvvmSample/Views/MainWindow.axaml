@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
         xmlns:ids="using:Dock.Settings"
         xmlns:vm="using:DockMvvmSample.ViewModels"
         xmlns:views="using:DockMvvmSample.Views"
@@ -36,6 +37,7 @@
     <ExperimentalAcrylicBorder IsHitTestVisible="False" Material="{StaticResource AcrylicMaterial}" />
     <Panel Margin="{Binding #MainWindowView.OffScreenMargin}">
       <Panel Margin="{Binding #MainWindowView.WindowDecorationMargin}">
+        <dialogHostAvalonia:DialogHost x:Name="DialogHost" CloseOnClickAway="True" DisableOpeningAnimation="True" BlurBackground="True" BlurBackgroundRadius="5">
         <views:MainView>
           <views:MainView.Styles>
             <Style Selector="GridSplitter">
@@ -51,6 +53,7 @@
             </Style>
           </views:MainView.Styles>
         </views:MainView>
+        </dialogHostAvalonia:DialogHost>
       </Panel>
     </Panel>
   </Panel>

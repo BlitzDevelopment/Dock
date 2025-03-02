@@ -10,5 +10,7 @@ public class Tool1
         public string? Type { get; set; }
         public string? UseCount { get; set; }
         public ObservableCollection<LibraryItem> Children { get; set; } = new();
+        public CsXFL.Item? CsXFLItem { get; set; }
+
     }
 }

@@ -35,6 +35,7 @@ public class DockFactory : Factory
         var document2 = new DocumentViewModel {Id = "Document2", Title = "Document2"};
         var document3 = new DocumentViewModel {Id = "Document3", Title = "Document3", CanClose = true};
         var tool1 = new Tool1ViewModel(_mainWindowViewModel) {Id = "Tool1", Title = "Library"};
+        ViewModelRegistry.Instance.RegisterViewModel(nameof(Tool1ViewModel), tool1);
         var tool2 = new Tool2ViewModel {Id = "Tool2", Title = "Tool2"};
         var tool3 = new Tool3ViewModel {Id = "Tool3", Title = "Tool3"};
         var tool4 = new Tool4ViewModel {Id = "Tool4", Title = "Tool4"};
