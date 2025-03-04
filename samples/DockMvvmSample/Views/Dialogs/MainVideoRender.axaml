@@ -19,11 +19,11 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center" >
                     <StackPanel Orientation="Horizontal" Margin="0, 3, 0, 3" FlowDirection="RightToLeft" >
-                        <TextBox x:Name="WidthEntry" Width="100" />
+                        <NumericUpDown x:Name="WidthEntry" Width="100" FormatString="0" Minimum="1" ShowButtonSpinner="False"/>
                         <TextBlock Text="Width  " HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0, 3, 0, 3" FlowDirection="RightToLeft" >
-                        <TextBox x:Name="HeightEntry" Width="100" />
+                        <NumericUpDown x:Name="HeightEntry" Width="100" FormatString="0" Minimum="1" ShowButtonSpinner="False"/>
                         <TextBlock Text="Height  " HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </StackPanel>
                 </StackPanel>
@@ -50,14 +50,18 @@
                         <TextBlock Text="Span  " VerticalAlignment="Center" />
                         <ComboBox x:Name="SpanCombobox" Width="400" HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Margin="0, 3, 0, 3" >
-                        <TextBlock Text="Render Threads  " VerticalAlignment="Center" Margin="0,3,0,3" />
-                        <NumericUpDown x:Name="ThreadCount" Width="10" HorizontalAlignment="Right" VerticalAlignment="Center" ShowButtonSpinner="False" Value="1" FormatString="0" Minimum="1"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,3,0,3">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,9,3" >
+                        <TextBlock Text="Encoding Threads  " VerticalAlignment="Center" Margin="6" />
+                        <ComboBox x:Name="EncodingSource" Width="75" HorizontalAlignment="Right" VerticalAlignment="Center" SelectedIndex="0" >
+                            <ComboBoxItem Content="GPU" />
+                            <ComboBoxItem Content="CPU" />
+                        </ComboBox>
+                        <NumericUpDown x:Name="ThreadCount" Width="75" HorizontalAlignment="Right" VerticalAlignment="Center" ShowButtonSpinner="False" Value="1" FormatString="0" Minimum="1"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,3,0" >
+                    <StackPanel Orientation="Horizontal" Margin="9,0,0,3" >
                         <TextBlock Text="File Format  " VerticalAlignment="Center" />
-                        <ComboBox x:Name="FormatCombobox" Width="125" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        <ComboBox x:Name="FormatCombobox" SelectionChanged="FormatCombobox_SelectionChanged" Width="125" HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
