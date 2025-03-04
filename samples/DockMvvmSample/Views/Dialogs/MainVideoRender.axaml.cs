@@ -10,6 +10,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using Rendering;
 
 namespace Blitz.Views
 {
@@ -20,7 +21,6 @@ namespace Blitz.Views
         public string? DialogIdentifier { get; set; }
         private string? SelectedFormat { get; set; }
         private bool WHisLocked = false;
-        private int _threadCount;
         private double originalWidth;
         private double originalHeight; 
         List<string> formats = new List<string> { "MP4", "MOV", "PNG-SEQ", "SVG-SEQ" };
@@ -48,7 +48,6 @@ namespace Blitz.Views
 
             // Initialize thread count
             int cpuThreadCount = Environment.ProcessorCount;
-            _threadCount = cpuThreadCount;
             ThreadCount.Maximum = 2 * cpuThreadCount;
             ThreadCount.Value = cpuThreadCount / 2;
             ThreadCount.ValueChanged += ThreadCount_ValueChanged;
@@ -167,7 +166,45 @@ namespace Blitz.Views
         
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
+            HandleRendering();
             DialogHost.Close(DialogIdentifier);
+        }
+
+        private void HandleRendering()
+        {
+            string baseDirectory = AppContext.BaseDirectory;
+            string threeDirectoriesUp = Path.GetFullPath(Path.Combine(baseDirectory, @"..\..\.."));
+
+            string ffmpegPath = Path.Combine(threeDirectoriesUp, "dlls", "ffmpeg.exe");
+            string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+            string appDataFolder = Path.Combine(localAppDataPath, "Blitz");
+            if (!Directory.Exists(appDataFolder))
+            {
+                Directory.CreateDirectory(appDataFolder);
+            }
+
+            string DirectoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
+            string FileName = Path.GetFileName(OutputPath.Text!)!;
+
+            Console.WriteLine(_mainWindowViewModel.MainDocument!.Filename);
+            Console.WriteLine((int)ThreadCount.Value!);
+            Console.WriteLine(OutputPath.Text!);
+            Console.WriteLine(appDataFolder);
+            Console.WriteLine(ffmpegPath);
+            Console.WriteLine(DirectoryPath);
+            Console.WriteLine(FileName);
+
+            var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, DirectoryPath, appDataFolder, ffmpegPath, true);
+            string ffmpegArgsBeforeinput = $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate 24";
+            string ffmpegArgsAfterinput = "-c:v h264_nvenc -preset fast -b:v 10M -pix_fmt yuv420p";
+
+            if(InMemOnly.IsChecked == true) {
+                RenMan.RenderDocumentWithPipes(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+            } else {
+                var DidComplete = RenMan.RenderDocumentWithTmpFiles(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+                Console.WriteLine(DidComplete);
+            }
         }
     }
 }

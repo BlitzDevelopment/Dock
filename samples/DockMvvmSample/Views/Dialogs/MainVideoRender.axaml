@@ -39,7 +39,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Vertical" Margin="10,0,0,0" MaxWidth="300" >
                     <CheckBox Content="Render Canvas Background" x:Name="RenderCanvasBackground" IsChecked="True" />
-                    <CheckBox Content="In-Mem Only" x:Name="InMemOnly" />
+                    <CheckBox Content="In-Mem Only" x:Name="InMemOnly" IsChecked="True"/>
                     <CheckBox Content="Include Audio" x:Name="IncludeAudio" IsChecked="True" />
                 </StackPanel>
             </Grid>
