@@ -31,9 +31,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AvaloniaResource Include="Assets\**"/>
     <Reference Include="CsXFL">
       <HintPath>dlls\CsXFL.dll</HintPath>
     </Reference>
   </ItemGroup>
 
-</Project>
+</Project>  

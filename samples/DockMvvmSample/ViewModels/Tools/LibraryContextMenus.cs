@@ -8,6 +8,7 @@ using DockMvvmSample.Views;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using System.Threading.Tasks;
+using Avalonia;
 
 // MARK: Library Contxt Menus
 namespace DockMvvmSample.ViewModels.Tools
@@ -125,7 +126,6 @@ namespace DockMvvmSample.ViewModels.Tools
             var dialogIdentifier = await DialogHost.Show(dialog) as string;
             dialog.DialogIdentifier = dialogIdentifier!;
         }
-
     }    
 
     public partial class LibraryViewModel : Tool

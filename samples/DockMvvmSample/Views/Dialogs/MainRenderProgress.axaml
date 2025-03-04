@@ -1,0 +1,15 @@
+<Window x:Class="DockMvvmSample.Views.MainRenderProgress"
+        xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="313">
+  <Grid Margin="0">
+    <Border Height="3" Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
+    <StackPanel Margin="6">
+        <ProgressBar  Margin="0 10" Height="10"
+                        Minimum="0" Maximum="100" Value="92"
+                        Foreground="Red"
+                        ShowProgressText="True"/>
+    </StackPanel>
+  </Grid>
+</Window>

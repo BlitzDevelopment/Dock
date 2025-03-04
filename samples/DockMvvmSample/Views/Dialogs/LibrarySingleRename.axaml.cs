@@ -5,6 +5,7 @@ using DockMvvmSample.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
 using DockMvvmSample.ViewModels;
+using Avalonia.Input;
 using System;
 using static DockMvvmSample.Models.Tools.Library;
 

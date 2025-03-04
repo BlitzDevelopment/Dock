@@ -15,6 +15,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
 using DockMvvmSample.Views;
 using AutoMapper;
+using DialogHostAvalonia;
 
 namespace DockMvvmSample.ViewModels;
 
@@ -22,19 +23,21 @@ public partial class MainWindowViewModel : ObservableObject
 {
     private readonly IFileService _fileService;
 
-    // MARK: CsXFL Vars
+    // MARK: Top Level Stuff
     [ObservableProperty]
     public CsXFL.Document? _mainDocument;
 
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
-    public bool CanSaveDocument => MainDocument != null;
+    public bool IsDocumentLoaded => MainDocument != null;
     private ICommand _saveDocumentCommand;
     public ICommand SaveDocumentCommand => _saveDocumentCommand;
+    private ICommand _renderVideoDialogCommand;
+    public ICommand RenderVideoDialogCommand => _renderVideoDialogCommand;
 
     partial void OnMainDocumentChanged(CsXFL.Document? value)
     {
-        OnPropertyChanged(nameof(CanSaveDocument));
+        OnPropertyChanged(nameof(IsDocumentLoaded));
     }
 
     private static CsXFL.Document CloneDocument(CsXFL.Document document)
@@ -82,6 +85,13 @@ public partial class MainWindowViewModel : ObservableObject
         MainDocument!.Save();
     }
 
+    public async void RenderVideoDialog()
+    {
+        var dialog = new MainVideoRender();
+        var dialogIdentifier = await DialogHost.Show(dialog) as string;
+        dialog.DialogIdentifier = dialogIdentifier!;
+    }
+
     // MARK: Dock Base
     private readonly IFactory? _factory;
     private IRootDock? _layout;
@@ -102,6 +112,7 @@ public partial class MainWindowViewModel : ObservableObject
         // MARK: CsXFL Commands
         _openDocumentCommand = new RelayCommand(OpenDocument);
         _saveDocumentCommand = new RelayCommand(SaveDocument);
+        _renderVideoDialogCommand = new RelayCommand(RenderVideoDialog);
 
         DebugFactoryEvents(_factory);
 
@@ -118,6 +129,7 @@ public partial class MainWindowViewModel : ObservableObject
         NewLayout = new RelayCommand(ResetLayout);
     }
 
+    // MARK: Factory Debug
     private void DebugFactoryEvents(IFactory factory)
     {
         factory.ActiveDockableChanged += (_, args) =>

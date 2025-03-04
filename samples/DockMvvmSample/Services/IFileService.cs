@@ -52,4 +52,24 @@ public class FileService : IFileService
 
         return filePath;
     }
+
+    public async Task<string> ExportFileAsync(Window mainWindow, string defaultExt)
+    {
+        var storage = Window.GetTopLevel(mainWindow)!.StorageProvider;
+
+        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Media",
+            DefaultExtension = defaultExt
+        });
+
+        if (file == null)
+        {
+            return null!;
+        }
+
+        var filePath = Uri.UnescapeDataString(file.Path.AbsolutePath);
+
+        return filePath;
+    }
 }

@@ -1,0 +1,83 @@
+<Window x:Class="DockMvvmSample.Views.MainVideoRender"
+        xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="626">
+  <Grid Margin="0">
+    <Border Height="3" Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
+    <StackPanel Margin="6">
+        <TextBlock Margin="8 5" FontSize="12" FontWeight="Bold">Render Video</TextBlock>
+            <!-- W/H + Lock IcoButton + Render Checkboxes -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="250" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center" >
+                    <StackPanel Orientation="Horizontal" Margin="0, 3, 0, 3" FlowDirection="RightToLeft" >
+                        <TextBox x:Name="WidthEntry" Width="100" />
+                        <TextBlock Text="Width  " HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0, 3, 0, 3" FlowDirection="RightToLeft" >
+                        <TextBox x:Name="HeightEntry" Width="100" />
+                        <TextBlock Text="Height  " HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Center" >
+                    <Button x:Name="WHlock" Margin="3" Background="Transparent" Click="WHlock_Click" >
+                        <Button.Content>
+                            <StackPanel Orientation="Vertical">
+                            <PathIcon x:Name="LockIcon"
+                                Data="{StaticResource ico_men_lock}" />
+                            </StackPanel>
+                        </Button.Content>
+                    </Button>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Vertical" Margin="10,0,0,0" MaxWidth="300" >
+                    <CheckBox Content="Render Canvas Background" x:Name="RenderCanvasBackground" IsChecked="True" />
+                    <CheckBox Content="In-Mem Only" x:Name="InMemOnly" />
+                    <CheckBox Content="Include Audio" x:Name="IncludeAudio" IsChecked="True" />
+                </StackPanel>
+            </Grid>
+            <Separator/>
+            <!-- Format Dropdown + ThreadCount + etc -->
+            <StackPanel Orientation="Vertical">
+                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Margin="0, 3, 0, 3" >
+                        <TextBlock Text="Span  " VerticalAlignment="Center" />
+                        <ComboBox x:Name="SpanCombobox" Width="400" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="0, 3, 0, 3" >
+                        <TextBlock Text="Render Threads  " VerticalAlignment="Center" Margin="0,3,0,3" />
+                        <NumericUpDown x:Name="ThreadCount" Width="10" HorizontalAlignment="Right" VerticalAlignment="Center" ShowButtonSpinner="False" Value="1" FormatString="0" Minimum="1"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,3,0" >
+                        <TextBlock Text="File Format  " VerticalAlignment="Center" />
+                        <ComboBox x:Name="FormatCombobox" Width="125" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+            <Separator/>
+            <!-- Output Path + Render -->
+            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Margin="0, 3, 0, 3" >
+                <TextBlock Text="Output  " VerticalAlignment="Center" />
+                <TextBox x:Name="OutputPath" Width="400" HorizontalAlignment="Right" VerticalAlignment="Center" CornerRadius="10,0,0,10" />
+                <Button CornerRadius="0,10,10,0" Click="OpenSavePicker_Click">
+                    <Button.Content>
+                        <StackPanel Orientation="Vertical" >
+                        <PathIcon
+                            Data="{StaticResource ico_lib_type_folder}" />
+                        </StackPanel>
+                    </Button.Content>
+                </Button>
+            </StackPanel>
+            <Button HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click" IsDefault="True" >
+                <TextBlock HorizontalAlignment="Center" FontWeight="Bold" Text="RENDER" />
+            </Button>
+    </StackPanel>
+  </Grid>
+</Window>
