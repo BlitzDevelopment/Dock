@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using DockMvvmSample.ViewModels.Tools;
+using Blitz.ViewModels.Tools;
 
-namespace DockMvvmSample
+namespace Blitz
 {
     public class ViewModelRegistry
     {

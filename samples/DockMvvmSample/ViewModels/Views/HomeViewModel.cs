@@ -1,6 +1,6 @@
 ﻿using Dock.Model.Mvvm.Controls;
 
-namespace DockMvvmSample.ViewModels.Views;
+namespace Blitz.ViewModels.Views;
 
 public class HomeViewModel : RootDock
 {

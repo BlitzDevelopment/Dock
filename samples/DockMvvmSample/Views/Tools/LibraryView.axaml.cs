@@ -2,7 +2,7 @@
 using Avalonia.Data;
 using Avalonia.Markup.Xaml;
 
-namespace DockMvvmSample.Views.Tools;
+namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {

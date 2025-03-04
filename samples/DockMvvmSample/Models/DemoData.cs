@@ -1,5 +1,5 @@
 ﻿
-namespace DockMvvmSample.Models;
+namespace Blitz.Models;
 
 public class DemoData
 {

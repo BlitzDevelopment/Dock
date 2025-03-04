@@ -1,8 +1,8 @@
-﻿using DockMvvmSample.ViewModels.Documents;
+﻿using Blitz.ViewModels.Documents;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Mvvm.Controls;
 
-namespace DockMvvmSample.ViewModels.Docks;
+namespace Blitz.ViewModels.Docks;
 
 public class CustomDocumentDock : DocumentDock
 {

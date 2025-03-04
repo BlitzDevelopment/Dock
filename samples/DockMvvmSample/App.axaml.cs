@@ -2,12 +2,12 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using DockMvvmSample.Themes;
-using DockMvvmSample.ViewModels;
-using DockMvvmSample.Views;
+using Blitz.Themes;
+using Blitz.ViewModels;
+using Blitz.Views;
 using System;
 
-namespace DockMvvmSample;
+namespace Blitz;
 
 public class App : Application
 {

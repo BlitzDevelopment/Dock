@@ -1,7 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 
-namespace DockMvvmSample.Models.Tools;
+namespace Blitz.Models.Tools;
 
 public class Library
 {

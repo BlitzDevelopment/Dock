@@ -1,7 +1,7 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace DockMvvmSample.Views.Views;
+namespace Blitz.Views.Views;
 
 public partial class DashboardView : UserControl
 {

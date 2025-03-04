@@ -3,10 +3,10 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Dock.Avalonia;
 using Dock.Settings;
-using DockMvvmSample.ViewModels;
+using Blitz.ViewModels;
 using System;
 
-namespace DockMvvmSample.Views;
+namespace Blitz.Views;
 
 public static class ApplicationServices
 {

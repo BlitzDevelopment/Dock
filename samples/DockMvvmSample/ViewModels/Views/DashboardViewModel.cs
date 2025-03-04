@@ -1,6 +1,6 @@
 ﻿using Dock.Model.Mvvm.Core;
 
-namespace DockMvvmSample.ViewModels.Views;
+namespace Blitz.ViewModels.Views;
 
 public class DashboardViewModel : DockBase
 {

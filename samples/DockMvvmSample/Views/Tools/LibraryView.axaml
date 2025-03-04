@@ -1,12 +1,12 @@
-﻿<UserControl x:Class="DockMvvmSample.Views.Tools.LibraryView"
+﻿<UserControl x:Class="Blitz.Views.Tools.LibraryView"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:vm="using:DockMvvmSample.ViewModels.Tools" 
-             xmlns:vmr="clr-namespace:DockMvvmSample"
-             xmlns:m="clr-namespace:DockMvvmSample.Models.Tools"
+             xmlns:vm="using:Blitz.ViewModels.Tools" 
+             xmlns:vmr="clr-namespace:Blitz"
+             xmlns:m="clr-namespace:Blitz.Models.Tools"
              mc:Ignorable="d"
              d:DesignWidth="300" d:DesignHeight="400">
 

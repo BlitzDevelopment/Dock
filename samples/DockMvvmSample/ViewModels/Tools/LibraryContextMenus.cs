@@ -3,15 +3,15 @@ using Dock.Model.Mvvm.Controls;
 using Avalonia.Controls;
 using System;
 using System.Globalization;
-using static DockMvvmSample.Models.Tools.Library;
-using DockMvvmSample.Views;
+using static Blitz.Models.Tools.Library;
+using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using System.Threading.Tasks;
 using Avalonia;
 
 // MARK: Library Contxt Menus
-namespace DockMvvmSample.ViewModels.Tools
+namespace Blitz.ViewModels.Tools
 {
     public class ItemTypeToContextMenuConverter : IValueConverter
     {

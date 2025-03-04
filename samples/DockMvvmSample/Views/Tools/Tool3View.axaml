@@ -1,9 +1,9 @@
-﻿<UserControl x:Class="DockMvvmSample.Views.Tools.Tool3View"
+﻿<UserControl x:Class="Blitz.Views.Tools.Tool3View"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:vm="using:DockMvvmSample.ViewModels.Tools"
+             xmlns:vm="using:Blitz.ViewModels.Tools"
              mc:Ignorable="d"
              d:DesignWidth="300" d:DesignHeight="400"
              x:DataType="vm:Tool3ViewModel" x:CompileBindings="True">

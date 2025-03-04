@@ -1,15 +1,15 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using System.Linq;
-using DockMvvmSample.ViewModels.Tools;
+using Blitz.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
-using DockMvvmSample.ViewModels;
+using Blitz.ViewModels;
 using Avalonia.Input;
 using System;
-using static DockMvvmSample.Models.Tools.Library;
+using static Blitz.Models.Tools.Library;
 
-namespace DockMvvmSample.Views
+namespace Blitz.Views
 {
     public partial class LibrarySingleRename : UserControl
     {

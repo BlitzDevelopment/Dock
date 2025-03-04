@@ -1,7 +1,7 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace DockMvvmSample.Views.Tools;
+namespace Blitz.Views.Tools;
 
 public partial class Tool8View : UserControl
 {

@@ -1,7 +1,7 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace DockMvvmSample.Views;
+namespace Blitz.Views;
 
 public partial class ProportionalStackPanelView : UserControl
 {

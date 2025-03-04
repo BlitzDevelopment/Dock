@@ -2,14 +2,14 @@ using DialogHostAvalonia;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Avalonia.Interactivity;
-using DockMvvmSample.ViewModels;
+using Blitz.ViewModels;
 using Avalonia.Media;
 using Avalonia.Controls.ApplicationLifetimes;
 using System;
 using System.IO;
 using System.Collections.Generic;
 
-namespace DockMvvmSample.Views
+namespace Blitz.Views
 {
     public partial class MainVideoRender : UserControl
     { 

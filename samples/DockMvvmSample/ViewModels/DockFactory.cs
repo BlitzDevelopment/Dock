@@ -1,18 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
-using DockMvvmSample.Models.Documents;
-using DockMvvmSample.Models.Tools;
-using DockMvvmSample.ViewModels.Docks;
-using DockMvvmSample.ViewModels.Documents;
-using DockMvvmSample.ViewModels.Tools;
-using DockMvvmSample.ViewModels.Views;
+using Blitz.Models.Documents;
+using Blitz.Models.Tools;
+using Blitz.ViewModels.Docks;
+using Blitz.ViewModels.Documents;
+using Blitz.ViewModels.Tools;
+using Blitz.ViewModels.Views;
 using Dock.Avalonia.Controls;
 using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Model.Mvvm;
 using Dock.Model.Mvvm.Controls;
 
-namespace DockMvvmSample.ViewModels;
+namespace Blitz.ViewModels;
 
 public class DockFactory : Factory
 {
@@ -147,7 +147,7 @@ public class DockFactory : Factory
 
         if (window != null)
         {
-            window.Title = "Dock Avalonia Demo";
+            window.Title = "Blitz";
         }
         return window;
     }

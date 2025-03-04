@@ -4,7 +4,7 @@ using Avalonia.Controls.Templates;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Dock.Model.Core;
 
-namespace DockMvvmSample;
+namespace Blitz;
 
 public class ViewLocator : IDataTemplate
 {

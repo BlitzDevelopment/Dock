@@ -3,7 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
 
-namespace DockMvvmSample.Views
+namespace Blitz.Views
 {
     public partial class MainRenderProgress : UserControl
     {

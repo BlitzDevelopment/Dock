@@ -1,5 +1,5 @@
 ﻿
-namespace DockMvvmSample.Models.Documents;
+namespace Blitz.Models.Documents;
 
 public class DemoDocument
 {

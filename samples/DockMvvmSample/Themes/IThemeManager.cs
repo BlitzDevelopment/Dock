@@ -1,6 +1,6 @@
 using Avalonia;
 
-namespace DockMvvmSample.Themes;
+namespace Blitz.Themes;
 
 public interface IThemeManager
 {

@@ -1,6 +1,6 @@
 ﻿using Dock.Model.Mvvm.Controls;
 
-namespace DockMvvmSample.ViewModels.Tools;
+namespace Blitz.ViewModels.Tools;
 
 public class Tool7ViewModel : Tool
 {

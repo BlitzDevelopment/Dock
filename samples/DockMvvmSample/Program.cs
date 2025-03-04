@@ -1,7 +1,7 @@
 ﻿using System;
 using Avalonia;
 
-namespace DockMvvmSample;
+namespace Blitz;
 
 internal class Program
 {

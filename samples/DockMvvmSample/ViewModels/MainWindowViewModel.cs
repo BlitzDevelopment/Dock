@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Windows.Input;
 using System.Threading.Tasks;
-using DockMvvmSample.Models;
+using Blitz.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
@@ -13,11 +13,11 @@ using CsXFL;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform.Storage;
-using DockMvvmSample.Views;
+using Blitz.Views;
 using AutoMapper;
 using DialogHostAvalonia;
 
-namespace DockMvvmSample.ViewModels;
+namespace Blitz.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {

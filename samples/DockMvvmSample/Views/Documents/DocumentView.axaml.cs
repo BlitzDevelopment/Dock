@@ -1,7 +1,7 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 
-namespace DockMvvmSample.Views.Documents;
+namespace Blitz.Views.Documents;
 
 public partial class DocumentView : UserControl
 {

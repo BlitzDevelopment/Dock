@@ -11,9 +11,9 @@ using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
-using static DockMvvmSample.Models.Tools.Library;
+using static Blitz.Models.Tools.Library;
 
-namespace DockMvvmSample.ViewModels.Tools;
+namespace Blitz.ViewModels.Tools;
 
 // MARK: LibItem Icons
 public class ItemTypeToIconConverter : IValueConverter
