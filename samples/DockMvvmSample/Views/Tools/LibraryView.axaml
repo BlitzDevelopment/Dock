@@ -22,12 +22,11 @@
       </Grid.RowDefinitions>
 
       <!--SVG Preview-->
-        <Border Background="Transparent"
+        <Border Background="{Binding CanvasColor}"
         BorderBrush="Transparent"
         BorderThickness="0"
         CornerRadius="3"
         Padding="5" Margin="10">
-        <Rectangle Grid.Row="0" Fill="Red"/>
         </Border>
 
       <!--Resizer-->

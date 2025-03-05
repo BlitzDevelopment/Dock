@@ -187,23 +187,14 @@ namespace Blitz.Views
             string DirectoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
             string FileName = Path.GetFileName(OutputPath.Text!)!;
 
-            Console.WriteLine(_mainWindowViewModel.MainDocument!.Filename);
-            Console.WriteLine((int)ThreadCount.Value!);
-            Console.WriteLine(OutputPath.Text!);
-            Console.WriteLine(appDataFolder);
-            Console.WriteLine(ffmpegPath);
-            Console.WriteLine(DirectoryPath);
-            Console.WriteLine(FileName);
-
             var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, DirectoryPath, appDataFolder, ffmpegPath, true);
-            string ffmpegArgsBeforeinput = $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate 24";
-            string ffmpegArgsAfterinput = "-c:v h264_nvenc -preset fast -b:v 10M -pix_fmt yuv420p";
+            string ffmpegArgsBeforeinput = $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {_mainWindowViewModel.MainDocument!.FrameRate}";
+            string ffmpegArgsAfterinput = $"-c:v h264_nvenc -preset fast -b:v 10M -pix_fmt yuv420p -f {SelectedFormat} -s {WidthEntry.Text}x{HeightEntry.Text}";
 
             if(InMemOnly.IsChecked == true) {
                 RenMan.RenderDocumentWithPipes(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
             } else {
-                var DidComplete = RenMan.RenderDocumentWithTmpFiles(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
-                Console.WriteLine(DidComplete);
+                RenMan.RenderDocumentWithTmpFiles(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
             }
         }
     }

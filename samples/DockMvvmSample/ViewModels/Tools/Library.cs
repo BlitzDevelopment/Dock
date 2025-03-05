@@ -80,13 +80,19 @@ public partial class LibraryViewModel : Tool
     private ObservableCollection<Models.Tools.Library.LibraryItem> _items = new ObservableCollection<Models.Tools.Library.LibraryItem>();
     [ObservableProperty]
     private string _itemCount = "-";
+    [ObservableProperty]
+    private string _canvasColor;
 
     private void MainWindowViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainWindowViewModel.MainDocument))
         {
             Items.Clear();
-            if (_mainWindowViewModel.MainDocument != null) { BuildLibrary(_mainWindowViewModel.MainDocument);}
+            if (_mainWindowViewModel.MainDocument != null) 
+            { 
+                BuildLibrary(_mainWindowViewModel.MainDocument);
+                CanvasColor = _mainWindowViewModel.MainDocument.BackgroundColor;
+            }
             ItemCount = _mainWindowViewModel.MainDocument?.Library.Items.Count.ToString() + " Items" ?? "-";
         }
     }
