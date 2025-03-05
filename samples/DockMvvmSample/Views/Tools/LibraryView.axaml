@@ -22,12 +22,13 @@
       </Grid.RowDefinitions>
 
       <!--SVG Preview-->
-        <Border Background="{Binding CanvasColor}"
-        BorderBrush="Transparent"
-        BorderThickness="0"
-        CornerRadius="3"
-        Padding="5" Margin="10">
-        </Border>
+      <Border Background="{Binding CanvasColor}"
+      BorderBrush="Transparent"
+      BorderThickness="0"
+      CornerRadius="3"
+      Padding="5" Margin="10">
+          <Image Source="{Binding SvgImageSource}" Stretch="Uniform"/>
+      </Border>
 
       <!--Resizer-->
       <GridSplitter Grid.Row="1" Background="Black" ResizeDirection="Rows"/>

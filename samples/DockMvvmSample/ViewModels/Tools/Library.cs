@@ -12,6 +12,12 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using static Blitz.Models.Tools.Library;
+using Rendering;
+using System.IO;
+using Svg.Skia;
+using SkiaSharp;
+using System.Xml.Linq;
+using Avalonia.Media.Imaging;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -72,6 +78,7 @@ public partial class LibraryViewModel : Tool
         {
             _userLibrarySelection = value;
             OnPropertyChanged(nameof(UserLibrarySelection));
+            HandleUserLibrarySelectionChange();
         }
     }
     public HierarchicalTreeDataGridSource<LibraryItem> Source { get; }
@@ -82,6 +89,8 @@ public partial class LibraryViewModel : Tool
     private string _itemCount = "-";
     [ObservableProperty]
     private string _canvasColor;
+    [ObservableProperty]
+    private Bitmap _svgImageSource;
 
     private void MainWindowViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -94,6 +103,52 @@ public partial class LibraryViewModel : Tool
                 CanvasColor = _mainWindowViewModel.MainDocument.BackgroundColor;
             }
             ItemCount = _mainWindowViewModel.MainDocument?.Library.Items.Count.ToString() + " Items" ?? "-";
+        }
+    }
+
+    private void HandleUserLibrarySelectionChange()
+    {
+        if (UserLibrarySelection[0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
+        {
+            string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+            string appDataFolder = Path.Combine(localAppDataPath, "Blitz");
+            if (!Directory.Exists(appDataFolder))
+            {
+                Directory.CreateDirectory(appDataFolder);
+            }
+
+            SVGRenderer renderer = new SVGRenderer(_mainWindowViewModel.MainDocument!, appDataFolder, true);
+            var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
+
+            SKBitmap skBitmap = RenderSvgToSkBitmap(renderedSVG);
+            Avalonia.Media.Imaging.Bitmap avaloniaBitmap = ConvertSKBitmapToAvaloniaBitmap(skBitmap);
+
+            SvgImageSource = avaloniaBitmap;
+        }
+    }
+
+    private SKBitmap RenderSvgToSkBitmap(XDocument svgDocument)
+    {
+        using (var svg = new SKSvg())
+        {
+            using (var stream = new MemoryStream())
+            {
+                svgDocument.Save(stream);
+                stream.Position = 0;
+                svg.Load(stream);
+                return svg.Picture.ToBitmap(SKColor.Empty, 1, 1, SKColorType.Rgba8888, SKAlphaType.Premul, SKColorSpace.CreateSrgb());
+            }
+        }
+    }
+
+    private Avalonia.Media.Imaging.Bitmap ConvertSKBitmapToAvaloniaBitmap(SKBitmap bitmap)
+    {
+        using (var image = SKImage.FromBitmap(bitmap))
+        using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+        using (var stream = new MemoryStream(data.ToArray()))
+        {
+            return new Avalonia.Media.Imaging.Bitmap(stream);
         }
     }
 
