@@ -4,6 +4,7 @@
              xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:skia="clr-namespace:Avalonia.Controls;assembly=Blitz"
              xmlns:vm="using:Blitz.ViewModels.Tools" 
              xmlns:vmr="clr-namespace:Blitz"
              xmlns:m="clr-namespace:Blitz.Models.Tools"
@@ -27,7 +28,7 @@
       BorderThickness="0"
       CornerRadius="3"
       Padding="5" Margin="10">
-          <Image Source="{Binding SvgImageSource}" Stretch="Uniform"/>
+        <skia:SKXamlCanvas x:Name="LibrarySVGPreview" PaintSurface="OnCanvasPaint"/>
       </Border>
 
       <!--Resizer-->
