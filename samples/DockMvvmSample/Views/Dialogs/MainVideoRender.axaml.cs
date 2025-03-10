@@ -89,7 +89,6 @@ namespace Blitz.Views
             if (sender is NumericUpDown numericUpDown)
             {
                 numericUpDown.BorderThickness = new Thickness(3);
-
                 int cpuThreadCount = Environment.ProcessorCount;
                 int halfCpuThreadCount = cpuThreadCount / 2;
                 int value = (int)numericUpDown.Value!;
@@ -133,9 +132,7 @@ namespace Blitz.Views
         {
             var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
             var filePath = await _fileService.ExportFileAsync(mainWindow, SelectedFormat!);
-
             if (filePath == null) {return;}
-
             filePath = filePath.Replace("/", "\\");
             filePath = Regex.Replace(filePath, @"\.\w+$", $".{SelectedFormat}");
             OutputPath.Text = filePath;
@@ -153,12 +150,10 @@ namespace Blitz.Views
             if (FormatCombobox.SelectedItem != null)
             {
                 string outputFile = OutputPath.Text!;
-
                 if (!string.IsNullOrEmpty(outputFile))
                 {
                     // Use a regular expression to replace any file extension
                     outputFile = Regex.Replace(outputFile, @"\.\w+$", $".{SelectedFormat}");
-
                     OutputPath.Text = outputFile;
                 }
             }
@@ -174,27 +169,90 @@ namespace Blitz.Views
         {
             string baseDirectory = AppContext.BaseDirectory;
             string threeDirectoriesUp = Path.GetFullPath(Path.Combine(baseDirectory, @"..\..\.."));
-
             string ffmpegPath = Path.Combine(threeDirectoriesUp, "dlls", "ffmpeg.exe");
             string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string directoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
+            string fileName = Path.GetFileName(OutputPath.Text!)!;
 
+            // TODO: Extract this to a service
             string appDataFolder = Path.Combine(localAppDataPath, "Blitz");
             if (!Directory.Exists(appDataFolder))
             {
                 Directory.CreateDirectory(appDataFolder);
             }
+            // ^^^
 
-            string DirectoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
-            string FileName = Path.GetFileName(OutputPath.Text!)!;
-
-            var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, DirectoryPath, appDataFolder, ffmpegPath, true);
-            string ffmpegArgsBeforeinput = $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {_mainWindowViewModel.MainDocument!.FrameRate}";
-            string ffmpegArgsAfterinput = $"-c:v h264_nvenc -preset fast -b:v 10M -pix_fmt yuv420p -f {SelectedFormat} -s {WidthEntry.Text}x{HeightEntry.Text}";
-
-            if(InMemOnly.IsChecked == true) {
-                RenMan.RenderDocumentWithPipes(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+            // What do we do for png sequence?
+            // Canvas background is not available
+            // GPU vs CPU encoding does nothing
+            // ffmpeg only renders to MP4, color space may be wrong for rendering a transparent MOV (yuva420p)?
+            // Include audio selection
+            if (SelectedFormat != "svg") {
+                // Render Videos
+                var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
+                string ffmpegArgsBeforeinput = $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {_mainWindowViewModel.MainDocument!.FrameRate}";
+                string ffmpegArgsAfterinput = $"-c:v h264_nvenc -preset fast -b:v 10M -pix_fmt yuv420p -f {SelectedFormat} -s {WidthEntry.Text}x{HeightEntry.Text}";
+                if(InMemOnly.IsChecked == true) {
+                    RenMan.RenderDocumentWithPipes(fileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+                } else {
+                    RenMan.RenderDocumentWithTmpFiles(fileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+                }
             } else {
-                RenMan.RenderDocumentWithTmpFiles(FileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+                // Render Image Sequence
+                string ImageSequenceOutputFolder = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(fileName));
+                if (!Directory.Exists(ImageSequenceOutputFolder)) { Directory.CreateDirectory(ImageSequenceOutputFolder); }
+                var SVGRen = new SVGRenderer(_mainWindowViewModel.MainDocument!, appDataFolder, true);
+
+                int totalFrames = 0;
+                foreach (var timeline in _mainWindowViewModel.MainDocument!.Timelines)
+                {
+                    totalFrames += timeline.GetFrameCount();
+                }
+
+                int maxDigits = totalFrames.ToString().Length;
+                string selectedSpan = SpanCombobox.SelectedItem!.ToString()!;
+                if (selectedSpan == "Entire File")
+                {
+                    for (int timelineIndex = 0; timelineIndex < _mainWindowViewModel.MainDocument!.Timelines.Count; timelineIndex++)
+                    {
+                        for (int frameIndex = 0; frameIndex < _mainWindowViewModel.MainDocument.Timelines[timelineIndex].GetFrameCount(); frameIndex++)
+                        {
+                            var OutputSVG = SVGRen.Render(0, frameIndex, int.Parse(WidthEntry.Text!), int.Parse(WidthEntry.Text!));
+                            string filename = $"{Path.GetFileNameWithoutExtension(fileName)}_{frameIndex.ToString().PadLeft(maxDigits, '0')}.svg";
+                            string svgFilePath = Path.Combine(ImageSequenceOutputFolder, filename);
+                            OutputSVG.Save(svgFilePath);
+                        }
+                    }
+                }
+                else if (selectedSpan == "Specified Frame Range")
+                {
+                    throw new NotImplementedException("Specified Frame Range handling is not yet implemented.");
+                    // TODO: Revisit the axaml panel and add some logic for when Specified Frame Range is selected, enable some NumberUpDowns for the user to specify the range
+                    // This will apply to the currentTimeline, which is yet to be implemented.
+                }
+                else if (selectedSpan == "Work Range")
+                {
+                    throw new NotImplementedException("Work Range handling is not yet implemented.");
+                    // TODO: This will require a work range to be defined in our timeline panel, which does not yet exist.
+                }
+                else
+                {
+                    for (int timelineIndex = 0; timelineIndex < _mainWindowViewModel.MainDocument!.Timelines.Count; timelineIndex++)
+                    {
+                        var timeline = _mainWindowViewModel.MainDocument.Timelines[timelineIndex];
+                        if (selectedSpan == timeline.Name)
+                        {
+                            for (int frameIndex = 0; frameIndex < timeline.GetFrameCount(); frameIndex++)
+                            {
+                                var OutputSVG = SVGRen.Render(0, frameIndex, int.Parse(WidthEntry.Text!), int.Parse(WidthEntry.Text!));
+                                string filename = $"{Path.GetFileNameWithoutExtension(fileName)}_{frameIndex.ToString().PadLeft(maxDigits, '0')}.svg";
+                                string svgFilePath = Path.Combine(ImageSequenceOutputFolder, filename);
+                                OutputSVG.Save(svgFilePath);
+                            }
+                            break;
+                        }
+                    }
+                }
             }
         }
     }

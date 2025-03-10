@@ -6,13 +6,14 @@ using System.Xml.Linq;
 using Blitz.ViewModels;
 using Blitz.ViewModels.Tools;
 using System.IO;
+using System;
 
 namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
     private LibraryViewModel _libraryViewModel;
-
+    
     public LibraryView()
     {
         InitializeComponent();
@@ -30,15 +31,16 @@ public partial class LibraryView : UserControl
             {
                 var svg = new SKSvg();
                 svg.Load(stream);
+                
+                // Get bounding rectangle for SVG image
+                var boundingBox = svg.Picture.CullRect;
 
-                var bounds = svg.Picture.CullRect;
-                var scaleX = e.Info.Width / bounds.Width;
-                var scaleY = e.Info.Height / bounds.Height;
-                var scale = scaleX < scaleY ? scaleX : scaleY;
+                // Translate and scale drawing canvas to fit SVG image
+                canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
+                canvas.Scale(0.9f * Math.Min(canvas.LocalClipBounds.Width / boundingBox.Width, canvas.LocalClipBounds.Height / boundingBox.Height));
+                canvas.Translate(-boundingBox.MidX, -boundingBox.MidY);
 
-                canvas.Scale(scale);
-                canvas.Translate((e.Info.Width - bounds.Width * scale) / 2, (e.Info.Height - bounds.Height * scale) / 2);
-
+                // Now finally draw the SVG image
                 canvas.DrawPicture(svg.Picture);
             }
         }

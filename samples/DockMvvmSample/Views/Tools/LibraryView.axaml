@@ -27,8 +27,8 @@
       BorderBrush="Transparent"
       BorderThickness="0"
       CornerRadius="3"
-      Padding="5" Margin="10">
-        <skia:SKXamlCanvas x:Name="LibrarySVGPreview" PaintSurface="OnCanvasPaint"/>
+      Margin="10">
+        <skia:SKXamlCanvas x:Name="LibrarySVGPreview" PaintSurface="OnCanvasPaint" />
       </Border>
 
       <!--Resizer-->

@@ -1,5 +1,6 @@
 ﻿using System;
 using Avalonia;
+using Microsoft.Extensions.Options;
 
 namespace Blitz;
 
@@ -13,6 +14,8 @@ internal class Program
 
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
+            .UsePlatformDetect()
+            .UseSkia()
             .UsePlatformDetect()
             .LogToTrace();
 }

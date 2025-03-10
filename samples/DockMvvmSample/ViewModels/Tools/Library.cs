@@ -18,6 +18,7 @@ using Svg.Skia;
 using SkiaSharp;
 using System.Xml.Linq;
 using Avalonia.Media.Imaging;
+using Avalonia.Media.TextFormatting.Unicode;
 
 namespace Blitz.ViewModels.Tools;
 

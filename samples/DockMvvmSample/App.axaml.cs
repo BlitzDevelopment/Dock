@@ -18,6 +18,8 @@ public class App : Application
         ThemeManager = new FluentThemeManager();
         ThemeManager.Initialize(this);
 
+
+
         AvaloniaXamlLoader.Load(this);
     }
 
