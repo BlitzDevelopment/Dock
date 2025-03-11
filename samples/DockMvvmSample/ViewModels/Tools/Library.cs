@@ -14,6 +14,7 @@ using System.Globalization;
 using Rendering;
 using System.Xml.Linq;
 using static Blitz.Models.Tools.Library;
+using System.IO;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -82,6 +83,10 @@ public partial class LibraryViewModel : Tool
     public FlatTreeDataGridSource<LibraryItem> FlatSource { get; set; }
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _items = new ObservableCollection<LibraryItem>();
+        [ObservableProperty]
+    private ObservableCollection<LibraryItem> _flatItems = new ObservableCollection<LibraryItem>();
+        [ObservableProperty]
+    private ObservableCollection<LibraryItem> _hierarchicalItems = new ObservableCollection<LibraryItem>();
     [ObservableProperty]
     private string _itemCount = "-";
     [ObservableProperty]
@@ -94,7 +99,23 @@ public partial class LibraryViewModel : Tool
         if (e.PropertyName == nameof(MainWindowViewModel.MainDocument))
         {
             if (_mainWindowViewModel.MainDocument != null) 
-            { 
+            {
+                Items.Clear();
+                FlatItems.Clear();
+                HierarchicalItems.Clear();
+
+                foreach (var item in _mainWindowViewModel.MainDocument.Library.Items)
+                {
+                    var libraryItem = new LibraryItem
+                    {
+                        Name = item.Value.Name,
+                        UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
+                        Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
+                        CsXFLItem = item.Value
+                    };
+                    Items.Add(libraryItem);
+                }
+
                 BuildFlatLibrary(_mainWindowViewModel.MainDocument);
                 BuildHierarchicalLibrary(_mainWindowViewModel.MainDocument);
                 CanvasColor = _mainWindowViewModel.MainDocument.BackgroundColor;
@@ -116,44 +137,43 @@ public partial class LibraryViewModel : Tool
     }
 
     public void BuildFlatLibrary(CsXFL.Document doc) {
-        Items.Clear();
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
 
-        // Pass 1: Create items
-        foreach (var item in doc.Library.Items)
+        // Pass 1: Transfer items
+        foreach (var item in Items)
         {
             var libraryItem = new LibraryItem
             {
-                Name = item.Value.Name,
-                UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
-                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
-                CsXFLItem = item.Value
+                Name = Path.GetFileName(item.Name),
+                UseCount = item.Type == "folder" ? "" : item.UseCount!.ToString(),
+                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Type!.ToLower()),
+                CsXFLItem = item.CsXFLItem
             };
             itemsByName[libraryItem.Name] = libraryItem;
         }
 
-        // Pass 2: Add non-folder items directly to the root
+        // Pass 2: Add items
         foreach (var item in itemsByName.Values)
         {
-            Items.Add(item);
+            if (item.Type == "Folder") { continue; }
+            FlatItems.Add(item);
         }
     }
 
     public void BuildHierarchicalLibrary(CsXFL.Document doc) {
-        Items.Clear();
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
 
-        // Pass 1: Create items
-        foreach (var item in doc.Library.Items)
+        // Pass 1: Transfer items
+        foreach (var item in Items)
         {
             var libraryItem = new LibraryItem
             {
-                Name = item.Value.Name,
-                UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
-                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
-                CsXFLItem = item.Value
+                Name = item.Name,
+                UseCount = item.Type == "folder" ? "" : item.UseCount!.ToString(),
+                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Type!.ToLower()),
+                CsXFLItem = item.CsXFLItem
             };
             itemsByName[libraryItem.Name] = libraryItem;
         }
@@ -174,7 +194,7 @@ public partial class LibraryViewModel : Tool
                 parentItem.Children.Add(item);
             }
             // Item doesn't belong to a folder, add it to the root
-            else { Items.Add(item); }
+            else { HierarchicalItems.Add(item); }
         }
 
         // Pass 3: Add folders to the root
@@ -192,9 +212,9 @@ public partial class LibraryViewModel : Tool
                     parentItem.Children.Add(item);
                 }
                 else
-                { Items.Add(item); }
+                { HierarchicalItems.Add(item); }
             }
-            else if (item.Type == "folder") { Items.Add(item); }
+            else if (item.Type == "folder") { HierarchicalItems.Add(item); }
         }
 
         // Update the Name property of each item to remove the path
@@ -211,10 +231,10 @@ public partial class LibraryViewModel : Tool
         _mainWindowViewModel.PropertyChanged += MainWindowViewModelPropertyChanged;
         var doc = mainWindowViewModel.MainDocument;
 
-        if (_mainWindowViewModel.MainDocument != null) { BuildHierarchicalLibrary(_mainWindowViewModel.MainDocument);}
+        //if (_mainWindowViewModel.MainDocument != null) { BuildHierarchicalLibrary(_mainWindowViewModel.MainDocument);}
 
         // Build HierarchicalTreeDataGridSource
-        HierarchicalSource = new HierarchicalTreeDataGridSource<LibraryItem>(_items)
+        HierarchicalSource = new HierarchicalTreeDataGridSource<LibraryItem>(HierarchicalItems)
         {
             Columns =
             {
@@ -234,7 +254,7 @@ public partial class LibraryViewModel : Tool
         };
 
         // Build FlatTreeDataGridSource
-        FlatSource = new FlatTreeDataGridSource<LibraryItem>(_items)
+        FlatSource = new FlatTreeDataGridSource<LibraryItem>(FlatItems)
         {
             Columns =
             {

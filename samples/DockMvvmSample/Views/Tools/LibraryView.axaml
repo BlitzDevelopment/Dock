@@ -47,7 +47,7 @@
       </Grid>
 
       <!--Library-->
-      <TreeDataGrid x:Name="HierarchalTreeView" Grid.Row="3" Source="{Binding HierarchalSource}">
+      <TreeDataGrid x:Name="HierarchalTreeView" Grid.Row="3" Source="{Binding HierarchicalSource}">
         <TreeDataGrid.Resources>
             <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
@@ -74,7 +74,7 @@
         </TreeDataGrid.Styles>
       </TreeDataGrid>
 
-      <TreeDataGrid x:Name="FlatTreeView" Grid.Row="3" Source="{Binding FlatSource}">
+      <TreeDataGrid x:Name="FlatTreeView" Grid.Row="3" Source="{Binding FlatSource}" IsVisible="false">
         <TreeDataGrid.Resources>
             <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>

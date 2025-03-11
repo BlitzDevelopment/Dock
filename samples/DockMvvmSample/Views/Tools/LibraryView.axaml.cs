@@ -34,14 +34,12 @@ public partial class LibraryView : UserControl
         if (textBox != null) { searchText = textBox.Text!; }
         if (string.IsNullOrEmpty(searchText))
         {
-            Console.WriteLine("Hierarchal Source");
             UseFlatSource = false;
             HierarchalTreeView.IsVisible = true;
             FlatTreeView.IsVisible = false;
         }
         else if (UseFlatSource == false)
         {
-            Console.WriteLine("Flat Source");
             UseFlatSource = true;
             HierarchalTreeView.IsVisible = false;
             FlatTreeView.IsVisible = true;
