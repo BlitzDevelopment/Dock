@@ -12,7 +12,7 @@ namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
-    private LibraryViewModel _libraryViewModel;
+    private LibraryViewModel _libraryViewModel { set; get; }
     private MainWindowViewModel _mainWindowViewModel;
     private bool UseFlatSource = false;
     
@@ -36,13 +36,19 @@ public partial class LibraryView : UserControl
         {
             UseFlatSource = false;
             HierarchalTreeView.IsVisible = true;
+            HierarchalTreeView.RowSelection!.Clear();
+            _libraryViewModel.UserLibrarySelection = null;
             FlatTreeView.IsVisible = false;
+            FlatTreeView.RowSelection!.Clear();
         }
         else if (UseFlatSource == false)
         {
             UseFlatSource = true;
             HierarchalTreeView.IsVisible = false;
+            HierarchalTreeView.RowSelection!.Clear();
+            _libraryViewModel.UserLibrarySelection = null;
             FlatTreeView.IsVisible = true;
+            FlatTreeView.RowSelection!.Clear();
         }
     }
 

@@ -72,7 +72,7 @@ public partial class LibraryViewModel : Tool
     public CsXFL.Item[]? UserLibrarySelection
     {
         get => _userLibrarySelection;
-        private set
+        set
         {
             _userLibrarySelection = value;
             OnPropertyChanged(nameof(UserLibrarySelection));
@@ -126,6 +126,7 @@ public partial class LibraryViewModel : Tool
 
     private void HandleUserLibrarySelectionChange()
     {
+        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0) { return; }
         if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
         {
             string appDataFolder = _blitzAppData.GetTmpFolder();
@@ -227,6 +228,7 @@ public partial class LibraryViewModel : Tool
     // MARK: Library Public VM
     public LibraryViewModel(MainWindowViewModel mainWindowViewModel)
     {
+        _blitzAppData = new BlitzAppData();
         _mainWindowViewModel = mainWindowViewModel;
         _mainWindowViewModel.PropertyChanged += MainWindowViewModelPropertyChanged;
         var doc = mainWindowViewModel.MainDocument;
