@@ -17,17 +17,20 @@ namespace Blitz.Views
     public partial class MainVideoRender : UserControl
     { 
         private FileService _fileService;
+        private BlitzAppData _blitzAppData;
         private MainWindowViewModel _mainWindowViewModel;
         public string? DialogIdentifier { get; set; }
         private string? SelectedFormat { get; set; }
+        private string? Encoding { get; set; }
         private bool WHisLocked = false;
         private double originalWidth;
-        private double originalHeight; 
+        private double originalHeight;
         List<string> formats = new List<string> { "MP4", "MOV", "PNG-SEQ", "SVG-SEQ" };
         List<string> spans = new List<string> { "Entire File", "Work Range", "Specified Frame Range"};
 
         public MainVideoRender()
         {
+            _blitzAppData = new BlitzAppData();
             _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
             AvaloniaXamlLoader.Load(this);
             FormatCombobox.ItemsSource = formats;
@@ -45,6 +48,9 @@ namespace Blitz.Views
             foreach (var scene in scenes) { spans.Add(scene.Name); }
             SpanCombobox.ItemsSource = spans;
             SpanCombobox.SelectedIndex = 0;
+
+            Encoding = (EncodingSource.SelectedItem as ComboBoxItem)?.Content!.ToString();
+            EncodingSource.SelectionChanged += EncodingSource_SelectionChanged!;
 
             // Initialize thread count
             int cpuThreadCount = Environment.ProcessorCount;
@@ -82,6 +88,11 @@ namespace Blitz.Views
                     WidthEntry.Value = width;
                 }
             }
+        }
+
+        private void EncodingSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            Encoding = (EncodingSource.SelectedItem as ComboBoxItem)?.Content!.ToString();        
         }
 
         private void ThreadCount_ValueChanged(object? sender, NumericUpDownValueChangedEventArgs e)
@@ -170,46 +181,53 @@ namespace Blitz.Views
             string baseDirectory = AppContext.BaseDirectory;
             string threeDirectoriesUp = Path.GetFullPath(Path.Combine(baseDirectory, @"..\..\.."));
             string ffmpegPath = Path.Combine(threeDirectoriesUp, "dlls", "ffmpeg.exe");
-            string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string directoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
             string fileName = Path.GetFileName(OutputPath.Text!)!;
+            string appDataFolder = _blitzAppData.GetTmpFolder();
 
-            // TODO: Extract this to a service
-            string appDataFolder = Path.Combine(localAppDataPath, "Blitz");
-            if (!Directory.Exists(appDataFolder))
-            {
-                Directory.CreateDirectory(appDataFolder);
-            }
-            // ^^^
+            int totalFrames = 0;
+            foreach (var timeline in _mainWindowViewModel.MainDocument!.Timelines) { totalFrames += timeline.GetFrameCount(); }
+            int maxDigits = totalFrames.ToString().Length;
+            string ImageSequenceOutputFolder = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(fileName));
 
-            // What do we do for png sequence?
             // Canvas background is not available
-            // GPU vs CPU encoding does nothing
-            // ffmpeg only renders to MP4, color space may be wrong for rendering a transparent MOV (yuva420p)?
-            // Include audio selection
-            if (SelectedFormat != "svg") {
+            // PNG span boilerplate
+            if (SelectedFormat != "svg" && SelectedFormat != "png") {
                 // Render Videos
                 var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
-                string ffmpegArgsBeforeinput = $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {_mainWindowViewModel.MainDocument!.FrameRate}";
-                string ffmpegArgsAfterinput = $"-c:v h264_nvenc -preset fast -b:v 10M -pix_fmt yuv420p -f {SelectedFormat} -s {WidthEntry.Text}x{HeightEntry.Text}";
+                bool isMov = SelectedFormat == "mov";
+                string ffmpegEncoding = isMov ? "png" : (Encoding == "GPU" ? "h264_nvec" : "h264");
+                string ffmpegPixelFormat = isMov ? "rgba" : "yuv420p";
+                string ffmpegArgsBeforeinput = Encoding == "CPU" 
+                    ? $"-y -framerate {_mainWindowViewModel.MainDocument!.FrameRate}" 
+                    : $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {_mainWindowViewModel.MainDocument!.FrameRate}";
+                string ffmpegArgsAfterinput = $"-c:v {(ffmpegEncoding)} -preset fast -b:v 10M -pix_fmt {(ffmpegPixelFormat)} -f {SelectedFormat} -s {WidthEntry.Text}x{HeightEntry.Text}";
                 if(InMemOnly.IsChecked == true) {
                     RenMan.RenderDocumentWithPipes(fileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
                 } else {
                     RenMan.RenderDocumentWithTmpFiles(fileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
                 }
+            } else if (SelectedFormat == "png") {
+                // Render PNG Sequence
+                if (!Directory.Exists(ImageSequenceOutputFolder)) { Directory.CreateDirectory(ImageSequenceOutputFolder); }
+                var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
+                string outputPattern = Path.Combine(ImageSequenceOutputFolder, Path.GetFileNameWithoutExtension(fileName) + "_%0" + maxDigits + "d.png");
+
+                string ffmpegEncoding = Encoding == "GPU" ? "h264_nvec" : "h264";
+                string ffmpegArgsBeforeinput = Encoding == "CPU"
+                    ? $"-y" 
+                    : $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda";
+                string ffmpegArgsAfterinput = $"-c:v png -preset fast -vf \"scale={WidthEntry.Text}:{HeightEntry.Text}\" -start_number 0 {outputPattern}";
+                if(InMemOnly.IsChecked == true) {
+                    RenMan.RenderDocumentWithPipes(outputPattern, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+                } else {
+                    RenMan.RenderDocumentWithTmpFiles(outputPattern, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
+                }
             } else {
-                // Render Image Sequence
-                string ImageSequenceOutputFolder = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(fileName));
+                // Render SVG Sequence
                 if (!Directory.Exists(ImageSequenceOutputFolder)) { Directory.CreateDirectory(ImageSequenceOutputFolder); }
                 var SVGRen = new SVGRenderer(_mainWindowViewModel.MainDocument!, appDataFolder, true);
 
-                int totalFrames = 0;
-                foreach (var timeline in _mainWindowViewModel.MainDocument!.Timelines)
-                {
-                    totalFrames += timeline.GetFrameCount();
-                }
-
-                int maxDigits = totalFrames.ToString().Length;
                 string selectedSpan = SpanCombobox.SelectedItem!.ToString()!;
                 if (selectedSpan == "Entire File")
                 {

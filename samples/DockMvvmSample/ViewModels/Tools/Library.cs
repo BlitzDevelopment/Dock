@@ -70,6 +70,7 @@ public class ItemTypeToIconConverter : IValueConverter
 // MARK: Library Partial VM
 public partial class LibraryViewModel : Tool
 {
+    private BlitzAppData _blitzAppData;
     private MainWindowViewModel _mainWindowViewModel;
     private CsXFL.Item[]? _userLibrarySelection;
     public CsXFL.Item[]? UserLibrarySelection
@@ -111,18 +112,11 @@ public partial class LibraryViewModel : Tool
     {
         if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
         {
-            string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-
-            string appDataFolder = Path.Combine(localAppDataPath, "Blitz");
-            if (!Directory.Exists(appDataFolder))
-            {
-                Directory.CreateDirectory(appDataFolder);
-            }
-
+            string appDataFolder = _blitzAppData.GetTmpFolder();
             SVGRenderer renderer = new SVGRenderer(_mainWindowViewModel.MainDocument!, appDataFolder, true);
-            var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
 
-            SvgData = renderedSVG;
+            //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
+            //SvgData = renderedSVG;
         }
     }
 
