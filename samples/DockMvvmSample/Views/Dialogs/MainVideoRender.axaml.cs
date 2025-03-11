@@ -16,6 +16,7 @@ namespace Blitz.Views
 {
     public partial class MainVideoRender : UserControl
     { 
+        public event Action<int>? ProgressUpdated;
         private FileService _fileService;
         private BlitzAppData _blitzAppData;
         private MainWindowViewModel _mainWindowViewModel;
@@ -172,8 +173,10 @@ namespace Blitz.Views
         
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
-            HandleRendering();
             DialogHost.Close(DialogIdentifier);
+            var dialog = new MainRenderProgress();
+            var dialogIdentifier = DialogHost.Show(dialog);
+            HandleRendering();
         }
 
         private void HandleRendering()
@@ -195,6 +198,7 @@ namespace Blitz.Views
             if (SelectedFormat != "svg" && SelectedFormat != "png") {
                 // Render Videos
                 var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
+                // RenMan.ProgressUpdated += (progress) => { ProgressUpdated?.Invoke(progress); };
                 bool isMov = SelectedFormat == "mov";
                 string ffmpegEncoding = isMov ? "png" : (Encoding == "GPU" ? "h264_nvec" : "h264");
                 string ffmpegPixelFormat = isMov ? "rgba" : "yuv420p";

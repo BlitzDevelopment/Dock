@@ -47,7 +47,7 @@ namespace Blitz.Views
             _mainWindowViewModel.MainDocument!.Library.RenameItem(ItemToRename.Name, newPath);
             
             // Rename source
-            var libraryItem = _viewModel.Source.RowSelection!.SelectedItems.OfType<LibraryItem>().FirstOrDefault();
+            var libraryItem = _viewModel.HierarchicalSource.RowSelection!.SelectedItems.OfType<LibraryItem>().FirstOrDefault();
             if (libraryItem != null)
             {
                 int lastIndex = newPath.LastIndexOf('/');

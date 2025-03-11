@@ -43,11 +43,38 @@
         </Grid.ColumnDefinitions>
         <TextBlock Text="{Binding ItemCount}" VerticalAlignment="Center" HorizontalAlignment="Left" Grid.Column="0" Margin="10,5,0,5"/>
         <Border Grid.Column="1" Background="Transparent" />
-        <AutoCompleteBox MinWidth="100" Width="250" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,5,10,5"/>
+        <TextBox x:Name="LibrarySearch" Watermark="Search" MinWidth="100" Width="250" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,5,10,5"/>
       </Grid>
 
       <!--Library-->
-      <TreeDataGrid Grid.Row="3" Source="{Binding Source}">
+      <TreeDataGrid x:Name="HierarchalTreeView" Grid.Row="3" Source="{Binding HierarchalSource}">
+        <TreeDataGrid.Resources>
+            <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
+            <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
+              <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
+                <StackPanel Orientation="Horizontal">
+                  <Button Background = "Transparent">
+                    <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
+                  </Button>
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </DataTemplate>
+        </TreeDataGrid.Resources>
+        <TreeDataGrid.Styles>
+          <Style Selector="TreeDataGrid TreeDataGridRow:nth-child(2n)">
+            <Setter Property="Background"  Value="#20808080"/>
+          </Style>
+          <Style Selector="TreeDataGridRow">
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                  <Binding Converter="{StaticResource ItemTypeToContextMenuConverter}" ConverterParameter="{Binding ContextMenuFactoryInstance, RelativeSource={RelativeSource FindAncestor, AncestorType=vm:LibraryViewModel}}"/>
+                </Setter.Value>
+            </Setter>
+          </Style>
+        </TreeDataGrid.Styles>
+      </TreeDataGrid>
+
+      <TreeDataGrid x:Name="FlatTreeView" Grid.Row="3" Source="{Binding FlatSource}">
         <TreeDataGrid.Resources>
             <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>

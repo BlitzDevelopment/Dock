@@ -14,6 +14,12 @@ namespace Blitz.Views
             AvaloniaXamlLoader.Load(this);
         }
 
+        public void UpdateProgress(int progress)
+        {
+            var progressBar = this.FindControl<ProgressBar>("ProgressBar");
+            progressBar!.Value = progress;
+        }
+
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
             DialogHost.Close(DialogIdentifier);

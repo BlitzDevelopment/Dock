@@ -13,12 +13,39 @@ namespace Blitz.Views.Tools;
 public partial class LibraryView : UserControl
 {
     private LibraryViewModel _libraryViewModel;
+    private MainWindowViewModel _mainWindowViewModel;
+    private bool UseFlatSource = false;
     
     public LibraryView()
     {
         InitializeComponent();
         var _viewModelRegistry = ViewModelRegistry.Instance;
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+        _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
+        LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
+    }
+
+    public void OnLibrarySearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_mainWindowViewModel.MainDocument == null) { return; }
+
+        string searchText = "";
+        var textBox = sender as TextBox;
+        if (textBox != null) { searchText = textBox.Text!; }
+        if (string.IsNullOrEmpty(searchText))
+        {
+            Console.WriteLine("Hierarchal Source");
+            UseFlatSource = false;
+            HierarchalTreeView.IsVisible = true;
+            FlatTreeView.IsVisible = false;
+        }
+        else if (UseFlatSource == false)
+        {
+            Console.WriteLine("Flat Source");
+            UseFlatSource = true;
+            HierarchalTreeView.IsVisible = false;
+            FlatTreeView.IsVisible = true;
+        }
     }
 
     private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
@@ -33,7 +60,7 @@ public partial class LibraryView : UserControl
                 svg.Load(stream);
                 
                 // Get bounding rectangle for SVG image
-                var boundingBox = svg.Picture.CullRect;
+                var boundingBox = svg.Picture!.CullRect;
 
                 // Translate and scale drawing canvas to fit SVG image
                 canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
