@@ -1,39 +1,46 @@
 ﻿using System.Diagnostics;
 using System.Windows.Input;
-using System.Threading.Tasks;
 using Blitz.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
 using Dock.Model.Core;
-using System;
-using System.Collections.Generic;
 using System.IO;
 using CsXFL;
-using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Platform.Storage;
 using Blitz.Views;
 using AutoMapper;
 using DialogHostAvalonia;
+using System.Collections.ObjectModel;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia.Controls;
+using System;
 
 namespace Blitz.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private readonly BlitzAppData _blitzAppData = new();
+    public MenuItem OpenRecentMenuItem { get; set; }
+    string recentFilesPath;
+    public ObservableCollection<string> RecentFiles { get; set; } = new ObservableCollection<string>();
+    public ICommand OpenRecentCommand { get; }
     private readonly IFileService _fileService;
 
     // MARK: Top Level Stuff
     [ObservableProperty]
     public CsXFL.Document? _mainDocument;
-
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
-    public bool IsDocumentLoaded => MainDocument != null;
+    public event Action<CsXFL.Document>? DocumentOpened;
     private ICommand _saveDocumentCommand;
     public ICommand SaveDocumentCommand => _saveDocumentCommand;
     private ICommand _renderVideoDialogCommand;
     public ICommand RenderVideoDialogCommand => _renderVideoDialogCommand;
+
+    public bool IsDocumentLoaded => MainDocument != null;
+
 
     partial void OnMainDocumentChanged(CsXFL.Document? value)
     {
@@ -47,6 +54,7 @@ public partial class MainWindowViewModel : ObservableObject
         return mapper.Map<CsXFL.Document>(document);
     }
 
+    // MARK: Mementos
     public class CsXFLDocumentMemento : IMemento
     {
         private CsXFL.Document _document;
@@ -66,6 +74,7 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    // MARK: CsXFL Commands
     private async void OpenDocument()
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
@@ -76,10 +85,13 @@ public partial class MainWindowViewModel : ObservableObject
             return;
         }
         MainDocument = await An.OpenDocumentAsync(filePath);
+        AddToRecentFiles(filePath);
+
         var memento = new CsXFLDocumentMemento(this, MainDocument);
         ApplicationServices.MementoCaretaker.AddMemento(memento, $"You will never see this.");
-    }
 
+        DocumentOpened?.Invoke(MainDocument);
+    }
     private void SaveDocument()
     {
         MainDocument!.Save();
@@ -92,27 +104,65 @@ public partial class MainWindowViewModel : ObservableObject
         dialog.DialogIdentifier = dialogIdentifier!;
     }
 
-    // MARK: Dock Base
-    private readonly IFactory? _factory;
-    private IRootDock? _layout;
-
-    public IRootDock? Layout
+    private async void OpenRecent(string filePath)
     {
-        get => _layout;
-        set => SetProperty(ref _layout, value);
     }
 
-    public ICommand NewLayout { get; }
+    public void LoadRecentFiles()
+    {
+        RecentFiles.Clear();
+        OpenRecentMenuItem.Items.Clear();
+
+        if (File.Exists(recentFilesPath))
+        {
+            var recentFiles = File.ReadAllLines(recentFilesPath);
+            foreach (var file in recentFiles)
+            {
+                RecentFiles.Add(file);
+                var menuItem = new MenuItem { Header = Path.GetFileName(file) };
+                OpenRecentMenuItem.Items.Add(menuItem);
+            }
+        }
+    }
+
+    private void AddToRecentFiles(string filePath)
+    {
+        List<string> recentFiles = new List<string>();
+
+        if (File.Exists(recentFilesPath))
+        {
+            recentFiles = File.ReadAllLines(recentFilesPath).ToList();
+        }
+
+        if (recentFiles.Contains(filePath))
+        {
+            recentFiles.Remove(filePath);
+        }
+
+        recentFiles.Insert(0, filePath);
+
+        if (recentFiles.Count > 6)
+        {
+            recentFiles = recentFiles.Take(6).ToList();
+        }
+
+        File.WriteAllLines(recentFilesPath, recentFiles);
+
+        // Update RecentFiles collection and OpenRecentMenuItem
+        LoadRecentFiles();
+    }
 
     public MainWindowViewModel()
     {
         _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
         _factory = new DockFactory(this, new DemoData());
 
-        // MARK: CsXFL Commands
         _openDocumentCommand = new RelayCommand(OpenDocument);
         _saveDocumentCommand = new RelayCommand(SaveDocument);
         _renderVideoDialogCommand = new RelayCommand(RenderVideoDialog);
+
+        recentFilesPath = _blitzAppData.GetRecentFilesPath();
+        OpenRecentCommand = new RelayCommand<string>(OpenRecent);
 
         DebugFactoryEvents(_factory);
 
@@ -129,7 +179,18 @@ public partial class MainWindowViewModel : ObservableObject
         NewLayout = new RelayCommand(ResetLayout);
     }
 
-    // MARK: Factory Debug
+    // MARK: Dock Base
+    private readonly IFactory? _factory;
+    private IRootDock? _layout;
+
+    public IRootDock? Layout
+    {
+        get => _layout;
+        set => SetProperty(ref _layout, value);
+    }
+
+    public ICommand NewLayout { get; }
+
     private void DebugFactoryEvents(IFactory factory)
     {
         factory.ActiveDockableChanged += (_, args) =>

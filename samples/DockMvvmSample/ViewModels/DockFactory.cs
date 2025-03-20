@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using Blitz.Models.Documents;
 using Blitz.Models.Tools;
 using Blitz.ViewModels.Docks;
@@ -28,13 +29,10 @@ public class DockFactory : Factory
         ViewModelRegistry.Instance.RegisterViewModel(nameof(MainWindowViewModel), _mainWindowViewModel);
     }
 
-    public override IDocumentDock CreateDocumentDock() => new CustomDocumentDock();
+    public override IDocumentDock CreateDocumentDock() => new CustomDocumentDock(_mainWindowViewModel);
 
     public override IRootDock CreateLayout()
     {
-        var document1 = new DocumentViewModel {Id = "Document1", Title = "Document1"};
-        var document2 = new DocumentViewModel {Id = "Document2", Title = "Document2"};
-        var document3 = new DocumentViewModel {Id = "Document3", Title = "Document3", CanClose = true};
         var Library = new LibraryViewModel(_mainWindowViewModel) {Id = "Library", Title = "Library"};
         ViewModelRegistry.Instance.RegisterViewModel(nameof(LibraryViewModel), Library);
         var tool2 = new Tool2ViewModel {Id = "Tool2", Title = "Tool2"};
@@ -93,11 +91,9 @@ public class DockFactory : Factory
             )
         };
 
-        var documentDock = new CustomDocumentDock
+        var documentDock = new CustomDocumentDock(_mainWindowViewModel)
         {
             IsCollapsable = false,
-            ActiveDockable = document1,
-            VisibleDockables = CreateList<IDockable>(document1, document2, document3),
             CanCreateDocument = true
         };
 

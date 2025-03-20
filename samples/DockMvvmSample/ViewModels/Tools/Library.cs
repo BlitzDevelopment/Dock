@@ -79,8 +79,8 @@ public partial class LibraryViewModel : Tool
             HandleUserLibrarySelectionChange();
         }
     }
-    public HierarchicalTreeDataGridSource<LibraryItem> HierarchicalSource { get; set; }
-    public FlatTreeDataGridSource<LibraryItem> FlatSource { get; set; }
+    public HierarchicalTreeDataGridSource<LibraryItem>? HierarchicalSource { get; set; }
+    public FlatTreeDataGridSource<LibraryItem>? FlatSource { get; set; }
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _items = new ObservableCollection<LibraryItem>();
         [ObservableProperty]
@@ -116,8 +116,8 @@ public partial class LibraryViewModel : Tool
                     Items.Add(libraryItem);
                 }
 
-                BuildFlatLibrary(_mainWindowViewModel.MainDocument);
-                BuildHierarchicalLibrary(_mainWindowViewModel.MainDocument);
+                InvalidateFlatLibrary(_mainWindowViewModel.MainDocument);
+                InvalidateHierarchicalLibrary(_mainWindowViewModel.MainDocument);
                 CanvasColor = _mainWindowViewModel.MainDocument.BackgroundColor;
             }
             ItemCount = _mainWindowViewModel.MainDocument?.Library.Items.Count.ToString() + " Items" ?? "-";
@@ -137,7 +137,27 @@ public partial class LibraryViewModel : Tool
         }
     }
 
-    public void BuildFlatLibrary(CsXFL.Document doc) {
+    public void UpdateFlatSource()
+    {
+        FlatSource = new FlatTreeDataGridSource<LibraryItem>(FlatItems)
+        {
+            Columns =
+            {
+                new TextColumn<LibraryItem, string>("Name", x => Path.GetFileName(x.Name)),
+                new TextColumn<LibraryItem, string>("Type", x => x.Type),
+                new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
+            },
+        };
+        FlatSource.RowSelection!.SingleSelect = false;
+
+        FlatSource.RowSelection.SelectionChanged += (sender, e) =>
+        {
+            var selectedItems = FlatSource.RowSelection.SelectedItems.OfType<LibraryItem>();
+            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
+        };
+    }
+
+    public void InvalidateFlatLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
 
@@ -146,7 +166,7 @@ public partial class LibraryViewModel : Tool
         {
             var libraryItem = new LibraryItem
             {
-                Name = Path.GetFileName(item.Name),
+                Name = item.Name,
                 UseCount = item.Type == "folder" ? "" : item.UseCount!.ToString(),
                 Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Type!.ToLower()),
                 CsXFLItem = item.CsXFLItem
@@ -162,7 +182,7 @@ public partial class LibraryViewModel : Tool
         }
     }
 
-    public void BuildHierarchicalLibrary(CsXFL.Document doc) {
+    public void InvalidateHierarchicalLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
 
@@ -233,7 +253,8 @@ public partial class LibraryViewModel : Tool
         _mainWindowViewModel.PropertyChanged += MainWindowViewModelPropertyChanged;
         var doc = mainWindowViewModel.MainDocument;
 
-        //if (_mainWindowViewModel.MainDocument != null) { BuildHierarchicalLibrary(_mainWindowViewModel.MainDocument);}
+        UpdateFlatSource();
+        FlatItems.CollectionChanged += (sender, e) => UpdateFlatSource();
 
         // Build HierarchicalTreeDataGridSource
         HierarchicalSource = new HierarchicalTreeDataGridSource<LibraryItem>(HierarchicalItems)
@@ -255,22 +276,5 @@ public partial class LibraryViewModel : Tool
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
         };
 
-        // Build FlatTreeDataGridSource
-        FlatSource = new FlatTreeDataGridSource<LibraryItem>(FlatItems)
-        {
-            Columns =
-            {
-                new TextColumn<LibraryItem, string>("Name", x => x.Name),
-                new TextColumn<LibraryItem, string>("Type", x => x.Type),
-                new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
-            },
-        };
-        FlatSource.RowSelection!.SingleSelect = false;
-
-        FlatSource.RowSelection.SelectionChanged += (sender, e) =>
-        {
-            var selectedItems = FlatSource.RowSelection.SelectedItems.OfType<LibraryItem>();
-            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
-        };
     }
 }

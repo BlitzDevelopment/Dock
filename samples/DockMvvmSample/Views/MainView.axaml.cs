@@ -5,6 +5,7 @@ using Dock.Avalonia;
 using Dock.Settings;
 using Blitz.ViewModels;
 using System;
+using Avalonia.Interactivity;
 
 namespace Blitz.Views;
 
@@ -21,6 +22,14 @@ public partial class MainView : UserControl
         InitializeThemes();
         InitializeMenu();
         DataContext = new MainWindowViewModel();
+    }
+
+    private void OpenRecentMenuItem_Loaded(object sender, RoutedEventArgs e)
+    {
+        var _viewModelRegistry = ViewModelRegistry.Instance;
+        var _mainWindowViewModel = _viewModelRegistry.GetViewModel(nameof(MainWindowViewModel)) as MainWindowViewModel;
+        _mainWindowViewModel.OpenRecentMenuItem = (MenuItem)sender;
+        _mainWindowViewModel.LoadRecentFiles(); // Load recent files here
     }
 
     private void InitializeComponent()

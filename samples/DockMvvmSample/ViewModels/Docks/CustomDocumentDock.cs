@@ -1,14 +1,20 @@
 ﻿using Blitz.ViewModels.Documents;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Mvvm.Controls;
+using System.IO;
+using System;
 
 namespace Blitz.ViewModels.Docks;
 
 public class CustomDocumentDock : DocumentDock
 {
-    public CustomDocumentDock()
+    private MainWindowViewModel _mainWindowViewModel;
+
+    public CustomDocumentDock(MainWindowViewModel mainWindowViewModel)
     {
+        _mainWindowViewModel = mainWindowViewModel ?? throw new ArgumentNullException(nameof(mainWindowViewModel));
         CreateDocument = new RelayCommand(CreateNewDocument);
+        _mainWindowViewModel.DocumentOpened += OnDocumentOpened;
     }
 
     private void CreateNewDocument()
@@ -24,5 +30,20 @@ public class CustomDocumentDock : DocumentDock
         Factory?.AddDockable(this, document);
         Factory?.SetActiveDockable(document);
         Factory?.SetFocusedDockable(this, document);
+    }
+
+    private void OnDocumentOpened(CsXFL.Document document)
+    {
+        // Create a new DocumentViewModel based on the opened document
+        var documentViewModel = new DocumentViewModel
+        {
+            Id = document.Filename,
+            Title = Path.GetFileName(document.Filename)
+        };
+
+        // Add the new document to the DocumentDock
+        Factory?.AddDockable(this, documentViewModel);
+        Factory?.SetActiveDockable(documentViewModel);
+        Factory?.SetFocusedDockable(this, documentViewModel);
     }
 }

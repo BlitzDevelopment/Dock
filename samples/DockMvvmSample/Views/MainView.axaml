@@ -23,7 +23,15 @@
       <MenuItem Header="_File">
         <MenuItem Header="New" />
         <MenuItem Header="Open Document" Command="{Binding OpenDocumentCommand}"/>
-        <MenuItem Header="Open Recent" />
+        <MenuItem Header="Open Recent" x:Name="OpenRecentMenuItem" Loaded="OpenRecentMenuItem_Loaded" >
+          <ItemsControl ItemsSource="{Binding RecentFiles}, Source={StaticResource MainWindowViewModel}}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <MenuItem Header="{Binding}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </MenuItem>
         <MenuItem Header="Save" Command="{Binding SaveDocumentCommand}" IsEnabled="{Binding IsDocumentLoaded}"/>
         <MenuItem Header="Save As" IsEnabled="{Binding IsDocumentLoaded}" />
         <MenuItem Header="Revert" IsEnabled="{Binding IsDocumentLoaded}" />

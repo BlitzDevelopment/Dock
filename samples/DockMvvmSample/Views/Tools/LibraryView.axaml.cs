@@ -7,6 +7,13 @@ using Blitz.ViewModels;
 using Blitz.ViewModels.Tools;
 using System.IO;
 using System;
+using System.Linq;
+using Avalonia.Media;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
+using Avalonia.Styling;
+using Avalonia.Media.Transformation;
+using System.Threading.Tasks;
 
 namespace Blitz.Views.Tools;
 
@@ -32,6 +39,22 @@ public partial class LibraryView : UserControl
         string searchText = "";
         var textBox = sender as TextBox;
         if (textBox != null) { searchText = textBox.Text!; }
+
+        // Handle illegal input
+        if (searchText.Contains('/') || searchText.Contains('\\'))
+        {
+            Flyout flyout = new Flyout();
+            flyout.Content = new TextBlock { Text = "Illegal characters '/' or '\\' are not allowed." };
+            flyout.ShowAt(textBox);
+
+            // Dismiss the Flyout after 3 seconds
+            Task.Delay(3000).ContinueWith(_ => 
+            {
+                flyout.Hide();
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+            textBox.Text = new string(searchText.Where(c => c != '/' && c != '\\').ToArray());
+        }
+
         if (string.IsNullOrEmpty(searchText))
         {
             UseFlatSource = false;
@@ -41,14 +64,27 @@ public partial class LibraryView : UserControl
             FlatTreeView.IsVisible = false;
             FlatTreeView.RowSelection!.Clear();
         }
-        else if (UseFlatSource == false)
+        else
         {
-            UseFlatSource = true;
-            HierarchalTreeView.IsVisible = false;
-            HierarchalTreeView.RowSelection!.Clear();
-            _libraryViewModel.UserLibrarySelection = null;
-            FlatTreeView.IsVisible = true;
-            FlatTreeView.RowSelection!.Clear();
+            if (!UseFlatSource) {
+                UseFlatSource = true;
+                HierarchalTreeView.IsVisible = false;
+                HierarchalTreeView.RowSelection!.Clear();
+                _libraryViewModel.UserLibrarySelection = null;
+                FlatTreeView.IsVisible = true;
+                FlatTreeView.RowSelection!.Clear();
+                FlatTreeView.Source = _libraryViewModel.FlatSource;
+            }
+
+            // Search only applies to name, not to path.
+            _libraryViewModel.FlatItems.Clear();
+            var filteredItems = _libraryViewModel.Items
+                .Where(item => Path.GetFileName(item.Name).Contains(searchText, StringComparison.OrdinalIgnoreCase));
+            foreach (var item in filteredItems)
+            {
+                _libraryViewModel.FlatItems.Add(item);
+            }
+            _libraryViewModel.UpdateFlatSource();
         }
     }
 

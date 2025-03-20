@@ -11,6 +11,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Rendering;
+using System.Threading.Tasks;
 
 namespace Blitz.Views
 {
@@ -171,8 +172,41 @@ namespace Blitz.Views
             }
         }
         
+        private void ShowFlyoutWarning(string message)
+        {
+            Flyout flyout = new Flyout();
+            flyout.Content = new TextBlock { Text = message };
+            flyout.ShowAt(OutputPath);
+
+            // Dismiss the Flyout after 3 seconds
+            Task.Delay(3000).ContinueWith(_ => 
+            {
+                flyout.Hide();
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
+            string directoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
+            if (!Directory.Exists(directoryPath))
+            {
+                ShowFlyoutWarning("The output folder does not exist.");
+                return;
+            }
+
+            try
+            {
+                string testFilePath = Path.Combine(directoryPath, Path.GetRandomFileName());
+                using (FileStream fs = File.Create(testFilePath, 1, FileOptions.DeleteOnClose))
+                {
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                ShowFlyoutWarning("The output folder is not writable.");
+                return;
+            }
+
             DialogHost.Close(DialogIdentifier);
             var dialog = new MainRenderProgress();
             var dialogIdentifier = DialogHost.Show(dialog);
