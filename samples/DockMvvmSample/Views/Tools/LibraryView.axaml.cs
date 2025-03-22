@@ -1,19 +1,16 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
-using SkiaSharp;
 using Svg.Skia;
-using System.Xml.Linq;
 using Blitz.ViewModels;
 using Blitz.ViewModels.Tools;
 using System.IO;
 using System;
 using System.Linq;
-using Avalonia.Media;
-using Avalonia.Animation;
-using Avalonia.Animation.Easings;
 using Avalonia.Styling;
-using Avalonia.Media.Transformation;
 using System.Threading.Tasks;
+using System.Collections.ObjectModel;
+using Avalonia.Controls.Models.TreeDataGrid;
+using Blitz.Models;
 
 namespace Blitz.Views.Tools;
 
@@ -76,15 +73,22 @@ public partial class LibraryView : UserControl
                 FlatTreeView.Source = _libraryViewModel.FlatSource;
             }
 
-            // Search only applies to name, not to path.
-            _libraryViewModel.FlatItems.Clear();
+            // Use LINQ to filter items without modifying the original collection
             var filteredItems = _libraryViewModel.Items
-                .Where(item => Path.GetFileName(item.Name).Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            foreach (var item in filteredItems)
+                .Where(item => Path.GetFileName(item.Name).Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Update FlatSource directly without clearing and repopulating FlatItems
+            _libraryViewModel.FlatSource = new FlatTreeDataGridSource<Blitz.Models.Tools.Library.LibraryItem>(new ObservableCollection<Blitz.Models.Tools.Library.LibraryItem>(filteredItems))
             {
-                _libraryViewModel.FlatItems.Add(item);
-            }
-            _libraryViewModel.UpdateFlatSource();
+                Columns =
+                {
+                    new TextColumn<Blitz.Models.Tools.Library.LibraryItem, string>("Name", x => Path.GetFileName(x.Name)),
+                    new TextColumn<Blitz.Models.Tools.Library.LibraryItem, string>("Type", x => x.Type),
+                    new TextColumn<Blitz.Models.Tools.Library.LibraryItem, string>("Use Count", x => x.UseCount),
+                },
+            };
+            FlatTreeView.Source = _libraryViewModel.FlatSource;
         }
     }
 

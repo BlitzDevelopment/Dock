@@ -81,12 +81,14 @@ public partial class LibraryViewModel : Tool
     }
     public HierarchicalTreeDataGridSource<LibraryItem>? HierarchicalSource { get; set; }
     public FlatTreeDataGridSource<LibraryItem>? FlatSource { get; set; }
+
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _items = new ObservableCollection<LibraryItem>();
-        [ObservableProperty]
+    [ObservableProperty]
     private ObservableCollection<LibraryItem> _flatItems = new ObservableCollection<LibraryItem>();
-        [ObservableProperty]
+    [ObservableProperty]
     private ObservableCollection<LibraryItem> _hierarchicalItems = new ObservableCollection<LibraryItem>();
+
     [ObservableProperty]
     private string _itemCount = "-";
     [ObservableProperty]
