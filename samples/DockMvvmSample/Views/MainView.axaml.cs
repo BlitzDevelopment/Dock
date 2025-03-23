@@ -28,8 +28,8 @@ public partial class MainView : UserControl
     {
         var _viewModelRegistry = ViewModelRegistry.Instance;
         var _mainWindowViewModel = _viewModelRegistry.GetViewModel(nameof(MainWindowViewModel)) as MainWindowViewModel;
-        _mainWindowViewModel.OpenRecentMenuItem = (MenuItem)sender;
-        _mainWindowViewModel.LoadRecentFiles(); // Load recent files here
+        _mainWindowViewModel!.OpenRecentMenuItem = (MenuItem)sender;
+        _mainWindowViewModel.LoadRecentFiles();
     }
 
     private void InitializeComponent()

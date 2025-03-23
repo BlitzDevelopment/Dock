@@ -50,7 +50,7 @@ namespace Avalonia.Controls
         /// <summary>
         /// Event to externally paint the Skia surface (using the <see cref="SKCanvas"/>).
         /// </summary>
-        public event EventHandler<SKPaintSurfaceEventArgs> PaintSurface;
+        public event EventHandler<SKPaintSurfaceEventArgs>? PaintSurface;
 
         private static readonly Vector Dpi = new Vector(96, 96);
 

@@ -12,6 +12,7 @@ using Dock.Model.Controls;
 using Dock.Model.Core;
 using Dock.Model.Mvvm;
 using Dock.Model.Mvvm.Controls;
+using Dock.Model.Core.Events;
 
 namespace Blitz.ViewModels;
 
@@ -27,6 +28,19 @@ public class DockFactory : Factory
         _context = context;
         _mainWindowViewModel = mainWindowViewModel;
         ViewModelRegistry.Instance.RegisterViewModel(nameof(MainWindowViewModel), _mainWindowViewModel);
+        ActiveDockableChanged += OnActiveDockableChanged;
+    }
+
+    private void OnActiveDockableChanged(object? sender, ActiveDockableChangedEventArgs e)
+    {
+        if (e.Dockable is DocumentViewModel document)
+        {
+            Console.WriteLine($"[ActiveDockableChanged] Selected Document: {document.Title}");
+        }
+        else
+        {
+            Console.WriteLine("[ActiveDockableChanged] No document selected.");
+        }
     }
 
     public override IDocumentDock CreateDocumentDock() => new CustomDocumentDock(_mainWindowViewModel);
@@ -152,9 +166,6 @@ public class DockFactory : Factory
     {
         ContextLocator = new Dictionary<string, Func<object?>>
         {
-            ["Document1"] = () => new DemoDocument(),
-            ["Document2"] = () => new DemoDocument(),
-            ["Document3"] = () => new DemoDocument(),
             ["Library"] = () => new Library(),
             ["Tool2"] = () => new Tool2(),
             ["Tool3"] = () => new Tool3(),

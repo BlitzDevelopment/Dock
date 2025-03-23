@@ -40,6 +40,8 @@ public partial class LibraryView : UserControl
         // Handle illegal input
         if (searchText.Contains('/') || searchText.Contains('\\'))
         {
+            if(textBox == null) { return; }
+            
             Flyout flyout = new Flyout();
             flyout.Content = new TextBlock { Text = "Illegal characters '/' or '\\' are not allowed." };
             flyout.ShowAt(textBox);

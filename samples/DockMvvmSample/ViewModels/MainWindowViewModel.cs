@@ -106,6 +106,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private async void OpenRecent(string filePath)
     {
+        // TODO: This
     }
 
     public void LoadRecentFiles()

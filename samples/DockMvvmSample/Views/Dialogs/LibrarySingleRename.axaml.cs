@@ -38,7 +38,6 @@ namespace Blitz.Views
         {
             string ReName = InputRename.Text!;
 
-            // Model logic in VM, will fix soon
             CsXFL.Item ItemToRename = _viewModel.UserLibrarySelection![0];
 
             string originalPath = ItemToRename.Name.Contains("/") ? ItemToRename.Name.Substring(0, ItemToRename.Name.LastIndexOf('/') + 1) : "";
@@ -46,14 +45,15 @@ namespace Blitz.Views
 
             _mainWindowViewModel.MainDocument!.Library.RenameItem(ItemToRename.Name, newPath);
             
-            // Rename source
-            var libraryItem = _viewModel.HierarchicalSource.RowSelection!.SelectedItems.OfType<LibraryItem>().FirstOrDefault();
-            if (libraryItem != null)
-            {
-                int lastIndex = newPath.LastIndexOf('/');
-                string newFileName = lastIndex != -1 ? newPath.Substring(lastIndex + 1) : newPath;
-                libraryItem.Name = newFileName;
-            }
+            // TODO: Find appropriate logic for updating both HierarchicalSource and FlatSource
+            
+            // var libraryItem = _viewModel.HierarchicalSource.RowSelection!.SelectedItems.OfType<LibraryItem>().FirstOrDefault();
+            // if (libraryItem != null)
+            // {
+            //     int lastIndex = newPath.LastIndexOf('/');
+            //     string newFileName = lastIndex != -1 ? newPath.Substring(lastIndex + 1) : newPath;
+            //     libraryItem.Name = newFileName;
+            // }
 
             DialogHost.Close(DialogIdentifier);
         }

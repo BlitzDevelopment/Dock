@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Mvvm.Controls;
 using System.IO;
 using System;
+using Dock.Model.Core;
+using Dock.Model.Core.Events;
 
 namespace Blitz.ViewModels.Docks;
 
