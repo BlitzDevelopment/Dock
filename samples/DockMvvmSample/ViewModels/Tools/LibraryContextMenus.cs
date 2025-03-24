@@ -3,12 +3,12 @@ using Dock.Model.Mvvm.Controls;
 using Avalonia.Controls;
 using System;
 using System.Globalization;
-using static Blitz.Models.Tools.Library;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using System.Threading.Tasks;
-using Avalonia;
+
+using static Blitz.Models.Tools.Library;
 
 // MARK: Library Contxt Menus
 namespace Blitz.ViewModels.Tools
@@ -52,6 +52,7 @@ namespace Blitz.ViewModels.Tools
             }
         }
 
+        #region Graphic
         private ContextMenu CreateGraphicContextMenu()
         {
             var contextMenu = new ContextMenu();
@@ -66,7 +67,9 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
+        #endregion
 
+        #region Folder
         private ContextMenu CreateFolderContextMenu()
         {
             var contextMenu = new ContextMenu();
@@ -83,7 +86,9 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Collapse All Folders"});
             return contextMenu;
         }
+        #endregion
 
+        #region Sound
         private ContextMenu CreateSoundContextMenu()
         {
             var contextMenu = new ContextMenu();
@@ -100,7 +105,9 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
+        #endregion
 
+        #region Bitmap
         private ContextMenu CreateBitmapContextMenu()
         {
             var contextMenu = new ContextMenu();
@@ -117,8 +124,9 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
+        #endregion
 
-        // MARK: Context Menu Cmmds
+        // MARK: Generic Cmmds
         [RelayCommand]
         private async Task Rename()
         {

@@ -12,41 +12,62 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Rendering;
 using System.Threading.Tasks;
+using CsXFL;
 
 namespace Blitz.Views
 {
     public partial class MainVideoRender : UserControl
     { 
+        #region Events
         public event Action<int>? ProgressUpdated;
+        #endregion
+
+        #region Dependencies
         private FileService _fileService;
         private BlitzAppData _blitzAppData;
         private MainWindowViewModel _mainWindowViewModel;
+        #endregion
+
+        #region Document State
+        private Document WorkingCsXFLDoc;
+        #endregion
+
+        #region Properties
         public string? DialogIdentifier { get; set; }
         private string? SelectedFormat { get; set; }
         private string? Encoding { get; set; }
+        #endregion
+
+        #region UI State
         private bool WHisLocked = false;
         private double originalWidth;
         private double originalHeight;
-        List<string> formats = new List<string> { "MP4", "MOV", "PNG-SEQ", "SVG-SEQ" };
-        List<string> spans = new List<string> { "Entire File", "Work Range", "Specified Frame Range"};
+        #endregion
+
+        #region Data
+        private List<string> formats = new List<string> { "MP4", "MOV", "PNG-SEQ", "SVG-SEQ" };
+        private List<string> spans = new List<string> { "Entire File", "Work Range", "Specified Frame Range" };
+        #endregion
 
         public MainVideoRender()
         {
             _blitzAppData = new BlitzAppData();
             _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
+
             AvaloniaXamlLoader.Load(this);
             FormatCombobox.ItemsSource = formats;
             FormatCombobox.SelectedIndex = 0;
+            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
 
             WidthEntry.ValueChanged += WidthEntry_TextChanged;
             HeightEntry.ValueChanged += HeightEntry_TextChanged;
 
             var _viewModelRegistry = ViewModelRegistry.Instance;
             _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
-            WidthEntry.Value = _mainWindowViewModel.MainDocument!.Width;
-            HeightEntry.Value = _mainWindowViewModel.MainDocument!.Height;
+            WidthEntry.Value = WorkingCsXFLDoc.Width;
+            HeightEntry.Value = WorkingCsXFLDoc.Height;
 
-            var scenes = _mainWindowViewModel.MainDocument.Timelines;
+            var scenes = WorkingCsXFLDoc!.Timelines;
             foreach (var scene in scenes) { spans.Add(scene.Name); }
             SpanCombobox.ItemsSource = spans;
             SpanCombobox.SelectedIndex = 0;
@@ -61,7 +82,7 @@ namespace Blitz.Views
             ThreadCount.ValueChanged += ThreadCount_ValueChanged;
             ThreadCount_ValueChanged(ThreadCount, null!);
 
-            OutputPath.Text = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) + "\\" + Path.GetFileNameWithoutExtension(_mainWindowViewModel.MainDocument!.Filename) + ".mp4";
+            OutputPath.Text = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos) + "\\" + Path.GetFileNameWithoutExtension(WorkingCsXFLDoc.Filename) + ".mp4";
         }
 
         private void WidthEntry_TextChanged(object? sender, EventArgs e)
@@ -223,7 +244,7 @@ namespace Blitz.Views
             string appDataFolder = _blitzAppData.GetTmpFolder();
 
             int totalFrames = 0;
-            foreach (var timeline in _mainWindowViewModel.MainDocument!.Timelines) { totalFrames += timeline.GetFrameCount(); }
+            foreach (var timeline in WorkingCsXFLDoc.Timelines) { totalFrames += timeline.GetFrameCount(); }
             int maxDigits = totalFrames.ToString().Length;
             string ImageSequenceOutputFolder = Path.Combine(directoryPath, Path.GetFileNameWithoutExtension(fileName));
 
@@ -231,14 +252,14 @@ namespace Blitz.Views
             // PNG span boilerplate
             if (SelectedFormat != "svg" && SelectedFormat != "png") {
                 // Render Videos
-                var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
+                var RenMan = new RenderingManager(WorkingCsXFLDoc, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
                 // RenMan.ProgressUpdated += (progress) => { ProgressUpdated?.Invoke(progress); };
                 bool isMov = SelectedFormat == "mov";
                 string ffmpegEncoding = isMov ? "png" : (Encoding == "GPU" ? "h264_nvec" : "h264");
                 string ffmpegPixelFormat = isMov ? "rgba" : "yuv420p";
                 string ffmpegArgsBeforeinput = Encoding == "CPU" 
-                    ? $"-y -framerate {_mainWindowViewModel.MainDocument!.FrameRate}" 
-                    : $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {_mainWindowViewModel.MainDocument!.FrameRate}";
+                    ? $"-y -framerate {WorkingCsXFLDoc.FrameRate}" 
+                    : $"-y -hwaccel_device 0 -hwaccel_output_format cuda -hwaccel cuda -framerate {WorkingCsXFLDoc.FrameRate}";
                 string ffmpegArgsAfterinput = $"-c:v {(ffmpegEncoding)} -preset fast -b:v 10M -pix_fmt {(ffmpegPixelFormat)} -f {SelectedFormat} -s {WidthEntry.Text}x{HeightEntry.Text}";
                 if(InMemOnly.IsChecked == true) {
                     RenMan.RenderDocumentWithPipes(fileName, ffmpegArgsBeforeinput, ffmpegArgsAfterinput);
@@ -248,7 +269,7 @@ namespace Blitz.Views
             } else if (SelectedFormat == "png") {
                 // Render PNG Sequence
                 if (!Directory.Exists(ImageSequenceOutputFolder)) { Directory.CreateDirectory(ImageSequenceOutputFolder); }
-                var RenMan = new RenderingManager(_mainWindowViewModel.MainDocument!, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
+                var RenMan = new RenderingManager(WorkingCsXFLDoc, (int)ThreadCount.Value!, directoryPath, appDataFolder, ffmpegPath, true);
                 string outputPattern = Path.Combine(ImageSequenceOutputFolder, Path.GetFileNameWithoutExtension(fileName) + "_%0" + maxDigits + "d.png");
 
                 string ffmpegEncoding = Encoding == "GPU" ? "h264_nvec" : "h264";
@@ -264,14 +285,14 @@ namespace Blitz.Views
             } else {
                 // Render SVG Sequence
                 if (!Directory.Exists(ImageSequenceOutputFolder)) { Directory.CreateDirectory(ImageSequenceOutputFolder); }
-                var SVGRen = new SVGRenderer(_mainWindowViewModel.MainDocument!, appDataFolder, true);
+                var SVGRen = new SVGRenderer(WorkingCsXFLDoc, appDataFolder, true);
 
                 string selectedSpan = SpanCombobox.SelectedItem!.ToString()!;
                 if (selectedSpan == "Entire File")
                 {
-                    for (int timelineIndex = 0; timelineIndex < _mainWindowViewModel.MainDocument!.Timelines.Count; timelineIndex++)
+                    for (int timelineIndex = 0; timelineIndex < WorkingCsXFLDoc.Timelines.Count; timelineIndex++)
                     {
-                        for (int frameIndex = 0; frameIndex < _mainWindowViewModel.MainDocument.Timelines[timelineIndex].GetFrameCount(); frameIndex++)
+                        for (int frameIndex = 0; frameIndex < WorkingCsXFLDoc!.Timelines[timelineIndex].GetFrameCount(); frameIndex++)
                         {
                             var OutputSVG = SVGRen.Render(0, frameIndex, int.Parse(WidthEntry.Text!), int.Parse(WidthEntry.Text!));
                             string filename = $"{Path.GetFileNameWithoutExtension(fileName)}_{frameIndex.ToString().PadLeft(maxDigits, '0')}.svg";
@@ -293,9 +314,9 @@ namespace Blitz.Views
                 }
                 else
                 {
-                    for (int timelineIndex = 0; timelineIndex < _mainWindowViewModel.MainDocument!.Timelines.Count; timelineIndex++)
+                    for (int timelineIndex = 0; timelineIndex < WorkingCsXFLDoc.Timelines.Count; timelineIndex++)
                     {
-                        var timeline = _mainWindowViewModel.MainDocument.Timelines[timelineIndex];
+                        var timeline = WorkingCsXFLDoc.Timelines[timelineIndex];
                         if (selectedSpan == timeline.Name)
                         {
                             for (int frameIndex = 0; frameIndex < timeline.GetFrameCount(); frameIndex++)

@@ -1,23 +1,22 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using Svg.Skia;
-using Blitz.ViewModels;
 using Blitz.ViewModels.Tools;
+using Blitz.Events;
 using System.IO;
 using System;
 using System.Linq;
-using Avalonia.Styling;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
 using Avalonia.Controls.Models.TreeDataGrid;
-using Blitz.Models;
 
 namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
+    private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel { set; get; }
-    private MainWindowViewModel _mainWindowViewModel;
+    private CsXFL.Document? WorkingCsXFLDoc;
     private bool UseFlatSource = false;
     
     public LibraryView()
@@ -25,13 +24,34 @@ public partial class LibraryView : UserControl
         InitializeComponent();
         var _viewModelRegistry = ViewModelRegistry.Instance;
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
-        _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
+        _eventAggregator = EventAggregator.Instance;
+        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        WorkingCsXFLDoc = null;
+
         LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
     }
 
+    private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
+    {
+        WorkingCsXFLDoc = e.NewDocument!;
+    }
+
+    /// <summary>
+    /// Handles the text changed event for the library search TextBox.
+    /// Updates the library view based on the search text entered by the user.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the TextBox where the text is being entered.</param>
+    /// <param name="e">The event arguments containing information about the text change.</param>
+    /// <remarks>
+    /// - If the search text contains illegal characters ('/' or '\\'), a Flyout is displayed to notify the user,
+    ///   and the illegal characters are removed from the TextBox.
+    /// - If the search text is empty, the hierarchical tree view is displayed, and the flat tree view is hidden.
+    /// - If the search text is not empty, the flat tree view is displayed with filtered items based on the search text.
+    /// - The filtering is case-insensitive and matches the search text against the file name of each library item.
+    /// </remarks>
     public void OnLibrarySearchTextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_mainWindowViewModel.MainDocument == null) { return; }
+        if (WorkingCsXFLDoc == null) { return; }
 
         string searchText = "";
         var textBox = sender as TextBox;
@@ -94,6 +114,18 @@ public partial class LibraryView : UserControl
         }
     }
 
+    /// <summary>
+    /// Handles the paint event for the canvas and renders an SVG image onto it.
+    /// </summary>
+    /// <param name="sender">The source of the event, typically the canvas control.</param>
+    /// <param name="e">The event arguments containing the surface to paint on.</param>
+    /// <remarks>
+    /// This method checks if the SVG data is available in the associated view model. 
+    /// If available, it loads the SVG data into an SKSvg object, calculates the bounding 
+    /// rectangle of the SVG image, and adjusts the canvas's translation and scaling to 
+    /// fit the SVG image within the canvas bounds. Finally, it draws the SVG image onto 
+    /// the canvas.
+    /// </remarks>
     private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;

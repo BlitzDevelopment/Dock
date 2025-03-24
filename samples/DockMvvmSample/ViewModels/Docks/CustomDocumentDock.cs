@@ -40,7 +40,8 @@ public class CustomDocumentDock : DocumentDock
         var documentViewModel = new DocumentViewModel
         {
             Id = document.Filename,
-            Title = Path.GetFileName(document.Filename)
+            Title = Path.GetFileName(document.Filename),
+            AttachedDocument = document
         };
 
         // Add the new document to the DocumentDock

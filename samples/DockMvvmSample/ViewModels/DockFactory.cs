@@ -13,12 +13,14 @@ using Dock.Model.Core;
 using Dock.Model.Mvvm;
 using Dock.Model.Mvvm.Controls;
 using Dock.Model.Core.Events;
+using Blitz.Events;
 
 namespace Blitz.ViewModels;
 
 public class DockFactory : Factory
 {
     private readonly object _context;
+    private readonly EventAggregator _eventAggregator;
     private MainWindowViewModel _mainWindowViewModel;
     private IRootDock? _rootDock;
     private IDocumentDock? _documentDock;
@@ -29,17 +31,20 @@ public class DockFactory : Factory
         _mainWindowViewModel = mainWindowViewModel;
         ViewModelRegistry.Instance.RegisterViewModel(nameof(MainWindowViewModel), _mainWindowViewModel);
         ActiveDockableChanged += OnActiveDockableChanged;
+        _eventAggregator = EventAggregator.Instance;
     }
 
     private void OnActiveDockableChanged(object? sender, ActiveDockableChangedEventArgs e)
     {
         if (e.Dockable is DocumentViewModel document)
         {
-            Console.WriteLine($"[ActiveDockableChanged] Selected Document: {document.Title}");
+            CsXFL.An.SetActiveDocument(document.AttachedDocument!);
+            _eventAggregator.Publish(new ActiveDocumentChangedEvent(document.AttachedDocument!));
         }
         else
         {
-            Console.WriteLine("[ActiveDockableChanged] No document selected.");
+            // ToDo: Clear the active document, need to override functionality in CsXFL, rebuild
+            //CsXFL.An.SetActiveDocument(null);
         }
     }
 

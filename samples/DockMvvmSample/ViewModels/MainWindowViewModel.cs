@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Windows.Input;
 using Blitz.Models;
+using Blitz.Events;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Controls;
@@ -21,31 +22,52 @@ namespace Blitz.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    #region Dependencies
+    private readonly EventAggregator _eventAggregator;
     private readonly BlitzAppData _blitzAppData = new();
+    private readonly IFileService _fileService;
+    #endregion
+
+    #region Recent Files
     public MenuItem OpenRecentMenuItem { get; set; }
-    string recentFilesPath;
+    private string recentFilesPath;
     public ObservableCollection<string> RecentFiles { get; set; } = new ObservableCollection<string>();
     public ICommand OpenRecentCommand { get; }
-    private readonly IFileService _fileService;
+    #endregion
 
-    // MARK: Top Level Stuff
-    [ObservableProperty]
-    public CsXFL.Document? _mainDocument;
+    #region Commands
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
-    public event Action<CsXFL.Document>? DocumentOpened;
+
     private ICommand _saveDocumentCommand;
     public ICommand SaveDocumentCommand => _saveDocumentCommand;
+
     private ICommand _renderVideoDialogCommand;
     public ICommand RenderVideoDialogCommand => _renderVideoDialogCommand;
+    #endregion
 
-    public bool IsDocumentLoaded => MainDocument != null;
+    #region Events
+    public event Action<CsXFL.Document>? DocumentOpened;
+    #endregion
 
-
-    partial void OnMainDocumentChanged(CsXFL.Document? value)
+    #region Document State
+    private CsXFL.Document? _workingCsXFLDoc;
+    public CsXFL.Document? WorkingCsXFLDoc
     {
-        OnPropertyChanged(nameof(IsDocumentLoaded));
+        get => _workingCsXFLDoc;
+        private set
+        {
+            if (_workingCsXFLDoc != value)
+            {
+                _workingCsXFLDoc = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsDocumentLoaded));
+            }
+        }
     }
+
+    public bool IsDocumentLoaded => WorkingCsXFLDoc != null;
+    #endregion
 
     private static CsXFL.Document CloneDocument(CsXFL.Document document)
     {
@@ -70,7 +92,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         public void Restore()
         {
-            _viewModel.MainDocument = _document;
+            _viewModel.WorkingCsXFLDoc = _document;
         }
     }
 
@@ -84,17 +106,18 @@ public partial class MainWindowViewModel : ObservableObject
             Debug.WriteLine($"Warning: File {filePath} does not exist or is null.");
             return;
         }
-        MainDocument = await An.OpenDocumentAsync(filePath);
+        WorkingCsXFLDoc = await An.OpenDocumentAsync(filePath);
         AddToRecentFiles(filePath);
 
-        var memento = new CsXFLDocumentMemento(this, MainDocument);
+        var memento = new CsXFLDocumentMemento(this, WorkingCsXFLDoc);
         ApplicationServices.MementoCaretaker.AddMemento(memento, $"You will never see this.");
 
-        DocumentOpened?.Invoke(MainDocument);
+        DocumentOpened?.Invoke(WorkingCsXFLDoc);
     }
+
     private void SaveDocument()
     {
-        MainDocument!.Save();
+        WorkingCsXFLDoc!.Save();
     }
 
     public async void RenderVideoDialog()
@@ -153,10 +176,18 @@ public partial class MainWindowViewModel : ObservableObject
         LoadRecentFiles();
     }
 
+    private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
+    {
+        WorkingCsXFLDoc = activeDocumentChangedEvent.NewDocument;
+    }
+
     public MainWindowViewModel()
     {
         _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
         _factory = new DockFactory(this, new DemoData());
+        _eventAggregator = EventAggregator.Instance;
+
+        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
         _openDocumentCommand = new RelayCommand(OpenDocument);
         _saveDocumentCommand = new RelayCommand(SaveDocument);

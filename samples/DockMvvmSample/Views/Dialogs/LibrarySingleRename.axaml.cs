@@ -5,9 +5,6 @@ using Blitz.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
 using Blitz.ViewModels;
-using Avalonia.Input;
-using System;
-using static Blitz.Models.Tools.Library;
 
 namespace Blitz.Views
 {
@@ -15,6 +12,7 @@ namespace Blitz.Views
     {
         private LibraryViewModel _viewModel;
         private MainWindowViewModel _mainWindowViewModel;
+        private CsXFL.Document WorkingCsXFLDoc;
         public string? DialogIdentifier { get; set; }
 
         public LibrarySingleRename()
@@ -24,6 +22,7 @@ namespace Blitz.Views
             _viewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
             _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
             SetTextBoxText();
+            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
         }
 
         private void SetTextBoxText()
@@ -43,7 +42,7 @@ namespace Blitz.Views
             string originalPath = ItemToRename.Name.Contains("/") ? ItemToRename.Name.Substring(0, ItemToRename.Name.LastIndexOf('/') + 1) : "";
             string newPath = originalPath + ReName;
 
-            _mainWindowViewModel.MainDocument!.Library.RenameItem(ItemToRename.Name, newPath);
+            WorkingCsXFLDoc.Library.RenameItem(ItemToRename.Name, newPath);
             
             // TODO: Find appropriate logic for updating both HierarchicalSource and FlatSource
             

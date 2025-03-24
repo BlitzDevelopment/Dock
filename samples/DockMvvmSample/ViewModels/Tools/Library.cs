@@ -13,8 +13,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using Rendering;
 using System.Xml.Linq;
-using static Blitz.Models.Tools.Library;
 using System.IO;
+using static Blitz.Models.Tools.Library;
+using Blitz.Events;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -66,8 +67,14 @@ public class ItemTypeToIconConverter : IValueConverter
 // MARK: Library Partial VM
 public partial class LibraryViewModel : Tool
 {
+    #region Dependencies
+    private readonly EventAggregator _eventAggregator;
     private BlitzAppData _blitzAppData;
     private MainWindowViewModel _mainWindowViewModel;
+    #endregion
+
+    #region Document and Selection State
+    private CsXFL.Document WorkingCsXFLDoc;
     private CsXFL.Item[]? _userLibrarySelection;
     public CsXFL.Item[]? UserLibrarySelection
     {
@@ -79,34 +86,47 @@ public partial class LibraryViewModel : Tool
             HandleUserLibrarySelectionChange();
         }
     }
+    #endregion
+
+    #region Data Sources
     public HierarchicalTreeDataGridSource<LibraryItem>? HierarchicalSource { get; set; }
     public FlatTreeDataGridSource<LibraryItem>? FlatSource { get; set; }
+    #endregion
 
+    #region Observable Collections
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _items = new ObservableCollection<LibraryItem>();
+
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _flatItems = new ObservableCollection<LibraryItem>();
+
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _hierarchicalItems = new ObservableCollection<LibraryItem>();
+    #endregion
 
+    #region UI State
     [ObservableProperty]
     private string _itemCount = "-";
+
     [ObservableProperty]
     private string? _canvasColor;
+
     [ObservableProperty]
     private XDocument? _svgData;
+    #endregion
 
-    private void MainWindowViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        if (e.PropertyName == nameof(MainWindowViewModel.MainDocument))
-        {
-            if (_mainWindowViewModel.MainDocument != null) 
+        WorkingCsXFLDoc = e.NewDocument!;
+        Console.WriteLine($"[LibraryViewModel] WorkingCsXFLDoc changed to {WorkingCsXFLDoc.Filename}");
+
+        if (WorkingCsXFLDoc != null) 
             {
                 Items.Clear();
                 FlatItems.Clear();
                 HierarchicalItems.Clear();
 
-                foreach (var item in _mainWindowViewModel.MainDocument.Library.Items)
+                foreach (var item in WorkingCsXFLDoc.Library.Items)
                 {
                     var libraryItem = new LibraryItem
                     {
@@ -118,12 +138,11 @@ public partial class LibraryViewModel : Tool
                     Items.Add(libraryItem);
                 }
 
-                InvalidateFlatLibrary(_mainWindowViewModel.MainDocument);
-                InvalidateHierarchicalLibrary(_mainWindowViewModel.MainDocument);
-                CanvasColor = _mainWindowViewModel.MainDocument.BackgroundColor;
+                InvalidateFlatLibrary(WorkingCsXFLDoc);
+                InvalidateHierarchicalLibrary(WorkingCsXFLDoc);
+                CanvasColor = WorkingCsXFLDoc.BackgroundColor;
             }
-            ItemCount = _mainWindowViewModel.MainDocument?.Library.Items.Count.ToString() + " Items" ?? "-";
-        }
+            ItemCount = WorkingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
     }
 
     private void HandleUserLibrarySelectionChange()
@@ -132,8 +151,9 @@ public partial class LibraryViewModel : Tool
         if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
         {
             string appDataFolder = _blitzAppData.GetTmpFolder();
-            SVGRenderer renderer = new SVGRenderer(_mainWindowViewModel.MainDocument!, appDataFolder, true);
+            SVGRenderer renderer = new SVGRenderer(WorkingCsXFLDoc!, appDataFolder, true);
 
+            // TODO: This
             //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
             //SvgData = renderedSVG;
         }
@@ -159,6 +179,26 @@ public partial class LibraryViewModel : Tool
         };
     }
 
+    /// <summary>
+    /// Updates the flat library representation by processing the current library items.
+    /// </summary>
+    /// <param name="doc">The document associated with the library.</param>
+    /// <remarks>
+    /// This method performs the following steps:
+    /// <list type="number">
+    /// <item>
+    /// Creates a dictionary to store library items by their name.
+    /// </item>
+    /// <item>
+    /// Iterates through the existing items to create and populate <see cref="LibraryItem"/> objects,
+    /// setting their properties such as <c>Name</c>, <c>UseCount</c>, <c>Type</c>, and associated <c>CsXFLItem</c>.
+    /// </item>
+    /// <item>
+    /// Adds non-folder items to the flat library representation (<c>FlatItems</c>).
+    /// </item>
+    /// </list>
+    /// Folder items are excluded from the flat library representation.
+    /// </remarks>
     public void InvalidateFlatLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
@@ -184,6 +224,33 @@ public partial class LibraryViewModel : Tool
         }
     }
 
+    /// <summary>
+    /// Reorganizes the library items into a hierarchical structure based on their names and types.
+    /// </summary>
+    /// <param name="doc">The document associated with the library items.</param>
+    /// <remarks>
+    /// This method processes the library items in three passes:
+    /// <list type="number">
+    /// <item>
+    /// <description>
+    /// <b>Pass 1:</b> Transfers items into a dictionary, creating new <see cref="LibraryItem"/> instances
+    /// with their properties initialized based on the original items.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <b>Pass 2:</b> Adds non-folder items to their respective parent folders based on their names.
+    /// If a parent folder is not found, the item is added to the root of the hierarchical structure.
+    /// </description>
+    /// </item>
+    /// <item>
+    /// <description>
+    /// <b>Pass 3:</b> Adds folder items to their respective parent folders or to the root if no parent folder exists.
+    /// </description>
+    /// </item>
+    /// </list>
+    /// After processing, the <c>Name</c> property of each item is updated to remove its path, leaving only the item's name.
+    /// </remarks>
     public void InvalidateHierarchicalLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
@@ -252,13 +319,16 @@ public partial class LibraryViewModel : Tool
     {
         _blitzAppData = new BlitzAppData();
         _mainWindowViewModel = mainWindowViewModel;
-        _mainWindowViewModel.PropertyChanged += MainWindowViewModelPropertyChanged;
-        var doc = mainWindowViewModel.MainDocument;
+        _eventAggregator = EventAggregator.Instance;
+
+        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+
+        WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
 
         UpdateFlatSource();
         FlatItems.CollectionChanged += (sender, e) => UpdateFlatSource();
 
-        // Build HierarchicalTreeDataGridSource
+        // Build HierarchicalTreeDataGridSource, which is the default
         HierarchicalSource = new HierarchicalTreeDataGridSource<LibraryItem>(HierarchicalItems)
         {
             Columns =
@@ -277,6 +347,5 @@ public partial class LibraryViewModel : Tool
             var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
         };
-
     }
 }
