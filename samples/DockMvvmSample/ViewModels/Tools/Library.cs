@@ -7,15 +7,14 @@ using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Data.Converters;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
-using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using Rendering;
 using System.Xml.Linq;
 using System.IO;
-using static Blitz.Models.Tools.Library;
 using Blitz.Events;
+using static Blitz.Models.Tools.Library;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -113,11 +112,15 @@ public partial class LibraryViewModel : Tool
 
     [ObservableProperty]
     private XDocument? _svgData;
+    [ObservableProperty]
+    private CsXFL.BitmapItem? _bitmap;
+    [ObservableProperty]
+    private CsXFL.SoundItem? _sound;
     #endregion
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        WorkingCsXFLDoc = e.NewDocument!;
+        WorkingCsXFLDoc = CsXFL.An.GetDocument(e.Index);
         Console.WriteLine($"[LibraryViewModel] WorkingCsXFLDoc changed to {WorkingCsXFLDoc.Filename}");
 
         if (WorkingCsXFLDoc != null) 
@@ -147,7 +150,10 @@ public partial class LibraryViewModel : Tool
 
     private void HandleUserLibrarySelectionChange()
     {
-        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0) { return; }
+        Bitmap = null;
+        Sound = null;
+        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; }
+
         if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
         {
             string appDataFolder = _blitzAppData.GetTmpFolder();
@@ -156,6 +162,16 @@ public partial class LibraryViewModel : Tool
             // TODO: This
             //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
             //SvgData = renderedSVG;
+        }
+
+        if (UserLibrarySelection[0].ItemType == "bitmap")
+        {
+            Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem;
+        }
+
+        if (UserLibrarySelection[0].ItemType == "sound")
+        {
+            Sound = UserLibrarySelection[0] as CsXFL.SoundItem;
         }
     }
 
@@ -323,7 +339,14 @@ public partial class LibraryViewModel : Tool
 
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
-        WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
+        try
+        {
+            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
+        }
+        catch
+        {
+            WorkingCsXFLDoc = null;
+        }
 
         UpdateFlatSource();
         FlatItems.CollectionChanged += (sender, e) => UpdateFlatSource();

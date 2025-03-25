@@ -4,5 +4,5 @@ namespace Blitz.ViewModels.Documents;
 
 public class DocumentViewModel : Document
 {
-    public CsXFL.Document? AttachedDocument { get; set; }
+    public int? DocumentIndex { get; set; }
 }

@@ -28,7 +28,16 @@
       BorderThickness="0"
       CornerRadius="3"
       Margin="10">
-        <skia:SKXamlCanvas x:Name="LibrarySVGPreview" PaintSurface="OnCanvasPaint" />
+        <Grid>
+            <!-- SKXamlCanvas for vector images -->
+            <skia:SKXamlCanvas x:Name="LibrarySVGPreview" 
+                              PaintSurface="OnCanvasPaint"/>
+            
+            <!-- Image control for bitmap images -->
+            <Image x:Name="LibraryBitmapPreview" 
+                  Source="{Binding BitmapImageSource}" 
+                  Stretch="Uniform"/>
+        </Grid>
       </Border>
 
       <!--Resizer-->

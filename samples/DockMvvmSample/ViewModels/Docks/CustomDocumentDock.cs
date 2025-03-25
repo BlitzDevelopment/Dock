@@ -34,14 +34,14 @@ public class CustomDocumentDock : DocumentDock
         Factory?.SetFocusedDockable(this, document);
     }
 
-    private void OnDocumentOpened(CsXFL.Document document)
+    private void OnDocumentOpened(int index)
     {
         // Create a new DocumentViewModel based on the opened document
         var documentViewModel = new DocumentViewModel
         {
-            Id = document.Filename,
-            Title = Path.GetFileName(document.Filename),
-            AttachedDocument = document
+            Id = CsXFL.An.GetDocument(index).Filename,
+            Title = Path.GetFileName(CsXFL.An.GetDocument(index).Filename),
+            DocumentIndex = index
         };
 
         // Add the new document to the DocumentDock

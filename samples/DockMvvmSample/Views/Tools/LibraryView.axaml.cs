@@ -9,14 +9,25 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
 using Avalonia.Controls.Models.TreeDataGrid;
+using System.ComponentModel;
+using System.Collections.Generic;
+using CsXFL;
+using System.IO.Compression;
+
+using NAudio.Wave;
 
 namespace Blitz.Views.Tools;
 
+// Improvement:
+// private readonly Dictionary<string, byte[]> _bitmapCache = new();
+// When should we dispose the bitmap cache? OnDocumentClosed? Does a bitmap's href ever change?
+// One ZipArchive per document, dispose OnDocumentClosed
 public partial class LibraryView : UserControl
 {
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel { set; get; }
     private CsXFL.Document? WorkingCsXFLDoc;
+    private string? SearchText = "";
     private bool UseFlatSource = false;
     
     public LibraryView()
@@ -29,14 +40,28 @@ public partial class LibraryView : UserControl
         WorkingCsXFLDoc = null;
 
         LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
+        _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
+    }
+
+    private void OnLibraryViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(LibraryViewModel.Bitmap)) { UpdateBitmapPreview(); }
+        if (e.PropertyName == nameof(LibraryViewModel.Sound)) { UpdateSoundPreview(); }
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        WorkingCsXFLDoc = e.NewDocument!;
+        WorkingCsXFLDoc = CsXFL.An.GetDocument(e.Index)!;
+
+        // Rebuild the FlatLibrary with the current search parameters
+        if (_libraryViewModel != null && WorkingCsXFLDoc != null)
+        {
+            FilterAndUpdateFlatLibrary(SearchText!);
+        }
     }
 
     /// <summary>
+    /// Filters the library items based on the provided search text and updates the flat library view.
     /// Handles the text changed event for the library search TextBox.
     /// Updates the library view based on the search text entered by the user.
     /// </summary>
@@ -56,16 +81,18 @@ public partial class LibraryView : UserControl
         string searchText = "";
         var textBox = sender as TextBox;
         if (textBox != null) { searchText = textBox.Text!; }
+        SearchText = searchText;
 
         // Handle illegal input
         if (searchText.Contains('/') || searchText.Contains('\\'))
         {
-            if(textBox == null) { return; }
+            if (textBox == null) { return; }
             
             Flyout flyout = new Flyout();
             flyout.Content = new TextBlock { Text = "Illegal characters '/' or '\\' are not allowed." };
             flyout.ShowAt(textBox);
 
+            // Todo: Don't use Task.Delay
             // Dismiss the Flyout after 3 seconds
             Task.Delay(3000).ContinueWith(_ => 
             {
@@ -74,6 +101,29 @@ public partial class LibraryView : UserControl
             textBox.Text = new string(searchText.Where(c => c != '/' && c != '\\').ToArray());
         }
 
+        FilterAndUpdateFlatLibrary(searchText);
+    }
+
+    /// <summary>
+    /// Filters and updates the flat library view based on the provided search text.
+    /// </summary>
+    /// <param name="searchText">The text to filter the library items. If null or empty, the hierarchical view is displayed instead.</param>
+    /// <remarks>
+    /// This method performs the following actions:
+    /// - If the search text is null or empty:
+    ///   - Disables the flat source.
+    ///   - Displays the hierarchical tree view and clears its selection.
+    ///   - Hides the flat tree view and clears its selection.
+    ///   - Resets the user's library selection in the view model.
+    /// - If the search text is not empty:
+    ///   - Enables the flat source if not already enabled.
+    ///   - Hides the hierarchical tree view and clears its selection.
+    ///   - Displays the flat tree view and clears its selection.
+    ///   - Filters the library items based on the search text, excluding folders.
+    ///   - Updates the flat source with the filtered items and configures the columns for the flat tree view.
+    /// </remarks>
+    private void FilterAndUpdateFlatLibrary(string searchText)
+    {
         if (string.IsNullOrEmpty(searchText))
         {
             UseFlatSource = false;
@@ -85,7 +135,8 @@ public partial class LibraryView : UserControl
         }
         else
         {
-            if (!UseFlatSource) {
+            if (!UseFlatSource)
+            {
                 UseFlatSource = true;
                 HierarchalTreeView.IsVisible = false;
                 HierarchalTreeView.RowSelection!.Clear();
@@ -95,12 +146,13 @@ public partial class LibraryView : UserControl
                 FlatTreeView.Source = _libraryViewModel.FlatSource;
             }
 
-            // Use LINQ to filter items without modifying the original collection
+            // Filter items based on the search text and exclude folders
             var filteredItems = _libraryViewModel.Items
-                .Where(item => Path.GetFileName(item.Name).Contains(searchText, StringComparison.OrdinalIgnoreCase))
+                .Where(item => Path.GetFileName(item.Name).Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                            && item.Type != "Folder")
                 .ToList();
 
-            // Update FlatSource directly without clearing and repopulating FlatItems
+            // Update FlatSource directly
             _libraryViewModel.FlatSource = new FlatTreeDataGridSource<Blitz.Models.Tools.Library.LibraryItem>(new ObservableCollection<Blitz.Models.Tools.Library.LibraryItem>(filteredItems))
             {
                 Columns =
@@ -115,7 +167,7 @@ public partial class LibraryView : UserControl
     }
 
     /// <summary>
-    /// Handles the paint event for the canvas and renders an SVG image onto it.
+    /// Handles the library preview canvas and renders an SVG image onto it.
     /// </summary>
     /// <param name="sender">The source of the event, typically the canvas control.</param>
     /// <param name="e">The event arguments containing the surface to paint on.</param>
@@ -149,6 +201,224 @@ public partial class LibraryView : UserControl
                 canvas.DrawPicture(svg.Picture);
             }
         }
+    }
+
+    /// <summary>
+    /// Retrieves the binary data of a bitmap image from the file system or a ZIP archive.
+    /// </summary>
+    private byte[] GetBitmapData(BitmapItem bitmap)
+    {
+        if (WorkingCsXFLDoc.IsXFL)
+        {
+            string imgPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href);
+            byte[] data = File.ReadAllBytes(imgPath);
+            return data;
+        }
+        else
+        {
+            using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
+            {
+                string imgPath = Path.Combine(Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href).Replace("\\", "/");
+                ZipArchiveEntry? entry = archive.GetEntry(imgPath);
+                if (entry is null)
+                {
+                    // try to find it while removing slashes from both paths
+                    imgPath = imgPath.Replace('/', '\\').Replace('\\', '_');
+                    entry = archive.Entries.Where(x => x.FullName.Replace('/', '\\').Replace('\\', '_') == imgPath).FirstOrDefault();
+                    if (entry is null) throw new Exception($"Bitmap not found: {imgPath}");
+                }
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    entry.Open().CopyTo(ms);
+                    byte[] imageData = ms.ToArray();
+                    return imageData;
+                }
+            }
+        }
+    }
+
+    private void UpdateBitmapPreview()
+    {
+        var imageControl = this.FindControl<Avalonia.Controls.Image>("LibraryBitmapPreview");
+
+        if (_libraryViewModel.Bitmap == null)
+        {
+            imageControl.IsVisible = false; // Hide the control
+            return;
+        }
+        else
+        {
+            imageControl.IsVisible = true; // Show the control
+        }
+
+        var bitmapData = GetBitmapData(_libraryViewModel.Bitmap);
+
+        // Use SixLabors.ImageSharp to load the image and convert it to a stream
+        using (var image = SixLabors.ImageSharp.Image.Load(bitmapData))
+        using (var memoryStream = new MemoryStream())
+        {
+            // Save the image as a PNG to the memory stream
+            image.Save(memoryStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
+            memoryStream.Seek(0, SeekOrigin.Begin);
+
+            // Set the MemoryStream directly to the Image control
+            imageControl.Source = new Avalonia.Media.Imaging.Bitmap(memoryStream);
+        }
+        return;
+    }
+
+    private Avalonia.Media.Imaging.Bitmap GenerateWaveformBitmap(float[] amplitudes, int width, int height)
+    {
+        using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(width, height));
+        var canvas = surface.Canvas;
+
+        canvas.Clear(SkiaSharp.SKColors.Transparent);
+
+        var paint = new SkiaSharp.SKPaint
+        {
+            Color = SkiaSharp.SKColors.OrangeRed,
+            StrokeWidth = 1,
+            IsAntialias = true
+        };
+
+        var centerY = height / 2;
+
+        // Calculate the step size for drawing the waveform
+        var step = (float)width / amplitudes.Length;
+
+        // Draw the waveform
+        for (int i = 0; i < amplitudes.Length - 1; i++)
+        {
+            var x1 = i * step;
+            var y1 = centerY - amplitudes[i] * centerY;
+            var x2 = (i + 1) * step;
+            var y2 = centerY - amplitudes[i + 1] * centerY;
+
+            canvas.DrawLine(x1, y1, x2, y2, paint);
+        }
+
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        using var stream = new MemoryStream(data.ToArray());
+        return new Avalonia.Media.Imaging.Bitmap(stream);
+    }
+
+    private float[] GetAudioAmplitudes(byte[] audioData, int sampleRate = 1000)
+    {
+        using var ms = new MemoryStream(audioData);
+        using var reader = new WaveFileReader(ms); // Use WaveFileReader for streams
+        var samples = new List<float>();
+        var buffer = new byte[sampleRate * reader.WaveFormat.BlockAlign]; // Adjust buffer size based on block align
+        int read;
+
+        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            // Convert the byte buffer to float samples based on the audio format
+            for (int i = 0; i < read; i += reader.WaveFormat.BlockAlign)
+            {
+                if (reader.WaveFormat.BitsPerSample == 16)
+                {
+                    // 16-bit PCM: Convert two bytes to a short and normalize
+                    if (i + 2 <= read)
+                    {
+                        short sample = BitConverter.ToInt16(buffer, i);
+                        samples.Add(sample / 32768f); // Normalize to range [-1, 1]
+                    }
+                }
+                else if (reader.WaveFormat.BitsPerSample == 8)
+                {
+                    // 8-bit PCM: Normalize byte to range [-1, 1]
+                    byte sample = buffer[i];
+                    samples.Add((sample - 128) / 128f);
+                }
+                else if (reader.WaveFormat.BitsPerSample == 32)
+                {
+                    // 32-bit float PCM: Directly convert
+                    if (i + 4 <= read)
+                    {
+                        float sample = BitConverter.ToSingle(buffer, i);
+                        samples.Add(sample);
+                    }
+                }
+                else
+                {
+                    throw new NotSupportedException("Unsupported bit depth: " + reader.WaveFormat.BitsPerSample);
+                }
+            }
+        }
+        return samples.ToArray();
+    }
+
+    private void UpdateSoundPreview()
+    {
+        var imageControl = this.FindControl<Avalonia.Controls.Image>("LibraryBitmapPreview");
+
+        if (_libraryViewModel.Sound == null)
+        {
+            imageControl.IsVisible = false;
+            return;
+        } else {
+            imageControl.IsVisible = true;
+        }
+
+        string audioFilePath = (_libraryViewModel.Sound as SoundItem)!.Href;
+
+        if (string.IsNullOrEmpty(audioFilePath))
+        {
+            imageControl.IsVisible = false; // Hide the control if the file path is invalid
+            return;
+        }
+
+        byte[] audioData;
+
+        if (WorkingCsXFLDoc.IsXFL)
+        {
+            // If the document is not a Zip archive, read the audio file directly
+            string fullPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, Library.LIBRARY_PATH, audioFilePath);
+            if (!File.Exists(fullPath))
+            {
+                imageControl.IsVisible = false;
+                throw new FileNotFoundException($"Audio file not found: {fullPath}");
+            }
+            audioData = File.ReadAllBytes(fullPath);
+        }
+        else
+        {
+            // If the document is a Zip archive, extract the audio file
+            using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
+            {
+                string zipPath = Path.Combine(Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
+                ZipArchiveEntry? entry = archive.GetEntry(zipPath);
+
+                if (entry is null)
+                {
+                    // Try to find the entry by normalizing slashes
+                    zipPath = zipPath.Replace('/', '\\').Replace('\\', '_');
+                    entry = archive.Entries.Where(x => x.FullName.Replace('/', '\\').Replace('\\', '_') == zipPath).FirstOrDefault();
+                    if (entry is null)
+                    {
+                        imageControl.IsVisible = false;
+                        throw new Exception($"Audio file not found in archive: {zipPath}");
+                    }
+                }
+
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    entry.Open().CopyTo(ms);
+                    audioData = ms.ToArray();
+                }
+            }
+        }
+
+        // Process the audio data (e.g., generate waveform)
+        var amplitudes = GetAudioAmplitudes(audioData, _libraryViewModel.Sound.SampleRate);
+
+        // Generate waveform bitmap using SkiaSharp
+        var bitmap = GenerateWaveformBitmap(amplitudes, 800, 200); // Width and height of the waveform
+
+        // Set the bitmap as the source for the Image control
+        imageControl.Source = bitmap;
+        imageControl.IsVisible = true; // Show the control
     }
 
     private void InitializeComponent()

@@ -52,7 +52,7 @@ namespace Blitz.ViewModels.Tools
             }
         }
 
-        #region Graphic
+        #region Graphic/MC
         private ContextMenu CreateGraphicContextMenu()
         {
             var contextMenu = new ContextMenu();
@@ -64,6 +64,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new Separator());
+            // TODO: Graphic/MC Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
@@ -80,6 +81,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Rename"});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
+            // TODO: This should be easy to implement
             contextMenu.Items.Add(new MenuItem { Header = "Expand Folder"});
             contextMenu.Items.Add(new MenuItem { Header = "Collapse Folder"});
             contextMenu.Items.Add(new MenuItem { Header = "Expand All Folders"});
@@ -99,9 +101,11 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Rename"});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
+            // TODO: Audio thread
             contextMenu.Items.Add(new MenuItem { Header = "Play"});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
+            // TODO: Sound Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
@@ -119,8 +123,10 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
+            // TODO: What is update? Can we just make this "replace"?
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
+            // TODO: Bitmap Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
@@ -134,6 +140,10 @@ namespace Blitz.ViewModels.Tools
             var dialogIdentifier = await DialogHost.Show(dialog) as string;
             dialog.DialogIdentifier = dialogIdentifier!;
         }
+
+        // Todo: Duplicate is generic
+        // Todo: Edit will be generic when Canvas is implemented
+        // Todo: Deletion is generic
     }    
 
     public partial class LibraryViewModel : Tool

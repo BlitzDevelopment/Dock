@@ -31,20 +31,27 @@ public class DockFactory : Factory
         _mainWindowViewModel = mainWindowViewModel;
         ViewModelRegistry.Instance.RegisterViewModel(nameof(MainWindowViewModel), _mainWindowViewModel);
         ActiveDockableChanged += OnActiveDockableChanged;
+        DockableClosed += OnDockableClosed;
         _eventAggregator = EventAggregator.Instance;
     }
 
     private void OnActiveDockableChanged(object? sender, ActiveDockableChangedEventArgs e)
     {
+        // Switching active documents
         if (e.Dockable is DocumentViewModel document)
         {
-            CsXFL.An.SetActiveDocument(document.AttachedDocument!);
-            _eventAggregator.Publish(new ActiveDocumentChangedEvent(document.AttachedDocument!));
+            CsXFL.An.SetActiveDocument(CsXFL.An.GetDocument(document.DocumentIndex!.Value));
+            _eventAggregator.Publish(new ActiveDocumentChangedEvent(document.DocumentIndex!.Value));
         }
-        else
+    }
+
+    private void OnDockableClosed(object? sender, DockableClosedEventArgs e)
+    {
+        // Closed any document, can be non focused
+        if (e.Dockable is DocumentViewModel document)
         {
-            // ToDo: Clear the active document, need to override functionality in CsXFL, rebuild
-            //CsXFL.An.SetActiveDocument(null);
+            // Todo: Closing document err, need to update Document list on close & update other document's indeces. Bummer
+            CsXFL.An.CloseDocument(document.DocumentIndex!.Value);
         }
     }
 

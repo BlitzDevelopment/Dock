@@ -2,11 +2,11 @@ namespace Blitz.Events
 {
     public class ActiveDocumentChangedEvent
     {
-        public CsXFL.Document NewDocument { get; set; }
+        public int Index { get; set; }
 
-        public ActiveDocumentChangedEvent(CsXFL.Document newDocument)
+        public ActiveDocumentChangedEvent(int index)
         {
-            NewDocument = newDocument;
+            Index = index;
         }
     }
 }

@@ -47,7 +47,7 @@ public partial class MainWindowViewModel : ObservableObject
     #endregion
 
     #region Events
-    public event Action<CsXFL.Document>? DocumentOpened;
+    public event Action<int>? DocumentOpened;
     #endregion
 
     #region Document State
@@ -112,7 +112,18 @@ public partial class MainWindowViewModel : ObservableObject
         var memento = new CsXFLDocumentMemento(this, WorkingCsXFLDoc);
         ApplicationServices.MementoCaretaker.AddMemento(memento, $"You will never see this.");
 
-        DocumentOpened?.Invoke(WorkingCsXFLDoc);
+        // Get the document list and find the index of the opened document
+        var documentList = An.GetDocumentList();
+        var documentIndex = documentList.IndexOf(WorkingCsXFLDoc);
+
+        if (documentIndex == -1)
+        {
+            Debug.WriteLine($"Error: Opened document {filePath} not found in the document list.");
+            return;
+        }
+
+        // Invoke the event with the index of the opened document
+        DocumentOpened?.Invoke(documentIndex);
     }
 
     private void SaveDocument()
@@ -178,7 +189,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
     {
-        WorkingCsXFLDoc = activeDocumentChangedEvent.NewDocument;
+        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Index);
     }
 
     public MainWindowViewModel()
