@@ -12,6 +12,7 @@ using Avalonia.Controls.Models.TreeDataGrid;
 using System.ComponentModel;
 using System.Collections.Generic;
 using CsXFL;
+using SkiaSharp;
 using System.IO.Compression;
 
 using NAudio.Wave;
@@ -46,7 +47,7 @@ public partial class LibraryView : UserControl
     private void OnLibraryViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(LibraryViewModel.Bitmap)) { UpdateBitmapPreview(); }
-        if (e.PropertyName == nameof(LibraryViewModel.Sound)) { UpdateSoundPreview(); }
+        if (e.PropertyName == nameof(LibraryViewModel.Sound)) { LibrarySVGPreview.Invalidate(); }
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
@@ -162,22 +163,16 @@ public partial class LibraryView : UserControl
                     new TextColumn<Blitz.Models.Tools.Library.LibraryItem, string>("Use Count", x => x.UseCount),
                 },
             };
+            _libraryViewModel.FlatSource.RowSelection!.SingleSelect = false;
             FlatTreeView.Source = _libraryViewModel.FlatSource;
         }
     }
 
+    // Todo: Double check performance here for SKXamlCanvas, we shouldn't have a stuttering issue with such basic vectors
+    // This is almost certainly due to getting the SVG every time the canvas is invalidated.
     /// <summary>
     /// Handles the library preview canvas and renders an SVG image onto it.
     /// </summary>
-    /// <param name="sender">The source of the event, typically the canvas control.</param>
-    /// <param name="e">The event arguments containing the surface to paint on.</param>
-    /// <remarks>
-    /// This method checks if the SVG data is available in the associated view model. 
-    /// If available, it loads the SVG data into an SKSvg object, calculates the bounding 
-    /// rectangle of the SVG image, and adjusts the canvas's translation and scaling to 
-    /// fit the SVG image within the canvas bounds. Finally, it draws the SVG image onto 
-    /// the canvas.
-    /// </remarks>
     private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
@@ -200,6 +195,71 @@ public partial class LibraryView : UserControl
                 // Now finally draw the SVG image
                 canvas.DrawPicture(svg.Picture);
             }
+        }
+
+        if (_libraryViewModel.Sound != null)
+        {
+            string audioFilePath = (_libraryViewModel.Sound as SoundItem)!.Href;
+
+            if (string.IsNullOrEmpty(audioFilePath))
+            {
+                return;
+            }
+
+            byte[] audioData;
+
+            if (WorkingCsXFLDoc.IsXFL)
+            {
+                // If the document is not a Zip archive, read the audio file directly
+                string fullPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, Library.LIBRARY_PATH, audioFilePath);
+                if (!File.Exists(fullPath))
+                {
+                    throw new FileNotFoundException($"Audio file not found: {fullPath}");
+                }
+                audioData = File.ReadAllBytes(fullPath);
+            }
+            else
+            {
+                // If the document is a Zip archive, extract the audio file
+                using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
+                {
+                    string zipPath = Path.Combine(Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
+                    ZipArchiveEntry? entry = archive.GetEntry(zipPath);
+
+                    if (entry is null)
+                    {
+                        // Try to find the entry by normalizing slashes
+                        zipPath = zipPath.Replace('/', '\\').Replace('\\', '_');
+                        entry = archive.Entries.Where(x => x.FullName.Replace('/', '\\').Replace('\\', '_') == zipPath).FirstOrDefault();
+                        if (entry is null)
+                        {
+                            throw new Exception($"Audio file not found in archive: {zipPath}");
+                        }
+                    }
+
+                    using (MemoryStream ms = new MemoryStream())
+                    {
+                        entry.Open().CopyTo(ms);
+                        audioData = ms.ToArray();
+                    }
+                }
+            }
+
+            var waveformWidth = 800; // Width of the waveform
+            var waveformHeight = 200; // Height of the waveform
+            var amplitudes = GetAudioAmplitudes(audioData, _libraryViewModel.Sound.SampleRate);
+            var (waveformPicture, analogousColor, lighterColor) = GenerateWaveform(amplitudes, waveformWidth, waveformHeight);
+            var canvasWidth = e.Info.Width;
+            var canvasHeight = e.Info.Height;
+            var centerX = canvasWidth / 2f;
+            var centerY = canvasHeight / 2f;
+            var offsetX = centerX - (waveformWidth / 2f);
+            var offsetY = centerY - (waveformHeight / 2f);
+
+            canvas.Save();
+            canvas.Translate(offsetX, offsetY);
+            canvas.DrawPicture(waveformPicture);
+            canvas.Restore();
         }
     }
 
@@ -243,12 +303,12 @@ public partial class LibraryView : UserControl
 
         if (_libraryViewModel.Bitmap == null)
         {
-            imageControl.IsVisible = false; // Hide the control
+            imageControl.IsVisible = false;
             return;
         }
         else
         {
-            imageControl.IsVisible = true; // Show the control
+            imageControl.IsVisible = true;
         }
 
         var bitmapData = GetBitmapData(_libraryViewModel.Bitmap);
@@ -267,26 +327,48 @@ public partial class LibraryView : UserControl
         return;
     }
 
-    private Avalonia.Media.Imaging.Bitmap GenerateWaveformBitmap(float[] amplitudes, int width, int height)
+    private (SkiaSharp.SKPicture Picture, SkiaSharp.SKColor AnalogousColor, SkiaSharp.SKColor LighterColor) GenerateWaveform(float[] amplitudes, int width, int height)
     {
-        using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(width, height));
-        var canvas = surface.Canvas;
+        using var pictureRecorder = new SkiaSharp.SKPictureRecorder();
+        var canvas = pictureRecorder.BeginRecording(new SkiaSharp.SKRect(0, 0, width, height));
 
         canvas.Clear(SkiaSharp.SKColors.Transparent);
+        SKColor canvasColor = SKColor.Parse(_libraryViewModel.CanvasColor);
+
+        // Two-tone waveform is an analogous color to the inverse color of the canvas.
+        // This means there is always contrast against the background without being ugly.
+        SKColor inverseColor = new SKColor(
+            (byte)(255 - canvasColor.Red),
+            (byte)(255 - canvasColor.Green),
+            (byte)(255 - canvasColor.Blue),
+            canvasColor.Alpha
+        );
+
+        SKColor analogousColor = new SKColor(
+            (byte)((inverseColor.Red + 30) % 256),
+            (byte)((inverseColor.Green + 15) % 256),
+            (byte)((inverseColor.Blue - 20 + 256) % 256),
+            inverseColor.Alpha
+        );
+
+        SKColor lighterColor = new SKColor(
+            (byte)Math.Min(analogousColor.Red + 50, 255),
+            (byte)Math.Min(analogousColor.Green + 50, 255),
+            (byte)Math.Min(analogousColor.Blue + 50, 255),
+            analogousColor.Alpha
+        );
 
         var paint = new SkiaSharp.SKPaint
         {
-            Color = SkiaSharp.SKColors.OrangeRed,
             StrokeWidth = 1,
             IsAntialias = true
         };
 
         var centerY = height / 2;
+        var step = (float)width / amplitudes.Length; // Stepsize for each sample
 
-        // Calculate the step size for drawing the waveform
-        var step = (float)width / amplitudes.Length;
-
-        // Draw the waveform
+        // Draw the waveform with analogousColor
+        paint.Color = analogousColor;
         for (int i = 0; i < amplitudes.Length - 1; i++)
         {
             var x1 = i * step;
@@ -297,10 +379,21 @@ public partial class LibraryView : UserControl
             canvas.DrawLine(x1, y1, x2, y2, paint);
         }
 
-        using var image = surface.Snapshot();
-        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
-        using var stream = new MemoryStream(data.ToArray());
-        return new Avalonia.Media.Imaging.Bitmap(stream);
+        // Draw a slightly less tall waveform with lighterColor
+        float scale = 0.4f;
+        paint.Color = lighterColor;
+        for (int i = 0; i < amplitudes.Length - 1; i++)
+        {
+            var x1 = i * step;
+            var y1 = centerY - amplitudes[i] * centerY * scale;
+            var x2 = (i + 1) * step;
+            var y2 = centerY - amplitudes[i + 1] * centerY * scale;
+
+            canvas.DrawLine(x1, y1, x2, y2, paint);
+        }
+
+        var picture = pictureRecorder.EndRecording();
+        return (picture, analogousColor, lighterColor);
     }
 
     private float[] GetAudioAmplitudes(byte[] audioData, int sampleRate = 1000)
@@ -347,78 +440,6 @@ public partial class LibraryView : UserControl
             }
         }
         return samples.ToArray();
-    }
-
-    private void UpdateSoundPreview()
-    {
-        var imageControl = this.FindControl<Avalonia.Controls.Image>("LibraryBitmapPreview");
-
-        if (_libraryViewModel.Sound == null)
-        {
-            imageControl.IsVisible = false;
-            return;
-        } else {
-            imageControl.IsVisible = true;
-        }
-
-        string audioFilePath = (_libraryViewModel.Sound as SoundItem)!.Href;
-
-        if (string.IsNullOrEmpty(audioFilePath))
-        {
-            imageControl.IsVisible = false; // Hide the control if the file path is invalid
-            return;
-        }
-
-        byte[] audioData;
-
-        if (WorkingCsXFLDoc.IsXFL)
-        {
-            // If the document is not a Zip archive, read the audio file directly
-            string fullPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, Library.LIBRARY_PATH, audioFilePath);
-            if (!File.Exists(fullPath))
-            {
-                imageControl.IsVisible = false;
-                throw new FileNotFoundException($"Audio file not found: {fullPath}");
-            }
-            audioData = File.ReadAllBytes(fullPath);
-        }
-        else
-        {
-            // If the document is a Zip archive, extract the audio file
-            using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
-            {
-                string zipPath = Path.Combine(Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
-                ZipArchiveEntry? entry = archive.GetEntry(zipPath);
-
-                if (entry is null)
-                {
-                    // Try to find the entry by normalizing slashes
-                    zipPath = zipPath.Replace('/', '\\').Replace('\\', '_');
-                    entry = archive.Entries.Where(x => x.FullName.Replace('/', '\\').Replace('\\', '_') == zipPath).FirstOrDefault();
-                    if (entry is null)
-                    {
-                        imageControl.IsVisible = false;
-                        throw new Exception($"Audio file not found in archive: {zipPath}");
-                    }
-                }
-
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    entry.Open().CopyTo(ms);
-                    audioData = ms.ToArray();
-                }
-            }
-        }
-
-        // Process the audio data (e.g., generate waveform)
-        var amplitudes = GetAudioAmplitudes(audioData, _libraryViewModel.Sound.SampleRate);
-
-        // Generate waveform bitmap using SkiaSharp
-        var bitmap = GenerateWaveformBitmap(amplitudes, 800, 200); // Width and height of the waveform
-
-        // Set the bitmap as the source for the Image control
-        imageControl.Source = bitmap;
-        imageControl.IsVisible = true; // Show the control
     }
 
     private void InitializeComponent()
