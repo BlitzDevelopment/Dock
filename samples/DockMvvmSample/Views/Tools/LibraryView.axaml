@@ -140,7 +140,7 @@
           </Button.Content>
         </Button>
 
-        <Button ToolTip.Tip="Delete">
+        <Button ToolTip.Tip="Delete" Command="{Binding DeleteCommand}">
           <Button.Content>
             <StackPanel Orientation="Vertical">
               <PathIcon

@@ -44,6 +44,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     private ICommand _renderVideoDialogCommand;
     public ICommand RenderVideoDialogCommand => _renderVideoDialogCommand;
+
+    private ICommand _importToLibraryCommand;
+    public ICommand ImportToLibraryCommand => _importToLibraryCommand;
     #endregion
 
     #region Events
@@ -96,11 +99,16 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    // MARK: CsXFL Commands
+    // MARK: Document Commands
     private async void OpenDocument()
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
-        var filePath = await _fileService.OpenFileAsync(mainWindow);
+        var filePath = await _fileService.OpenFileAsync(mainWindow, FileService.BlitzCompatible, "Open Document");
+        OpenDocumentHelper(filePath);
+    }
+
+    private async void OpenDocumentHelper(string filePath)
+    {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
         {
             Debug.WriteLine($"Warning: File {filePath} does not exist or is null.");
@@ -131,16 +139,9 @@ public partial class MainWindowViewModel : ObservableObject
         WorkingCsXFLDoc!.Save();
     }
 
-    public async void RenderVideoDialog()
-    {
-        var dialog = new MainVideoRender();
-        var dialogIdentifier = await DialogHost.Show(dialog) as string;
-        dialog.DialogIdentifier = dialogIdentifier!;
-    }
-
     private async void OpenRecent(string filePath)
     {
-        // TODO: This
+        OpenDocumentHelper(filePath);
     }
 
     public void LoadRecentFiles()
@@ -154,7 +155,12 @@ public partial class MainWindowViewModel : ObservableObject
             foreach (var file in recentFiles)
             {
                 RecentFiles.Add(file);
-                var menuItem = new MenuItem { Header = Path.GetFileName(file) };
+                var menuItem = new MenuItem
+                {
+                    Header = Path.GetFileName(file).Replace("_", "__"), // Escape underscores
+                    Command = OpenRecentCommand,
+                    CommandParameter = file // Pass the file path as the command parameter
+                };
                 OpenRecentMenuItem.Items.Add(menuItem);
             }
         }
@@ -187,6 +193,24 @@ public partial class MainWindowViewModel : ObservableObject
         LoadRecentFiles();
     }
 
+    // MARK: Importing
+    private async void ImportToLibrary() 
+    {
+        var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
+        var filePath = await _fileService.OpenFileAsync(mainWindow, FileService.BitmapCompatible, "Import to Library");
+        WorkingCsXFLDoc.ImportFile(filePath);
+        _eventAggregator.Publish(new LibraryItemsChangedEvent());
+    }
+
+    // MARK: Dialogs
+    public async void RenderVideoDialog()
+    {
+        var dialog = new MainVideoRender();
+        var dialogIdentifier = await DialogHost.Show(dialog) as string;
+        dialog.DialogIdentifier = dialogIdentifier!;
+    }
+
+    // MARK: Events
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
     {
         WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Index);
@@ -203,6 +227,7 @@ public partial class MainWindowViewModel : ObservableObject
         _openDocumentCommand = new RelayCommand(OpenDocument);
         _saveDocumentCommand = new RelayCommand(SaveDocument);
         _renderVideoDialogCommand = new RelayCommand(RenderVideoDialog);
+        _importToLibraryCommand = new RelayCommand(ImportToLibrary);
 
         recentFilesPath = _blitzAppData.GetRecentFilesPath();
         OpenRecentCommand = new RelayCommand<string>(OpenRecent);

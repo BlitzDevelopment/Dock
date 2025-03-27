@@ -39,7 +39,8 @@
         <Separator />
 
         <MenuItem Header="Import" IsEnabled="{Binding IsDocumentLoaded}">
-          <MenuItem Header="To Library" />
+          <MenuItem Header="To Library" Command="{Binding ImportToLibraryCommand}" />
+          <MenuItem Header="To Stage" />
         </MenuItem>
         <MenuItem Header="Export" IsEnabled="{Binding IsDocumentLoaded}">
           <MenuItem Header="Image" />

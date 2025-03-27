@@ -4,8 +4,10 @@ using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using Blitz.Events;
+using Blitz.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
 using Rendering;
 using System;
@@ -14,6 +16,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using static Blitz.Models.Tools.Library;
 
@@ -352,10 +355,45 @@ public partial class LibraryViewModel : Tool
     }
 
     [RelayCommand]
-    // Todo: Copy this from LibraryContextMenu when we figure out a good way to refresh the library after deletion
-    private void Delete()
+    private async Task<bool> ShowWarning(string text)
     {
+        var dialog = new MainGenericWarning(text);
+        var result = await DialogHost.Show(dialog);
+        var dialogIdentifier = result as string;
+        dialog.DialogIdentifier = dialogIdentifier!;
+        return result is bool isOkayPressed && isOkayPressed;
+    }
 
+    [RelayCommand]
+    private async Task Delete()
+    {
+        WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
+        if (_userLibrarySelection == null) { return; }
+
+        // Show warning if 5 or more items are selected
+        if (_userLibrarySelection.Length >= 5)
+        {
+            bool userAccepted = await ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
+            if (!userAccepted) { return; }
+        }
+
+        // Check if WorkingCsXFLDoc is null
+        if (WorkingCsXFLDoc == null)
+        {
+            return;
+        }
+
+        // Perform deletion
+        foreach (var item in _userLibrarySelection)
+        {
+            if (item?.Name == null)
+            {
+                continue;
+            }
+            WorkingCsXFLDoc.Library.RemoveItem(item.Name);
+        }
+
+        _eventAggregator.Publish(new LibraryItemsChangedEvent());
     }
 
     // MARK: Library Public VM

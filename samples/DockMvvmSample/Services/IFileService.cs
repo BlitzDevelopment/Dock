@@ -7,12 +7,20 @@ using System.Diagnostics;
 
 public interface IFileService
 {
-    Task<string> OpenFileAsync(Window mainWindow);
+    Task<string> OpenFileAsync(Window mainWindow, FilePickerFileType fileType, string title);
 }
 
 public class FileService : IFileService
 {
-    public static FilePickerFileType BlitzCompatible { get; } = new("Blitz") { Patterns = new[] { "*.fla" }};
+    public static FilePickerFileType BlitzCompatible { get; } = new("Blitz")
+    {
+        Patterns = new[] { "*.fla" }
+    };
+
+    public static FilePickerFileType BitmapCompatible { get; } = new("Bitmaps")
+    {
+        Patterns = new[] { "*.png", "*.jpg", "*.jpeg" }
+    };
 
     private readonly Window _mainWindow;
 
@@ -21,15 +29,15 @@ public class FileService : IFileService
         _mainWindow = mainWindow;
     }
 
-    public async Task<string> OpenFileAsync(Window mainWindow)
+    public async Task<string> OpenFileAsync(Window mainWindow, FilePickerFileType fileType, string title)
     {
         var storage = Window.GetTopLevel(mainWindow)!.StorageProvider;
 
         var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open Document",
+            Title = title,
             AllowMultiple = true,
-            FileTypeFilter = new[] { BlitzCompatible }
+            FileTypeFilter = new[] { fileType }
         });
 
         if (files.Count == 0)
