@@ -1,19 +1,20 @@
-﻿using Dock.Model.Mvvm.Controls;
-using System.Collections.ObjectModel;
-using Avalonia;
-using Avalonia.Media;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Data.Converters;
-using CommunityToolkit.Mvvm.ComponentModel;
-using System;
-using System.Linq;
-using System.Collections.Generic;
-using System.Globalization;
-using Rendering;
-using System.Xml.Linq;
-using System.IO;
+using Avalonia.Media;
 using Blitz.Events;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Dock.Model.Mvvm.Controls;
+using Rendering;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Xml.Linq;
 using static Blitz.Models.Tools.Library;
 
 namespace Blitz.ViewModels.Tools;
@@ -83,6 +84,8 @@ public partial class LibraryViewModel : Tool
             _userLibrarySelection = value;
             OnPropertyChanged(nameof(UserLibrarySelection));
             HandleUserLibrarySelectionChange();
+
+            _eventAggregator.Publish(new UserLibrarySelectionChangedEvent(_userLibrarySelection!));
         }
     }
     #endregion
@@ -122,99 +125,41 @@ public partial class LibraryViewModel : Tool
     {
         WorkingCsXFLDoc = CsXFL.An.GetDocument(e.Index);
         Console.WriteLine($"[LibraryViewModel] WorkingCsXFLDoc changed to {WorkingCsXFLDoc.Filename}");
+        RebuildLibrary();
+    }
 
+    public void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
+    {
+        RebuildLibrary();
+    }
+
+    public void RebuildLibrary() 
+    {
         if (WorkingCsXFLDoc != null) 
-            {
-                Items.Clear();
-                FlatItems.Clear();
-                HierarchicalItems.Clear();
+        {
+            Items.Clear();
+            FlatItems.Clear();
+            HierarchicalItems.Clear();
 
-                foreach (var item in WorkingCsXFLDoc.Library.Items)
+            foreach (var item in WorkingCsXFLDoc.Library.Items)
+            {
+                var libraryItem = new LibraryItem
                 {
-                    var libraryItem = new LibraryItem
-                    {
-                        Name = item.Value.Name,
-                        UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
-                        Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
-                        CsXFLItem = item.Value
-                    };
-                    Items.Add(libraryItem);
-                }
-
-                InvalidateFlatLibrary(WorkingCsXFLDoc);
-                InvalidateHierarchicalLibrary(WorkingCsXFLDoc);
-                CanvasColor = WorkingCsXFLDoc.BackgroundColor;
+                    Name = item.Value.Name,
+                    UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
+                    Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
+                    CsXFLItem = item.Value
+                };
+                Items.Add(libraryItem);
             }
-            ItemCount = WorkingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
+
+            InvalidateFlatLibrary(WorkingCsXFLDoc);
+            InvalidateHierarchicalLibrary(WorkingCsXFLDoc);
+            CanvasColor = WorkingCsXFLDoc.BackgroundColor;
+        }
+        ItemCount = WorkingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
     }
 
-    private void HandleUserLibrarySelectionChange()
-    {
-        Bitmap = null;
-        Sound = null;
-        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; }
-
-        if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
-        {
-            string appDataFolder = _blitzAppData.GetTmpFolder();
-            SVGRenderer renderer = new SVGRenderer(WorkingCsXFLDoc!, appDataFolder, true);
-
-            // TODO: This
-            //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
-            //SvgData = renderedSVG;
-        }
-
-        if (UserLibrarySelection[0].ItemType == "bitmap")
-        {
-            Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem;
-        }
-
-        if (UserLibrarySelection[0].ItemType == "sound")
-        {
-            Sound = UserLibrarySelection[0] as CsXFL.SoundItem;
-        }
-    }
-
-    public void UpdateFlatSource()
-    {
-        FlatSource = new FlatTreeDataGridSource<LibraryItem>(FlatItems)
-        {
-            Columns =
-            {
-                new TextColumn<LibraryItem, string>("Name", x => Path.GetFileName(x.Name)),
-                new TextColumn<LibraryItem, string>("Type", x => x.Type),
-                new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
-            },
-        };
-        FlatSource.RowSelection!.SingleSelect = false;
-
-        FlatSource.RowSelection.SelectionChanged += (sender, e) =>
-        {
-            var selectedItems = FlatSource.RowSelection.SelectedItems.OfType<LibraryItem>();
-            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
-        };
-    }
-
-    /// <summary>
-    /// Updates the flat library representation by processing the current library items.
-    /// </summary>
-    /// <param name="doc">The document associated with the library.</param>
-    /// <remarks>
-    /// This method performs the following steps:
-    /// <list type="number">
-    /// <item>
-    /// Creates a dictionary to store library items by their name.
-    /// </item>
-    /// <item>
-    /// Iterates through the existing items to create and populate <see cref="LibraryItem"/> objects,
-    /// setting their properties such as <c>Name</c>, <c>UseCount</c>, <c>Type</c>, and associated <c>CsXFLItem</c>.
-    /// </item>
-    /// <item>
-    /// Adds non-folder items to the flat library representation (<c>FlatItems</c>).
-    /// </item>
-    /// </list>
-    /// Folder items are excluded from the flat library representation.
-    /// </remarks>
     public void InvalidateFlatLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
@@ -240,33 +185,6 @@ public partial class LibraryViewModel : Tool
         }
     }
 
-    /// <summary>
-    /// Reorganizes the library items into a hierarchical structure based on their names and types.
-    /// </summary>
-    /// <param name="doc">The document associated with the library items.</param>
-    /// <remarks>
-    /// This method processes the library items in three passes:
-    /// <list type="number">
-    /// <item>
-    /// <description>
-    /// <b>Pass 1:</b> Transfers items into a dictionary, creating new <see cref="LibraryItem"/> instances
-    /// with their properties initialized based on the original items.
-    /// </description>
-    /// </item>
-    /// <item>
-    /// <description>
-    /// <b>Pass 2:</b> Adds non-folder items to their respective parent folders based on their names.
-    /// If a parent folder is not found, the item is added to the root of the hierarchical structure.
-    /// </description>
-    /// </item>
-    /// <item>
-    /// <description>
-    /// <b>Pass 3:</b> Adds folder items to their respective parent folders or to the root if no parent folder exists.
-    /// </description>
-    /// </item>
-    /// </list>
-    /// After processing, the <c>Name</c> property of each item is updated to remove its path, leaving only the item's name.
-    /// </remarks>
     public void InvalidateHierarchicalLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
@@ -330,6 +248,116 @@ public partial class LibraryViewModel : Tool
         }
     }
 
+    private void HandleUserLibrarySelectionChange()
+    {
+        Console.WriteLine($"[LibraryViewModel] UserLibrarySelection changed to {UserLibrarySelection}");
+        Bitmap = null;
+        Sound = null;
+        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; }
+
+        if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
+        {
+            string appDataFolder = _blitzAppData.GetTmpFolder();
+            SVGRenderer renderer = new SVGRenderer(WorkingCsXFLDoc!, appDataFolder, true);
+
+            // TODO: This
+            //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
+            //SvgData = renderedSVG;
+        }
+
+        if (UserLibrarySelection[0].ItemType == "bitmap") { Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem; }
+        if (UserLibrarySelection[0].ItemType == "sound") { Sound = UserLibrarySelection[0] as CsXFL.SoundItem; }
+    }
+
+    public void UpdateFlatSource()
+    {
+        FlatSource = new FlatTreeDataGridSource<LibraryItem>(FlatItems)
+        {
+            Columns =
+            {
+                new TextColumn<LibraryItem, string>("Name", x => Path.GetFileName(x.Name)),
+                new TextColumn<LibraryItem, string>("Type", x => x.Type),
+                new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
+            },
+        };
+        FlatSource.RowSelection!.SingleSelect = false;
+        FlatSource.RowSelection.SelectionChanged += (sender, e) =>
+        {
+            var selectedItems = FlatSource.RowSelection.SelectedItems.OfType<LibraryItem>();
+            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
+        };
+    }
+
+    // MARK: Buttons
+    [RelayCommand]
+    private void AddFolder()
+    {
+        string baseName = "New Folder";
+        int maxNumber = 0;
+
+        foreach (var item in WorkingCsXFLDoc.Library.Items)
+        {
+            if (item.Value.Name.StartsWith(baseName))
+            {
+                string suffix = item.Value.Name.Substring(baseName.Length).Trim();
+                if (int.TryParse(suffix, out int number))
+                {
+                    maxNumber = Math.Max(maxNumber, number);
+                }
+            }
+        }
+
+        string newFolderName = $"{baseName} {maxNumber + 1}";
+        WorkingCsXFLDoc.Library.NewFolder(newFolderName);
+        LibraryItem newFolder = new LibraryItem
+        {
+            Name = newFolderName,
+            UseCount = "",
+            Type = "Folder",
+            CsXFLItem = WorkingCsXFLDoc.Library.Items[newFolderName]
+        };
+        HierarchicalItems.Add(newFolder);
+    }
+
+    //TODO: This creates movieclips?
+    //Needs its own dialog
+    [RelayCommand]
+    private void AddSymbol()
+    {
+        string baseName = "New Symbol";
+        int maxNumber = 0;
+
+        foreach (var item in WorkingCsXFLDoc.Library.Items)
+        {
+            if (item.Value.Name.StartsWith(baseName))
+            {
+                string suffix = item.Value.Name.Substring(baseName.Length).Trim();
+                if (int.TryParse(suffix, out int number))
+                {
+                    maxNumber = Math.Max(maxNumber, number);
+                }
+            }
+        }
+
+        string newGraphicName = $"{baseName} {maxNumber + 1}";
+        WorkingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
+        LibraryItem newGraphic = new LibraryItem
+        {
+            Name = newGraphicName,
+            UseCount = "",
+            Type = "Graphic",
+            CsXFLItem = WorkingCsXFLDoc.Library.Items[newGraphicName]
+        };
+        HierarchicalItems.Add(newGraphic);
+    }
+
+    [RelayCommand]
+    // Todo: Copy this from LibraryContextMenu when we figure out a good way to refresh the library after deletion
+    private void Delete()
+    {
+
+    }
+
     // MARK: Library Public VM
     public LibraryViewModel(MainWindowViewModel mainWindowViewModel)
     {
@@ -338,6 +366,7 @@ public partial class LibraryViewModel : Tool
         _eventAggregator = EventAggregator.Instance;
 
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
         try
         {
@@ -364,7 +393,6 @@ public partial class LibraryViewModel : Tool
             },
         };
         HierarchicalSource.RowSelection!.SingleSelect = false;
-
         HierarchicalSource.RowSelection.SelectionChanged += (sender, e) =>
         {
             var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();

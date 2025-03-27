@@ -7,8 +7,12 @@ using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using System.Threading.Tasks;
+using Blitz.Events;
+using System.IO;
 
 using static Blitz.Models.Tools.Library;
+using System.Data;
+using Blitz.Views.Tools;
 
 // MARK: Library Contxt Menus
 namespace Blitz.ViewModels.Tools
@@ -31,6 +35,20 @@ namespace Blitz.ViewModels.Tools
 
     public partial class ContextMenuFactory
     {
+        private readonly EventAggregator _eventAggregator;
+        private CsXFL.Item[]? _userLibrarySelection;
+        public CsXFL.Document WorkingCsXFLDoc;
+        public ContextMenuFactory()
+        {
+            _eventAggregator = EventAggregator.Instance;
+            _eventAggregator.Subscribe<UserLibrarySelectionChangedEvent>(OnUserLibrarySelectionChanged);
+        }
+
+        private void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
+        {
+            _userLibrarySelection = e.UserLibrarySelection;
+        }
+
         public ContextMenu CreateContextMenu(string itemType)
         {            
             switch (itemType)
@@ -56,7 +74,7 @@ namespace Blitz.ViewModels.Tools
         private ContextMenu CreateGraphicContextMenu()
         {
             var contextMenu = new ContextMenu();
-            contextMenu.Items.Add(new MenuItem { Header = "Cut"});
+            contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
@@ -65,8 +83,40 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new Separator());
             // TODO: Graphic/MC Properties Dialog
-            contextMenu.Items.Add(new MenuItem { Header = "Properties"});
+            contextMenu.Items.Add(new MenuItem { Header = "Properties", Command = SymbolPropertiesCommand});
             return contextMenu;
+        }
+
+        [RelayCommand]
+        private async Task SymbolProperties()
+        {
+            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
+            if (_userLibrarySelection == null) { return; }
+            if ((_userLibrarySelection[0].ItemType != "graphic") && 
+                (_userLibrarySelection[0].ItemType != "movie clip") && 
+                (_userLibrarySelection[0].ItemType != "button")) 
+            { 
+                return; 
+            }
+
+            var dialog = new LibrarySymbolProperties(_userLibrarySelection[0]);
+            var result = await DialogHost.Show(dialog);
+            var dialogIdentifier = result as string;
+            dialog.DialogIdentifier = dialogIdentifier!;
+
+            var resultObject = result as dynamic;
+            if (resultObject == null) { return; }
+            if (resultObject.Name is not string Name || resultObject.Type is not string Type || resultObject.IsOkay != true)
+            {
+                Console.WriteLine("Dialog error.");
+                return;
+            }
+
+            string currentPath = _userLibrarySelection[0].Name;
+            string? directory = Path.GetDirectoryName(currentPath);
+            string newPath = directory != null ? Path.Combine(directory, resultObject.Name) : resultObject.Name;
+            _userLibrarySelection[0].Name = newPath;
+
         }
         #endregion
 
@@ -74,7 +124,7 @@ namespace Blitz.ViewModels.Tools
         private ContextMenu CreateFolderContextMenu()
         {
             var contextMenu = new ContextMenu();
-            contextMenu.Items.Add(new MenuItem { Header = "Cut"});
+            contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
@@ -94,7 +144,7 @@ namespace Blitz.ViewModels.Tools
         private ContextMenu CreateSoundContextMenu()
         {
             var contextMenu = new ContextMenu();
-            contextMenu.Items.Add(new MenuItem { Header = "Cut"});
+            contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
@@ -115,7 +165,7 @@ namespace Blitz.ViewModels.Tools
         private ContextMenu CreateBitmapContextMenu()
         {
             var contextMenu = new ContextMenu();
-            contextMenu.Items.Add(new MenuItem { Header = "Cut"});
+            contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
@@ -141,10 +191,51 @@ namespace Blitz.ViewModels.Tools
             dialog.DialogIdentifier = dialogIdentifier!;
         }
 
+        [RelayCommand]
+        private async Task<bool> ShowWarning(string text)
+        {
+            var dialog = new MainGenericWarning(text);
+            var result = await DialogHost.Show(dialog);
+            var dialogIdentifier = result as string;
+            dialog.DialogIdentifier = dialogIdentifier!;
+            return result is bool isOkayPressed && isOkayPressed;
+        }
+
+        [RelayCommand]
+        private async Task Delete()
+        {
+            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
+            if (_userLibrarySelection == null) { return; }
+
+            // Show warning if 5 or more items are selected
+            if (_userLibrarySelection.Length >= 5)
+            {
+                bool userAccepted = await ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
+                if (!userAccepted) { return; }
+            }
+
+            // Check if WorkingCsXFLDoc is null
+            if (WorkingCsXFLDoc == null)
+            {
+                return;
+            }
+
+            // Perform deletion
+            foreach (var item in _userLibrarySelection)
+            {
+                if (item?.Name == null)
+                {
+                    continue;
+                }
+                WorkingCsXFLDoc.Library.RemoveItem(item.Name);
+            }
+
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+        }
+
         // Todo: Duplicate is generic
         // Todo: Edit will be generic when Canvas is implemented
-        // Todo: Deletion is generic
-    }    
+    }
 
     public partial class LibraryViewModel : Tool
     {

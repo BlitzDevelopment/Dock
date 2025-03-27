@@ -113,7 +113,7 @@
       <!--Footer-->
       <StackPanel Grid.Row="4" Margin="5,5,0,5" Orientation="Horizontal" VerticalAlignment="Stretch">
         
-        <Button ToolTip.Tip="New Symbol">
+        <Button ToolTip.Tip="New Symbol" Command="{Binding AddSymbolCommand}">
           <Button.Content>
             <StackPanel Orientation="Vertical">
               <PathIcon
@@ -122,7 +122,7 @@
           </Button.Content>
         </Button>
 
-        <Button ToolTip.Tip="Add Folder">
+        <Button ToolTip.Tip="Add Folder" Command="{Binding AddFolderCommand}">
           <Button.Content>
             <StackPanel Orientation="Vertical">
               <PathIcon

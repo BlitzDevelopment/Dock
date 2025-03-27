@@ -1,28 +1,28 @@
 ﻿using Avalonia.Controls;
+using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Markup.Xaml;
-using Svg.Skia;
-using Blitz.ViewModels.Tools;
 using Blitz.Events;
-using System.IO;
+using Blitz.Models.Tools;
+using Blitz.ViewModels.Tools;
+using CsXFL;
+using NAudio.Wave;
+using SkiaSharp;
+using Svg.Skia;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.ObjectModel;
-using Avalonia.Controls.Models.TreeDataGrid;
-using System.ComponentModel;
-using System.Collections.Generic;
-using CsXFL;
-using SkiaSharp;
-using System.IO.Compression;
-
-using NAudio.Wave;
 
 namespace Blitz.Views.Tools;
 
-// Improvement:
+// Todo Improvement:
 // private readonly Dictionary<string, byte[]> _bitmapCache = new();
 // When should we dispose the bitmap cache? OnDocumentClosed? Does a bitmap's href ever change?
-// One ZipArchive per document, dispose OnDocumentClosed
+// One ZipArchive per document, dispose OnDocumentClosed, arbitrary 200MB limit/doc, lazy load hashmap with LRU eviction strat
 public partial class LibraryView : UserControl
 {
     private readonly EventAggregator _eventAggregator;
@@ -34,20 +34,29 @@ public partial class LibraryView : UserControl
     public LibraryView()
     {
         InitializeComponent();
+        WorkingCsXFLDoc = null;
+
         var _viewModelRegistry = ViewModelRegistry.Instance;
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
         _eventAggregator = EventAggregator.Instance;
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
-        WorkingCsXFLDoc = null;
+        _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
         LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
     }
 
+    // MARK: Event Handlers
     private void OnLibraryViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(LibraryViewModel.Bitmap)) { UpdateBitmapPreview(); }
         if (e.PropertyName == nameof(LibraryViewModel.Sound)) { LibrarySVGPreview.Invalidate(); }
+    }
+
+    private void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
+    {
+        FilterAndUpdateFlatLibrary(SearchText!);
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
@@ -61,20 +70,6 @@ public partial class LibraryView : UserControl
         }
     }
 
-    /// <summary>
-    /// Filters the library items based on the provided search text and updates the flat library view.
-    /// Handles the text changed event for the library search TextBox.
-    /// Updates the library view based on the search text entered by the user.
-    /// </summary>
-    /// <param name="sender">The source of the event, typically the TextBox where the text is being entered.</param>
-    /// <param name="e">The event arguments containing information about the text change.</param>
-    /// <remarks>
-    /// - If the search text contains illegal characters ('/' or '\\'), a Flyout is displayed to notify the user,
-    ///   and the illegal characters are removed from the TextBox.
-    /// - If the search text is empty, the hierarchical tree view is displayed, and the flat tree view is hidden.
-    /// - If the search text is not empty, the flat tree view is displayed with filtered items based on the search text.
-    /// - The filtering is case-insensitive and matches the search text against the file name of each library item.
-    /// </remarks>
     public void OnLibrarySearchTextChanged(object sender, TextChangedEventArgs e)
     {
         if (WorkingCsXFLDoc == null) { return; }
@@ -105,24 +100,6 @@ public partial class LibraryView : UserControl
         FilterAndUpdateFlatLibrary(searchText);
     }
 
-    /// <summary>
-    /// Filters and updates the flat library view based on the provided search text.
-    /// </summary>
-    /// <param name="searchText">The text to filter the library items. If null or empty, the hierarchical view is displayed instead.</param>
-    /// <remarks>
-    /// This method performs the following actions:
-    /// - If the search text is null or empty:
-    ///   - Disables the flat source.
-    ///   - Displays the hierarchical tree view and clears its selection.
-    ///   - Hides the flat tree view and clears its selection.
-    ///   - Resets the user's library selection in the view model.
-    /// - If the search text is not empty:
-    ///   - Enables the flat source if not already enabled.
-    ///   - Hides the hierarchical tree view and clears its selection.
-    ///   - Displays the flat tree view and clears its selection.
-    ///   - Filters the library items based on the search text, excluding folders.
-    ///   - Updates the flat source with the filtered items and configures the columns for the flat tree view.
-    /// </remarks>
     private void FilterAndUpdateFlatLibrary(string searchText)
     {
         if (string.IsNullOrEmpty(searchText))
@@ -165,9 +142,16 @@ public partial class LibraryView : UserControl
             };
             _libraryViewModel.FlatSource.RowSelection!.SingleSelect = false;
             FlatTreeView.Source = _libraryViewModel.FlatSource;
+
+            FlatTreeView.RowSelection.SelectionChanged += (sender, e) =>
+            {
+                var selectedItems = FlatTreeView.RowSelection.SelectedItems.OfType<Blitz.Models.Tools.Library.LibraryItem>();
+                _libraryViewModel.UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
+            };
         }
     }
 
+    // MARK: Symbol Preview
     // Todo: Double check performance here for SKXamlCanvas, we shouldn't have a stuttering issue with such basic vectors
     // This is almost certainly due to getting the SVG every time the canvas is invalidated.
     /// <summary>
@@ -208,10 +192,10 @@ public partial class LibraryView : UserControl
 
             byte[] audioData;
 
-            if (WorkingCsXFLDoc.IsXFL)
+            if (WorkingCsXFLDoc!.IsXFL)
             {
                 // If the document is not a Zip archive, read the audio file directly
-                string fullPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, Library.LIBRARY_PATH, audioFilePath);
+                string fullPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, audioFilePath);
                 if (!File.Exists(fullPath))
                 {
                     throw new FileNotFoundException($"Audio file not found: {fullPath}");
@@ -223,7 +207,7 @@ public partial class LibraryView : UserControl
                 // If the document is a Zip archive, extract the audio file
                 using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
                 {
-                    string zipPath = Path.Combine(Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
+                    string zipPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
                     ZipArchiveEntry? entry = archive.GetEntry(zipPath);
 
                     if (entry is null)
@@ -263,14 +247,15 @@ public partial class LibraryView : UserControl
         }
     }
 
+    // MARK: Bitmap Preview
     /// <summary>
     /// Retrieves the binary data of a bitmap image from the file system or a ZIP archive.
     /// </summary>
     private byte[] GetBitmapData(BitmapItem bitmap)
     {
-        if (WorkingCsXFLDoc.IsXFL)
+        if (WorkingCsXFLDoc!.IsXFL)
         {
-            string imgPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href);
+            string imgPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href);
             byte[] data = File.ReadAllBytes(imgPath);
             return data;
         }
@@ -278,7 +263,7 @@ public partial class LibraryView : UserControl
         {
             using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
             {
-                string imgPath = Path.Combine(Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href).Replace("\\", "/");
+                string imgPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href).Replace("\\", "/");
                 ZipArchiveEntry? entry = archive.GetEntry(imgPath);
                 if (entry is null)
                 {
@@ -303,12 +288,12 @@ public partial class LibraryView : UserControl
 
         if (_libraryViewModel.Bitmap == null)
         {
-            imageControl.IsVisible = false;
+            imageControl!.IsVisible = false;
             return;
         }
         else
         {
-            imageControl.IsVisible = true;
+            imageControl!.IsVisible = true;
         }
 
         var bitmapData = GetBitmapData(_libraryViewModel.Bitmap);
@@ -327,6 +312,7 @@ public partial class LibraryView : UserControl
         return;
     }
 
+    // MARK: Audio Preview
     private (SkiaSharp.SKPicture Picture, SkiaSharp.SKColor AnalogousColor, SkiaSharp.SKColor LighterColor) GenerateWaveform(float[] amplitudes, int width, int height)
     {
         using var pictureRecorder = new SkiaSharp.SKPictureRecorder();

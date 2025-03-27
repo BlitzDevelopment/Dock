@@ -9,4 +9,17 @@ namespace Blitz.Events
             Index = index;
         }
     }
+    public class UserLibrarySelectionChangedEvent
+    {
+        public CsXFL.Item[] UserLibrarySelection { get; set; }
+
+        public UserLibrarySelectionChangedEvent(CsXFL.Item[] userLibrarySelection)
+        {
+            UserLibrarySelection = userLibrarySelection;
+        }
+    }
+    public class LibraryItemsChangedEvent
+    {
+        public LibraryItemsChangedEvent() {}
+    }
 }
