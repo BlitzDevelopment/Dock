@@ -1,5 +1,6 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Blitz.Events;
 using Blitz.Models.Tools;
@@ -28,6 +29,7 @@ public partial class LibraryView : UserControl
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel { set; get; }
     private CsXFL.Document? WorkingCsXFLDoc;
+    private DateTime _pointerPressedTime;
     private string? SearchText = "";
     private bool UseFlatSource = false;
     
@@ -45,6 +47,61 @@ public partial class LibraryView : UserControl
 
         LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
+
+        // PointerPressed to initiate drag
+        HierarchalTreeView.PointerPressed += (sender, e) =>
+        {
+            Console.WriteLine("PointerPressed: Starting timer for drag detection.");
+            _pointerPressedTime = DateTime.Now; // Record the time when the pointer was pressed
+        };
+
+        // PointerMoved to emulate DragOver
+        HierarchalTreeView.PointerMoved += (sender, e) =>
+        {
+            Console.WriteLine("PointerMoved: Checking for DragOver");
+            var pointerPoint = e.GetCurrentPoint(HierarchalTreeView);
+            if (pointerPoint.Properties.IsLeftButtonPressed)
+            {
+                // Check if the pointer has been held down long enough
+                if ((DateTime.Now - _pointerPressedTime).TotalMilliseconds >= 200) // 200ms debounce time
+                {
+                    var position = e.GetPosition(HierarchalTreeView);
+                    Console.WriteLine($"PointerMoved: Dragging at Position - X: {position.X}, Y: {position.Y}");
+                    // Additional logic for drag visuals or feedback can be added here
+                }
+            }
+        };
+
+        // PointerReleased to handle drop logic
+        HierarchalTreeView.PointerReleased += (sender, e) =>
+        {
+            Console.WriteLine("PointerReleased: Checking for Drop");
+
+            // Get the pointer position relative to the control
+            var pointerPosition = e.GetPosition(HierarchalTreeView);
+
+            // Perform a hit test to find the control under the pointer
+            var hitTestResult = HierarchalTreeView.InputHitTest(pointerPosition);
+            if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
+            {
+                if (targetItem.CsXFLItem.ItemType != "folder") { return; }
+                var folderName = targetItem.CsXFLItem!.Name;
+                Console.WriteLine($"PointerReleased: Dropped onto {targetItem.CsXFLItem!.Name}");
+
+                foreach (var selectedItem in _libraryViewModel.UserLibrarySelection!)
+                {
+                    WorkingCsXFLDoc.Library.MoveToFolder(folderName, selectedItem);
+                }
+                _libraryViewModel.RebuildLibrary();
+            }
+            else
+            {
+                Console.WriteLine("PointerReleased: No valid drop target found.");
+            }
+
+            e.Handled = true;
+        };
+
     }
 
     // MARK: Event Handlers
