@@ -17,6 +17,19 @@ public class Library
                 OnPropertyChanged(nameof(Name));
             }
         }
+        private bool _isDragOver;
+        public bool IsDragOver
+        {
+            get => _isDragOver;
+            set
+            {
+                if (_isDragOver != value)
+                {
+                    _isDragOver = value;
+                    OnPropertyChanged(nameof(IsDragOver));
+                }
+            }
+        }
         public string? Type { get; set; }
         public string? UseCount { get; set; }
         public ObservableCollection<LibraryItem> Children { get; set; } = new();

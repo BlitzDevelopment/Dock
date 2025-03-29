@@ -8,9 +8,9 @@
              xmlns:vm="using:Blitz.ViewModels.Tools" 
              xmlns:vmr="clr-namespace:Blitz"
              xmlns:m="clr-namespace:Blitz.Models.Tools"
+             xmlns:local="clr-namespace:Blitz.Views.Tools"
              mc:Ignorable="d"
              d:DesignWidth="300" d:DesignHeight="400">
-
   <Grid Focusable="True">
 
       <Grid ColumnDefinitions="*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -60,13 +60,19 @@
         <TreeDataGrid.Resources>
             <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
+            <vm:BooleanToBorderBrushConverter x:Key="BooleanToBorderBrushConverter"/>
+            <vm:BooleanToBackgroundConverter x:Key="BooleanToBackgroundConverter"/>
               <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
-                <StackPanel Orientation="Horizontal">
-                  <Button Background = "Transparent">
-                    <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
-                  </Button>
-                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Border BorderThickness="2" CornerRadius="4" 
+                        BorderBrush="{Binding IsDragOver, Converter={StaticResource BooleanToBorderBrushConverter}}" 
+                        Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}">
+                  <StackPanel Orientation="Horizontal">
+                    <Button Background="Transparent">
+                      <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
+                    </Button>
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
               </DataTemplate>
         </TreeDataGrid.Resources>
         <TreeDataGrid.Styles>

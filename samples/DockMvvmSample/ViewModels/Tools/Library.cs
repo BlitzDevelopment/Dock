@@ -68,6 +68,38 @@ public class ItemTypeToIconConverter : IValueConverter
     }
 }
 
+public class BooleanToBorderBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return (bool)value ? Brushes.Yellow : Brushes.Transparent;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+public class BooleanToBackgroundConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isDragOver)
+        {
+            return isDragOver 
+                ? new SolidColorBrush(Color.FromArgb(64, 255, 255, 0)) // 64 is 0.25 opacity (255 * 0.25)
+                : Brushes.Transparent;
+        }
+        return Brushes.Transparent;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
 // MARK: Library Partial VM
 public partial class LibraryViewModel : Tool
 {
@@ -320,7 +352,7 @@ public partial class LibraryViewModel : Tool
             Type = "Folder",
             CsXFLItem = WorkingCsXFLDoc.Library.Items[newFolderName]
         };
-        HierarchicalItems.Add(newFolder);
+        Items.Add(newFolder);
     }
 
     //TODO: This creates movieclips?
@@ -352,7 +384,7 @@ public partial class LibraryViewModel : Tool
             Type = "Graphic",
             CsXFLItem = WorkingCsXFLDoc.Library.Items[newGraphicName]
         };
-        HierarchicalItems.Add(newGraphic);
+        Items.Add(newGraphic);
     }
 
     [RelayCommand]

@@ -7,6 +7,7 @@ using Blitz.ViewModels;
 using System.Linq;
 using System.Globalization;
 using System;
+using System.Reactive.Subjects;
 
 namespace Blitz.Views
 {
@@ -16,6 +17,7 @@ namespace Blitz.Views
         private MainWindowViewModel _mainWindowViewModel;
         public string? DialogIdentifier { get; set; }
         public string? SymbolName { get; set; }
+        public string? SymbolType { get; set; }
         public ComboBox? TypeComboBox { get; set; }
 
         public LibrarySymbolProperties(CsXFL.Item item)
@@ -58,11 +60,11 @@ namespace Blitz.Views
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
             SymbolName = this.FindControl<TextBox>("Name").Text;
-            var selectedType = TypeComboBox?.SelectedItem?.ToString();
+            SymbolType = (TypeComboBox.SelectedItem as ComboBoxItem)?.Content!.ToString();
             var result = new
             {
                 Name = SymbolName,
-                Type = selectedType,
+                Type = SymbolType,
                 IsOkay = true
             };
             DialogHost.Close(DialogIdentifier, result);

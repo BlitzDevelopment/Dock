@@ -82,7 +82,6 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new Separator());
-            // TODO: Graphic/MC Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties", Command = SymbolPropertiesCommand});
             return contextMenu;
         }
@@ -112,11 +111,13 @@ namespace Blitz.ViewModels.Tools
                 return;
             }
 
-            string currentPath = _userLibrarySelection[0].Name;
+            var processingSymbol = _userLibrarySelection[0] as CsXFL.SymbolItem;
+            string currentPath = processingSymbol!.Name;
             string? directory = Path.GetDirectoryName(currentPath);
             string newPath = directory != null ? Path.Combine(directory, resultObject.Name) : resultObject.Name;
-            _userLibrarySelection[0].Name = newPath;
-
+            processingSymbol.Name = newPath;
+            processingSymbol.SymbolType = resultObject.Type.ToLower();
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
         }
         #endregion
 
@@ -128,7 +129,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Rename"});
+            contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             // TODO: This should be easy to implement
@@ -148,7 +149,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Rename"});
+            contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             // TODO: Audio thread
@@ -169,7 +170,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Copy"});
             contextMenu.Items.Add(new MenuItem { Header = "Paste"});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Rename"});
+            contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
@@ -184,14 +185,6 @@ namespace Blitz.ViewModels.Tools
 
         // MARK: Generic Cmmds
         [RelayCommand]
-        private async Task Rename()
-        {
-            var dialog = new LibrarySingleRename();
-            var dialogIdentifier = await DialogHost.Show(dialog) as string;
-            dialog.DialogIdentifier = dialogIdentifier!;
-        }
-
-        [RelayCommand]
         private async Task<bool> ShowWarning(string text)
         {
             var dialog = new MainGenericWarning(text);
@@ -199,6 +192,14 @@ namespace Blitz.ViewModels.Tools
             var dialogIdentifier = result as string;
             dialog.DialogIdentifier = dialogIdentifier!;
             return result is bool isOkayPressed && isOkayPressed;
+        }
+
+        [RelayCommand]
+        private async Task Rename()
+        {
+            var dialog = new LibrarySingleRename();
+            var dialogIdentifier = await DialogHost.Show(dialog) as string;
+            dialog.DialogIdentifier = dialogIdentifier!;
         }
 
         [RelayCommand]

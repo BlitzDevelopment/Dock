@@ -5,11 +5,13 @@ using Blitz.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
 using DialogHostAvalonia;
 using Blitz.ViewModels;
+using Blitz.Events;
 
 namespace Blitz.Views
 {
     public partial class LibrarySingleRename : UserControl
     {
+        private EventAggregator _eventAggregator;
         private LibraryViewModel _viewModel;
         private MainWindowViewModel _mainWindowViewModel;
         private CsXFL.Document WorkingCsXFLDoc;
@@ -43,16 +45,8 @@ namespace Blitz.Views
             string newPath = originalPath + ReName;
 
             WorkingCsXFLDoc.Library.RenameItem(ItemToRename.Name, newPath);
-            
-            // TODO: Find appropriate logic for updating both HierarchicalSource and FlatSource
-            
-            // var libraryItem = _viewModel.HierarchicalSource.RowSelection!.SelectedItems.OfType<LibraryItem>().FirstOrDefault();
-            // if (libraryItem != null)
-            // {
-            //     int lastIndex = newPath.LastIndexOf('/');
-            //     string newFileName = lastIndex != -1 ? newPath.Substring(lastIndex + 1) : newPath;
-            //     libraryItem.Name = newFileName;
-            // }
+            _eventAggregator = EventAggregator.Instance;
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
 
             DialogHost.Close(DialogIdentifier);
         }

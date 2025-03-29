@@ -1,7 +1,9 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
+using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Blitz.Events;
 using Blitz.Models.Tools;
 using Blitz.ViewModels.Tools;
@@ -13,6 +15,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -28,10 +31,11 @@ public partial class LibraryView : UserControl
 {
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel { set; get; }
+    Blitz.Models.Tools.Library.LibraryItem previousItem;
     private CsXFL.Document? WorkingCsXFLDoc;
-    private DateTime _pointerPressedTime;
     private string? SearchText = "";
     private bool UseFlatSource = false;
+    bool isDragging = false;
     
     public LibraryView()
     {
@@ -48,26 +52,40 @@ public partial class LibraryView : UserControl
         LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
 
-        // PointerPressed to initiate drag
-        HierarchalTreeView.PointerPressed += (sender, e) =>
-        {
-            Console.WriteLine("PointerPressed: Starting timer for drag detection.");
-            _pointerPressedTime = DateTime.Now; // Record the time when the pointer was pressed
-        };
-
-        // PointerMoved to emulate DragOver
+        // Handle pointer movement
         HierarchalTreeView.PointerMoved += (sender, e) =>
         {
-            Console.WriteLine("PointerMoved: Checking for DragOver");
+            var position = e.GetPosition(HierarchalTreeView);
+            var hitTestResult = HierarchalTreeView.InputHitTest(position);
+
             var pointerPoint = e.GetCurrentPoint(HierarchalTreeView);
-            if (pointerPoint.Properties.IsLeftButtonPressed)
+            isDragging = pointerPoint.Properties.IsLeftButtonPressed;
+
+            Blitz.Models.Tools.Library.LibraryItem targetItem = null;
+
+            if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
             {
-                // Check if the pointer has been held down long enough
-                if ((DateTime.Now - _pointerPressedTime).TotalMilliseconds >= 200) // 200ms debounce time
+                targetItem = item;
+
+                // Highlight the folder if it's a valid target and dragging is active
+                if (isDragging && targetItem.CsXFLItem.ItemType == "folder")
                 {
-                    var position = e.GetPosition(HierarchalTreeView);
-                    Console.WriteLine($"PointerMoved: Dragging at Position - X: {position.X}, Y: {position.Y}");
-                    // Additional logic for drag visuals or feedback can be added here
+                    if (previousItem != null && previousItem != targetItem)
+                    {
+                        previousItem.IsDragOver = false;
+                    }
+
+                    targetItem.IsDragOver = true;
+                    previousItem = targetItem;
+                }
+            }
+            else
+            {
+                // Reset IsDragOver for the last hovered item if no valid target is hit
+                if (previousItem != null)
+                {
+                    previousItem.IsDragOver = false;
+                    previousItem = null;
                 }
             }
         };
@@ -75,12 +93,18 @@ public partial class LibraryView : UserControl
         // PointerReleased to handle drop logic
         HierarchalTreeView.PointerReleased += (sender, e) =>
         {
+            isDragging = false;
+
+            // Reset IsDragOver for the last hovered item
+            if (previousItem != null)
+            {
+                previousItem.IsDragOver = false;
+                previousItem = null;
+            }
+
             Console.WriteLine("PointerReleased: Checking for Drop");
 
-            // Get the pointer position relative to the control
             var pointerPosition = e.GetPosition(HierarchalTreeView);
-
-            // Perform a hit test to find the control under the pointer
             var hitTestResult = HierarchalTreeView.InputHitTest(pointerPosition);
             if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
             {
