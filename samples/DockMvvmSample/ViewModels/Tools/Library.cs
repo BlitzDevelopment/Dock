@@ -180,6 +180,7 @@ public partial class LibraryViewModel : Tool
     private CsXFL.BitmapItem? _bitmap;
     [ObservableProperty]
     private CsXFL.SoundItem? _sound;
+    private Dictionary<LibraryItem, bool> expandedState = new Dictionary<LibraryItem, bool>();
     #endregion
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
@@ -257,8 +258,8 @@ public partial class LibraryViewModel : Tool
     /// <summary>
     /// Invalidates the hierarchical library cache and rebuilds the hierarchical library view.
     /// </summary>
-    public void InvalidateHierarchicalLibrary(CsXFL.Document doc) {
-        // Create a dictionary to store the items by name
+    public void InvalidateHierarchicalLibrary(CsXFL.Document doc)
+    {
         var itemsByName = new Dictionary<string, LibraryItem>();
 
         // Pass 1: Transfer items
@@ -289,8 +290,10 @@ public partial class LibraryViewModel : Tool
                 }
                 parentItem.Children.Add(item);
             }
-            // Item doesn't belong to a folder, add it to the root
-            else { HierarchicalItems.Add(item); }
+            else
+            {
+                HierarchicalItems.Add(item);
+            }
         }
 
         // Pass 3: Add folders to the root
@@ -308,15 +311,52 @@ public partial class LibraryViewModel : Tool
                     parentItem.Children.Add(item);
                 }
                 else
-                { HierarchicalItems.Add(item); }
+                {
+                    HierarchicalItems.Add(item);
+                }
             }
-            else if (item.Type == "folder") { HierarchicalItems.Add(item); }
+            else if (item.Type == "folder")
+            {
+                HierarchicalItems.Add(item);
+            }
         }
 
         // Update the Name property of each item to remove the path
         foreach (var item in itemsByName.Values)
         {
             item.Name = item.Name!.Substring(item.Name.LastIndexOf('/') + 1);
+        }
+
+        // Restore Folder Expanded State
+        RestoreExpansionState(HierarchicalItems);
+    }
+
+    private void RestoreExpansionState(IEnumerable<LibraryItem> items, List<int> currentPath = null)
+    {
+        if (items == null) { return; }
+
+        int localIndex = 0;
+        foreach (var item in items)
+        {
+            // Build the hierarchical path for the current item
+            var hierarchicalPath = currentPath != null ? new List<int>(currentPath) : new List<int>();
+            hierarchicalPath.Add(localIndex);
+
+            // Check if the current item should be expanded
+            if (expandedState.TryGetValue(item, out bool isExpanded) && isExpanded)
+            {
+                // Expand the current item's path
+                HierarchicalSource.Expand(new IndexPath(hierarchicalPath.ToArray()));
+            }
+
+            // Recursively restore the state for child items
+            if (item.Children != null && item.Children.Any())
+            Console.WriteLine($"[LibraryViewModel] Restoring expansion state for {item.Name}");
+            {
+                RestoreExpansionState(item.Children, hierarchicalPath);
+            }
+
+            localIndex++;
         }
     }
 
@@ -486,10 +526,27 @@ public partial class LibraryViewModel : Tool
             },
         };
         HierarchicalSource.RowSelection!.SingleSelect = false;
+        
         HierarchicalSource.RowSelection.SelectionChanged += (sender, e) =>
         {
             var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
+        };
+        
+        HierarchicalSource.RowExpanded += (sender, args) =>
+        {
+            if (args.Row.Model is LibraryItem model)
+            {
+                expandedState[model] = true; // Mark the item as expanded
+            }
+        };
+
+        HierarchicalSource.RowCollapsed += (sender, args) =>
+        {
+            if (args.Row.Model is LibraryItem model)
+            {
+                expandedState[model] = false; // Mark the item as collapsed
+            }
         };
     }
 }

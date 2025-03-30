@@ -146,7 +146,6 @@ namespace Blitz.ViewModels.Tools
             return contextMenu;
         }
 
-        private int _globalIndex = 0; // Tracks the global index across the hierarchy
         private void ExpandMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
         {
             int localIndex = 0; // Tracks the index at the current level
@@ -161,7 +160,6 @@ namespace Blitz.ViewModels.Tools
                 // Check if the current item matches any selected item
                 if (_userLibrarySelection.Any(selection => selection.Name == itemPath))
                 {
-                    Console.WriteLine("Expanding path: " + string.Join("/", hierarchicalPath));
                     _libraryViewModel.HierarchicalSource.Expand(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
                 }
 
@@ -176,11 +174,39 @@ namespace Blitz.ViewModels.Tools
             }
         }
 
+        private void CollapseMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
+        {
+            int localIndex = 0; // Tracks the index at the current level
+
+            foreach (var item in items)
+            {
+                string itemPath = item.CsXFLItem.Name;
+
+                // Build the hierarchical path for the current item
+                var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
+
+                // Check if the current item matches any selected item
+                if (_userLibrarySelection.Any(selection => selection.Name == itemPath))
+                {
+                    _libraryViewModel.HierarchicalSource.Collapse(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
+                }
+
+                // Recursively check and expand child items
+                if (item.Children != null && item.Children.Any())
+                {
+                    CollapseMatchingItems(item.Children, hierarchicalPath);
+                }
+
+                // Increment the local index for the next sibling
+                localIndex++;
+            }
+        }
+
         [RelayCommand]
         private async Task ExpandFolder()
         {
-            // try
-            // {
+            try
+            {
                 _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
                 if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
                 if (_userLibrarySelection[0].ItemType != "folder") { throw new Exception("Selected item is not a folder."); }
@@ -189,11 +215,11 @@ namespace Blitz.ViewModels.Tools
                 _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
 
                 ExpandMatchingItems(_libraryViewModel.HierarchicalSource.Items);
-            // }
-            // catch (Exception e)
-            // {
-            //     await _genericDialogs.ShowError(e.Message);
-            // }
+            }
+            catch (Exception e)
+            {
+                await _genericDialogs.ShowError(e.Message);
+            }
         }
 
         [RelayCommand]
@@ -205,8 +231,10 @@ namespace Blitz.ViewModels.Tools
                 if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
                 if (_userLibrarySelection[0].ItemType != "folder") { throw new Exception("Selected item is not a folder."); }
 
-                var folderItem = _userLibrarySelection[0] as CsXFL.FolderItem;
+                var _viewModelRegistry = ViewModelRegistry.Instance;
+                _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
 
+                CollapseMatchingItems(_libraryViewModel.HierarchicalSource.Items);
             }
             catch (Exception e)
             {

@@ -130,7 +130,7 @@ public partial class LibraryView : UserControl
                 {
                     _workingCsXFLDoc!.Library.MoveToFolder(folderName, selectedItem);
                 }
-                _libraryViewModel.RebuildLibrary();
+                _eventAggregator.Publish(new LibraryItemsChangedEvent());
             }
             else
             {
