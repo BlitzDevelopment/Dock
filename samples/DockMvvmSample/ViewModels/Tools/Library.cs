@@ -203,13 +203,6 @@ public partial class LibraryViewModel : Tool
     {
         if (_workingCsXFLDoc != null) 
         {
-            // Step 1: Capture the state of expanded folders
-            var expandedFolders = new HashSet<string>(
-                Items.Where(item => item.Type == "Folder" && item.IsExpanded)
-                    .Select(item => item.Name)
-            );
-
-            // Step 2: Clear and rebuild the library
             Items.Clear();
             FlatItems.Clear();
             HierarchicalItems.Clear();
@@ -229,15 +222,6 @@ public partial class LibraryViewModel : Tool
             InvalidateFlatLibrary(_workingCsXFLDoc);
             InvalidateHierarchicalLibrary(_workingCsXFLDoc);
             CanvasColor = _workingCsXFLDoc.BackgroundColor;
-
-            // Step 3: Restore the expanded state
-            foreach (var item in Items)
-            {
-                if (item.Type == "Folder" && expandedFolders.Contains(item.Name))
-                {
-                    item.IsExpanded = true;
-                }
-            }
         }
         ItemCount = _workingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
     }
@@ -402,14 +386,7 @@ public partial class LibraryViewModel : Tool
 
             string newFolderName = $"{baseName} {maxNumber + 1}";
             _workingCsXFLDoc.Library.NewFolder(newFolderName);
-            LibraryItem newFolder = new LibraryItem
-            {
-                Name = newFolderName,
-                UseCount = "",
-                Type = "Folder",
-                CsXFLItem = _workingCsXFLDoc.Library.Items[newFolderName]
-            };
-            Items.Add(newFolder);
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
             await _genericDialogs.ShowError(e.Message);
         }
@@ -441,14 +418,7 @@ public partial class LibraryViewModel : Tool
 
             string newGraphicName = $"{baseName} {maxNumber + 1}";
             _workingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
-            LibraryItem newGraphic = new LibraryItem
-            {
-                Name = newGraphicName,
-                UseCount = "",
-                Type = "Graphic",
-                CsXFLItem = _workingCsXFLDoc.Library.Items[newGraphicName]
-            };
-            Items.Add(newGraphic);
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
             await _genericDialogs.ShowError(e.Message);
         }
@@ -479,7 +449,6 @@ public partial class LibraryViewModel : Tool
                 }
                 _workingCsXFLDoc.Library.RemoveItem(item.Name);
             }
-
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
             await _genericDialogs.ShowError(e.Message);
@@ -522,6 +491,5 @@ public partial class LibraryViewModel : Tool
             var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
         };
-
     }
 }

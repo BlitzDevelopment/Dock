@@ -3,11 +3,14 @@ using Avalonia.Data.Converters;
 using Blitz.Events;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
+using CsXFL;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 using static Blitz.Models.Tools.Library;
@@ -35,6 +38,7 @@ namespace Blitz.ViewModels.Tools
     {
         private readonly EventAggregator _eventAggregator;
         private readonly IGenericDialogs _genericDialogs = new IGenericDialogs();
+        private LibraryViewModel _libraryViewModel;
         private CsXFL.Item[]? _userLibrarySelection;
         private CsXFL.Document? _workingCsXFLDoc;
         public ContextMenuFactory()
@@ -135,12 +139,123 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             // TODO: This should be easy to implement
-            contextMenu.Items.Add(new MenuItem { Header = "Expand Folder"});
-            contextMenu.Items.Add(new MenuItem { Header = "Collapse Folder"});
-            contextMenu.Items.Add(new MenuItem { Header = "Expand All Folders"});
-            contextMenu.Items.Add(new MenuItem { Header = "Collapse All Folders"});
+            contextMenu.Items.Add(new MenuItem { Header = "Expand Folder", Command = ExpandFolderCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Collapse Folder", Command = CollapseFolderCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Expand All Folders", Command = ExpandAllFoldersCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Collapse All Folders", Command = CollapseAllFoldersCommand});
             return contextMenu;
         }
+
+        private int _globalIndex = 0; // Tracks the global index across the hierarchy
+        private void ExpandMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
+        {
+            int localIndex = 0; // Tracks the index at the current level
+
+            foreach (var item in items)
+            {
+                string itemPath = item.CsXFLItem.Name;
+
+                // Build the hierarchical path for the current item
+                var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
+
+                // Check if the current item matches any selected item
+                if (_userLibrarySelection.Any(selection => selection.Name == itemPath))
+                {
+                    Console.WriteLine("Expanding path: " + string.Join("/", hierarchicalPath));
+                    _libraryViewModel.HierarchicalSource.Expand(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
+                }
+
+                // Recursively check and expand child items
+                if (item.Children != null && item.Children.Any())
+                {
+                    ExpandMatchingItems(item.Children, hierarchicalPath);
+                }
+
+                // Increment the local index for the next sibling
+                localIndex++;
+            }
+        }
+
+        [RelayCommand]
+        private async Task ExpandFolder()
+        {
+            // try
+            // {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection[0].ItemType != "folder") { throw new Exception("Selected item is not a folder."); }
+
+                var _viewModelRegistry = ViewModelRegistry.Instance;
+                _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
+                ExpandMatchingItems(_libraryViewModel.HierarchicalSource.Items);
+            // }
+            // catch (Exception e)
+            // {
+            //     await _genericDialogs.ShowError(e.Message);
+            // }
+        }
+
+        [RelayCommand]
+        private async Task CollapseFolder()
+        {
+            try
+            {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection[0].ItemType != "folder") { throw new Exception("Selected item is not a folder."); }
+
+                var folderItem = _userLibrarySelection[0] as CsXFL.FolderItem;
+
+            }
+            catch (Exception e)
+            {
+                await _genericDialogs.ShowError(e.Message);
+            }
+        }
+
+        [RelayCommand]
+        private async Task ExpandAllFolders()
+        {
+            try
+            {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection[0].ItemType != "folder") { throw new Exception("Selected item is not a folder."); }
+
+                var _viewModelRegistry = ViewModelRegistry.Instance;
+                _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
+                _libraryViewModel.HierarchicalSource!.ExpandAll();
+
+            }
+            catch (Exception e)
+            {
+                await _genericDialogs.ShowError(e.Message);
+            }
+        }
+
+        [RelayCommand]
+        private async Task CollapseAllFolders()
+        {
+            try
+            {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection[0].ItemType != "folder") { throw new Exception("Selected item is not a folder."); }
+
+                var _viewModelRegistry = ViewModelRegistry.Instance;
+                _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
+                _libraryViewModel.HierarchicalSource!.CollapseAll();
+
+            }
+            catch (Exception e)
+            {
+                await _genericDialogs.ShowError(e.Message);
+            }
+        }
+
         #endregion
 
         #region Sound

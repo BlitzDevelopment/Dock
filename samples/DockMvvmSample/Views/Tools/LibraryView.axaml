@@ -65,8 +65,7 @@
               <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
                 <Border BorderThickness="2" CornerRadius="4" 
                         BorderBrush="{Binding IsDragOver, Converter={StaticResource BooleanToBorderBrushConverter}}" 
-                        Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}"
-                        DragDrop.AllowDrop="True">
+                        Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}">
                   <StackPanel Orientation="Horizontal">
                     <Button Background="Transparent">
                       <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>

@@ -2,6 +2,7 @@
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Blitz.Events;
 using Blitz.ViewModels.Tools;
 using CsXFL;
@@ -12,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -27,6 +29,7 @@ public partial class LibraryView : UserControl
     private CsXFL.Document? _workingCsXFLDoc;
     private string? _searchText = "";
     private bool _useFlatSource = false;
+    private readonly Stopwatch _stopwatch = new Stopwatch();
     private bool _isDragging = false;
     
     public LibraryView()
@@ -44,9 +47,16 @@ public partial class LibraryView : UserControl
         LibrarySearch.TextChanged += OnLibrary_searchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
 
-        // Handle pointer movement
+        // Handle pointer pressed
+        HierarchalTreeView.PointerPressed += (sender, e) =>
+        {
+            _stopwatch.Restart();
+        };
+
         HierarchalTreeView.PointerMoved += (sender, e) =>
         {
+            if (_stopwatch.Elapsed.TotalSeconds < 0.5) { return; }
+
             var position = e.GetPosition(HierarchalTreeView);
             var hitTestResult = HierarchalTreeView.InputHitTest(position);
 
@@ -57,6 +67,12 @@ public partial class LibraryView : UserControl
 
             if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
             {
+                // Skip highlighting if the target item is in the current selection
+                if (_libraryViewModel.UserLibrarySelection?.Contains(item.CsXFLItem) == true)
+                {
+                    return;
+                }
+
                 targetItem = item;
 
                 // Highlight the folder if it's a valid target and dragging is active
@@ -82,10 +98,9 @@ public partial class LibraryView : UserControl
             }
         };
 
-        // PointerReleased to handle drop logic
         HierarchalTreeView.PointerReleased += (sender, e) =>
         {
-            _isDragging = false;
+            _stopwatch.Restart();
 
             // Reset IsDragOver for the last hovered item
             if (_previousItem != null)
@@ -100,6 +115,13 @@ public partial class LibraryView : UserControl
             var hitTestResult = HierarchalTreeView.InputHitTest(pointerPosition);
             if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
             {
+                // Skip dropping if the target item is in the current selection
+                if (_libraryViewModel.UserLibrarySelection?.Contains(targetItem.CsXFLItem) == true)
+                {
+                    Console.WriteLine("PointerReleased: Cannot drop onto an item in the current selection.");
+                    return;
+                }
+
                 if (targetItem.CsXFLItem!.ItemType != "folder") { return; }
                 var folderName = targetItem.CsXFLItem!.Name;
                 Console.WriteLine($"PointerReleased: Dropped onto {targetItem.CsXFLItem!.Name}");
