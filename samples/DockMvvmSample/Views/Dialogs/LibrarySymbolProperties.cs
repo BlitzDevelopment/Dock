@@ -59,8 +59,11 @@ namespace Blitz.Views
 
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
-            SymbolName = this.FindControl<TextBox>("Name").Text;
-            SymbolType = (TypeComboBox.SelectedItem as ComboBoxItem)?.Content!.ToString();
+            var nameTextBox = this.FindControl<TextBox>("Name");
+            SymbolName = nameTextBox?.Text; 
+            SymbolType = TypeComboBox?.SelectedItem is ComboBoxItem comboBoxItem 
+                ? comboBoxItem.Content?.ToString() 
+                : null;
             var result = new
             {
                 Name = SymbolName,

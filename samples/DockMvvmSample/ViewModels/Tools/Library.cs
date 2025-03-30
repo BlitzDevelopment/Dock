@@ -2,13 +2,11 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Data.Converters;
-using Avalonia.Input;
 using Avalonia.Media;
 using Blitz.Events;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
 using Rendering;
 using System;
@@ -23,7 +21,12 @@ using static Blitz.Models.Tools.Library;
 
 namespace Blitz.ViewModels.Tools;
 
+//Todo: Thread safety
+
 // MARK: LibItem Icons
+/// <summary>
+/// Converts an item type string to a corresponding icon represented as a StreamGeometry object.
+/// </summary>
 public class ItemTypeToIconConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -68,22 +71,28 @@ public class ItemTypeToIconConverter : IValueConverter
     }
 }
 
+/// <summary>
+/// Converts a boolean to a border brush used for highlighting a row in the Library TreeDataGrid.
+/// </summary>
 public class BooleanToBorderBrushConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
-        return (bool)value ? Brushes.Yellow : Brushes.Transparent;
+        return (bool)value! ? Brushes.Yellow : Brushes.Transparent;
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
     }
 }
 
+/// <summary>
+/// Converts a boolean to a background color used for highlighting a row in the Library TreeDataGrid.
+/// </summary>
 public class BooleanToBackgroundConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isDragOver)
         {
@@ -94,23 +103,40 @@ public class BooleanToBackgroundConverter : IValueConverter
         return Brushes.Transparent;
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
     }
 }
 
 // MARK: Library Partial VM
+/// <summary>
+/// Represents the view model for the library, providing properties and methods
+/// to manage and interact with the library's data.
+/// </summary>
 public partial class LibraryViewModel : Tool
 {
     #region Dependencies
+    private readonly IGenericDialogs _genericDialogs;
     private readonly EventAggregator _eventAggregator;
-    private BlitzAppData _blitzAppData;
-    private MainWindowViewModel _mainWindowViewModel;
+    private readonly BlitzAppData _blitzAppData;
+    private readonly MainWindowViewModel _mainWindowViewModel;
+
+    public LibraryViewModel(
+        IGenericDialogs genericDialogs,
+        EventAggregator eventAggregator,
+        BlitzAppData blitzAppData,
+        MainWindowViewModel mainWindowViewModel)
+    {
+        _genericDialogs = genericDialogs ?? throw new ArgumentNullException(nameof(genericDialogs));
+        _eventAggregator = eventAggregator ?? throw new ArgumentNullException(nameof(eventAggregator));
+        _blitzAppData = blitzAppData ?? throw new ArgumentNullException(nameof(blitzAppData));
+        _mainWindowViewModel = mainWindowViewModel ?? throw new ArgumentNullException(nameof(mainWindowViewModel));
+    }
     #endregion
 
     #region Document and Selection State
-    private CsXFL.Document WorkingCsXFLDoc;
+    private CsXFL.Document? _workingCsXFLDoc;
     private CsXFL.Item[]? _userLibrarySelection;
     public CsXFL.Item[]? UserLibrarySelection
     {
@@ -120,7 +146,6 @@ public partial class LibraryViewModel : Tool
             _userLibrarySelection = value;
             OnPropertyChanged(nameof(UserLibrarySelection));
             HandleUserLibrarySelectionChange();
-
             _eventAggregator.Publish(new UserLibrarySelectionChangedEvent(_userLibrarySelection!));
         }
     }
@@ -159,8 +184,8 @@ public partial class LibraryViewModel : Tool
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        WorkingCsXFLDoc = CsXFL.An.GetDocument(e.Index);
-        Console.WriteLine($"[LibraryViewModel] WorkingCsXFLDoc changed to {WorkingCsXFLDoc.Filename}");
+        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Index);
+        Console.WriteLine($"[LibraryViewModel] _workingCsXFLDoc changed to {_workingCsXFLDoc.Filename}");
         RebuildLibrary();
     }
 
@@ -169,15 +194,27 @@ public partial class LibraryViewModel : Tool
         RebuildLibrary();
     }
 
+    /// <summary>
+    /// Rebuilds the library by clearing existing items and repopulating them 
+    /// from the current working document. Updates flat and hierarchical views 
+    /// and sets the canvas background color.
+    /// </summary>
     public void RebuildLibrary() 
     {
-        if (WorkingCsXFLDoc != null) 
+        if (_workingCsXFLDoc != null) 
         {
+            // Step 1: Capture the state of expanded folders
+            var expandedFolders = new HashSet<string>(
+                Items.Where(item => item.Type == "Folder" && item.IsExpanded)
+                    .Select(item => item.Name)
+            );
+
+            // Step 2: Clear and rebuild the library
             Items.Clear();
             FlatItems.Clear();
             HierarchicalItems.Clear();
 
-            foreach (var item in WorkingCsXFLDoc.Library.Items)
+            foreach (var item in _workingCsXFLDoc.Library.Items)
             {
                 var libraryItem = new LibraryItem
                 {
@@ -189,13 +226,25 @@ public partial class LibraryViewModel : Tool
                 Items.Add(libraryItem);
             }
 
-            InvalidateFlatLibrary(WorkingCsXFLDoc);
-            InvalidateHierarchicalLibrary(WorkingCsXFLDoc);
-            CanvasColor = WorkingCsXFLDoc.BackgroundColor;
+            InvalidateFlatLibrary(_workingCsXFLDoc);
+            InvalidateHierarchicalLibrary(_workingCsXFLDoc);
+            CanvasColor = _workingCsXFLDoc.BackgroundColor;
+
+            // Step 3: Restore the expanded state
+            foreach (var item in Items)
+            {
+                if (item.Type == "Folder" && expandedFolders.Contains(item.Name))
+                {
+                    item.IsExpanded = true;
+                }
+            }
         }
-        ItemCount = WorkingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
+        ItemCount = _workingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
     }
 
+    /// <summary>
+    /// Invalidates the flat library cache and rebuilds the flat library view.
+    /// </summary>
     public void InvalidateFlatLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
@@ -221,6 +270,9 @@ public partial class LibraryViewModel : Tool
         }
     }
 
+    /// <summary>
+    /// Invalidates the hierarchical library cache and rebuilds the hierarchical library view.
+    /// </summary>
     public void InvalidateHierarchicalLibrary(CsXFL.Document doc) {
         // Create a dictionary to store the items by name
         var itemsByName = new Dictionary<string, LibraryItem>();
@@ -286,15 +338,15 @@ public partial class LibraryViewModel : Tool
 
     private void HandleUserLibrarySelectionChange()
     {
-        Console.WriteLine($"[LibraryViewModel] UserLibrarySelection changed to {UserLibrarySelection}");
         Bitmap = null;
         Sound = null;
-        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; }
+        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; } // No selection or folder selected
 
+        // Associated logic in LibraryView.axaml.cs for previewing datatypes
         if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
         {
             string appDataFolder = _blitzAppData.GetTmpFolder();
-            SVGRenderer renderer = new SVGRenderer(WorkingCsXFLDoc!, appDataFolder, true);
+            SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
             // TODO: This
             //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
@@ -325,127 +377,128 @@ public partial class LibraryViewModel : Tool
     }
 
     // MARK: Buttons
+    /// <summary>
+    /// Adds a folder to the library.
+    /// </summary>
     [RelayCommand]
-    private void AddFolder()
+    private async Task AddFolder()
     {
-        string baseName = "New Folder";
-        int maxNumber = 0;
+        try {
+            if (_workingCsXFLDoc == null) { return; }
+            string baseName = "New Folder";
+            int maxNumber = 0;
 
-        foreach (var item in WorkingCsXFLDoc.Library.Items)
-        {
-            if (item.Value.Name.StartsWith(baseName))
+            foreach (var item in _workingCsXFLDoc.Library.Items)
             {
-                string suffix = item.Value.Name.Substring(baseName.Length).Trim();
-                if (int.TryParse(suffix, out int number))
+                if (item.Value.Name.StartsWith(baseName))
                 {
-                    maxNumber = Math.Max(maxNumber, number);
+                    string suffix = item.Value.Name.Substring(baseName.Length).Trim();
+                    if (int.TryParse(suffix, out int number))
+                    {
+                        maxNumber = Math.Max(maxNumber, number);
+                    }
                 }
             }
-        }
 
-        string newFolderName = $"{baseName} {maxNumber + 1}";
-        WorkingCsXFLDoc.Library.NewFolder(newFolderName);
-        LibraryItem newFolder = new LibraryItem
-        {
-            Name = newFolderName,
-            UseCount = "",
-            Type = "Folder",
-            CsXFLItem = WorkingCsXFLDoc.Library.Items[newFolderName]
-        };
-        Items.Add(newFolder);
+            string newFolderName = $"{baseName} {maxNumber + 1}";
+            _workingCsXFLDoc.Library.NewFolder(newFolderName);
+            LibraryItem newFolder = new LibraryItem
+            {
+                Name = newFolderName,
+                UseCount = "",
+                Type = "Folder",
+                CsXFLItem = _workingCsXFLDoc.Library.Items[newFolderName]
+            };
+            Items.Add(newFolder);
+        } catch (Exception e) {
+            await _genericDialogs.ShowError(e.Message);
+        }
     }
 
-    //TODO: This creates movieclips?
-    //Needs its own dialog
+    /// <summary>
+    /// Adds a graphic symbol to the library.
+    /// </summary>
     [RelayCommand]
-    private void AddSymbol()
+    private async Task AddSymbol()
     {
-        string baseName = "New Symbol";
-        int maxNumber = 0;
+        try {
+            if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
+            
+            string baseName = "New Symbol";
+            int maxNumber = 0;
 
-        foreach (var item in WorkingCsXFLDoc.Library.Items)
-        {
-            if (item.Value.Name.StartsWith(baseName))
+            foreach (var item in _workingCsXFLDoc.Library.Items)
             {
-                string suffix = item.Value.Name.Substring(baseName.Length).Trim();
-                if (int.TryParse(suffix, out int number))
+                if (item.Value.Name.StartsWith(baseName))
                 {
-                    maxNumber = Math.Max(maxNumber, number);
+                    string suffix = item.Value.Name.Substring(baseName.Length).Trim();
+                    if (int.TryParse(suffix, out int number))
+                    {
+                        maxNumber = Math.Max(maxNumber, number);
+                    }
                 }
             }
+
+            string newGraphicName = $"{baseName} {maxNumber + 1}";
+            _workingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
+            LibraryItem newGraphic = new LibraryItem
+            {
+                Name = newGraphicName,
+                UseCount = "",
+                Type = "Graphic",
+                CsXFLItem = _workingCsXFLDoc.Library.Items[newGraphicName]
+            };
+            Items.Add(newGraphic);
+        } catch (Exception e) {
+            await _genericDialogs.ShowError(e.Message);
         }
-
-        string newGraphicName = $"{baseName} {maxNumber + 1}";
-        WorkingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
-        LibraryItem newGraphic = new LibraryItem
-        {
-            Name = newGraphicName,
-            UseCount = "",
-            Type = "Graphic",
-            CsXFLItem = WorkingCsXFLDoc.Library.Items[newGraphicName]
-        };
-        Items.Add(newGraphic);
     }
 
-    [RelayCommand]
-    private async Task<bool> ShowWarning(string text)
-    {
-        var dialog = new MainGenericWarning(text);
-        var result = await DialogHost.Show(dialog);
-        var dialogIdentifier = result as string;
-        dialog.DialogIdentifier = dialogIdentifier!;
-        return result is bool isOkayPressed && isOkayPressed;
-    }
-
+    /// <summary>
+    /// Deletes the selected items from the library. Shows a warning if 5 or more items are selected.
+    /// </summary>
     [RelayCommand]
     private async Task Delete()
     {
-        WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
-        if (_userLibrarySelection == null) { return; }
+        try {
+            _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+            if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
+            if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
 
-        // Show warning if 5 or more items are selected
-        if (_userLibrarySelection.Length >= 5)
-        {
-            bool userAccepted = await ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
-            if (!userAccepted) { return; }
-        }
-
-        // Check if WorkingCsXFLDoc is null
-        if (WorkingCsXFLDoc == null)
-        {
-            return;
-        }
-
-        // Perform deletion
-        foreach (var item in _userLibrarySelection)
-        {
-            if (item?.Name == null)
+            if (_userLibrarySelection.Length >= 5) // Show warning if 5 or more items are selected
             {
-                continue;
+                bool userAccepted = await _genericDialogs.ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
+                if (!userAccepted) { return; } // User Cancelled
             }
-            WorkingCsXFLDoc.Library.RemoveItem(item.Name);
-        }
 
-        _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            foreach (var item in _userLibrarySelection)
+            {
+                if (item?.Name == null)
+                {
+                    continue;
+                }
+                _workingCsXFLDoc.Library.RemoveItem(item.Name);
+            }
+
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+        } catch (Exception e) {
+            await _genericDialogs.ShowError(e.Message);
+        }
     }
 
     // MARK: Library Public VM
-    public LibraryViewModel(MainWindowViewModel mainWindowViewModel)
+    public LibraryViewModel(MainWindowViewModel mainWindowViewModel) : this(new IGenericDialogs(), EventAggregator.Instance, new BlitzAppData(), mainWindowViewModel)
     {
-        _blitzAppData = new BlitzAppData();
-        _mainWindowViewModel = mainWindowViewModel;
-        _eventAggregator = EventAggregator.Instance;
-
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
         _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
         try
         {
-            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
+            _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
         }
         catch
         {
-            WorkingCsXFLDoc = null;
+            _workingCsXFLDoc = null;
         }
 
         UpdateFlatSource();

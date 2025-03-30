@@ -14,7 +14,7 @@ namespace Blitz.Views
         private EventAggregator _eventAggregator;
         private LibraryViewModel _viewModel;
         private MainWindowViewModel _mainWindowViewModel;
-        private CsXFL.Document WorkingCsXFLDoc;
+        private CsXFL.Document _workingCsXFLDoc;
         public string? DialogIdentifier { get; set; }
 
         public LibrarySingleRename()
@@ -23,8 +23,9 @@ namespace Blitz.Views
             var _viewModelRegistry = ViewModelRegistry.Instance;
             _viewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
             _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
+            _eventAggregator = EventAggregator.Instance;
+            _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             SetTextBoxText();
-            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
         }
 
         private void SetTextBoxText()
@@ -44,7 +45,7 @@ namespace Blitz.Views
             string originalPath = ItemToRename.Name.Contains("/") ? ItemToRename.Name.Substring(0, ItemToRename.Name.LastIndexOf('/') + 1) : "";
             string newPath = originalPath + ReName;
 
-            WorkingCsXFLDoc.Library.RenameItem(ItemToRename.Name, newPath);
+            _workingCsXFLDoc.Library.RenameItem(ItemToRename.Name, newPath);
             _eventAggregator = EventAggregator.Instance;
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
 

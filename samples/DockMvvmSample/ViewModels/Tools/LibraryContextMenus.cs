@@ -1,18 +1,16 @@
-using Avalonia.Data.Converters;
-using Dock.Model.Mvvm.Controls;
 using Avalonia.Controls;
-using System;
-using System.Globalization;
+using Avalonia.Data.Converters;
+using Blitz.Events;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
-using System.Threading.Tasks;
-using Blitz.Events;
+using Dock.Model.Mvvm.Controls;
+using System;
+using System.Globalization;
 using System.IO;
+using System.Threading.Tasks;
 
 using static Blitz.Models.Tools.Library;
-using System.Data;
-using Blitz.Views.Tools;
 
 // MARK: Library Contxt Menus
 namespace Blitz.ViewModels.Tools
@@ -36,8 +34,9 @@ namespace Blitz.ViewModels.Tools
     public partial class ContextMenuFactory
     {
         private readonly EventAggregator _eventAggregator;
+        private readonly IGenericDialogs _genericDialogs = new IGenericDialogs();
         private CsXFL.Item[]? _userLibrarySelection;
-        public CsXFL.Document WorkingCsXFLDoc;
+        private CsXFL.Document? _workingCsXFLDoc;
         public ContextMenuFactory()
         {
             _eventAggregator = EventAggregator.Instance;
@@ -89,35 +88,38 @@ namespace Blitz.ViewModels.Tools
         [RelayCommand]
         private async Task SymbolProperties()
         {
-            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
-            if (_userLibrarySelection == null) { return; }
-            if ((_userLibrarySelection[0].ItemType != "graphic") && 
-                (_userLibrarySelection[0].ItemType != "movie clip") && 
-                (_userLibrarySelection[0].ItemType != "button")) 
-            { 
-                return; 
+            try {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if ((_userLibrarySelection[0].ItemType != "graphic") && 
+                    (_userLibrarySelection[0].ItemType != "movie clip") && 
+                    (_userLibrarySelection[0].ItemType != "button")) 
+                { 
+                    throw new Exception("Selected item is not a graphic, movie clip, or button.");
+                }
+
+                var dialog = new LibrarySymbolProperties(_userLibrarySelection[0]);
+                var result = await DialogHost.Show(dialog);
+                var dialogIdentifier = result as string;
+                dialog.DialogIdentifier = dialogIdentifier!;
+
+                var resultObject = result as dynamic;
+                if (resultObject == null) { throw new Exception("LibrarySymbolProperties dialog error, returned object is null."); }
+                if (resultObject.Name is not string Name || resultObject.Type is not string Type || resultObject.IsOkay != true)
+                {
+                    throw new Exception("LibrarySymbolProperties dialog error, returned object is missing properties.");
+                }
+
+                var processingSymbol = _userLibrarySelection[0] as CsXFL.SymbolItem;
+                string currentPath = processingSymbol!.Name;
+                string? directory = Path.GetDirectoryName(currentPath);
+                string newPath = directory != null ? Path.Combine(directory, resultObject.Name) : resultObject.Name;
+                processingSymbol.Name = newPath;
+                processingSymbol.SymbolType = resultObject.Type.ToLower();
+                _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            } catch (Exception e) {
+                await _genericDialogs.ShowError(e.Message);
             }
-
-            var dialog = new LibrarySymbolProperties(_userLibrarySelection[0]);
-            var result = await DialogHost.Show(dialog);
-            var dialogIdentifier = result as string;
-            dialog.DialogIdentifier = dialogIdentifier!;
-
-            var resultObject = result as dynamic;
-            if (resultObject == null) { return; }
-            if (resultObject.Name is not string Name || resultObject.Type is not string Type || resultObject.IsOkay != true)
-            {
-                Console.WriteLine("Dialog error.");
-                return;
-            }
-
-            var processingSymbol = _userLibrarySelection[0] as CsXFL.SymbolItem;
-            string currentPath = processingSymbol!.Name;
-            string? directory = Path.GetDirectoryName(currentPath);
-            string newPath = directory != null ? Path.Combine(directory, resultObject.Name) : resultObject.Name;
-            processingSymbol.Name = newPath;
-            processingSymbol.SymbolType = resultObject.Type.ToLower();
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
         }
         #endregion
 
@@ -183,55 +185,45 @@ namespace Blitz.ViewModels.Tools
         }
         #endregion
 
-        // MARK: Generic Cmmds
-        [RelayCommand]
-        private async Task<bool> ShowWarning(string text)
-        {
-            var dialog = new MainGenericWarning(text);
-            var result = await DialogHost.Show(dialog);
-            var dialogIdentifier = result as string;
-            dialog.DialogIdentifier = dialogIdentifier!;
-            return result is bool isOkayPressed && isOkayPressed;
-        }
-
+        // MARK: Generic Cmnds
         [RelayCommand]
         private async Task Rename()
         {
-            var dialog = new LibrarySingleRename();
-            var dialogIdentifier = await DialogHost.Show(dialog) as string;
-            dialog.DialogIdentifier = dialogIdentifier!;
+            try {
+                var dialog = new LibrarySingleRename();
+                var dialogIdentifier = await DialogHost.Show(dialog) as string;
+                dialog.DialogIdentifier = dialogIdentifier!;
+            } catch (Exception e){
+                await _genericDialogs.ShowError(e.Message);
+            }
         }
 
         [RelayCommand]
         private async Task Delete()
         {
-            WorkingCsXFLDoc = CsXFL.An.GetActiveDocument();
-            if (_userLibrarySelection == null) { return; }
-
-            // Show warning if 5 or more items are selected
-            if (_userLibrarySelection.Length >= 5)
-            {
-                bool userAccepted = await ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
-                if (!userAccepted) { return; }
-            }
-
-            // Check if WorkingCsXFLDoc is null
-            if (WorkingCsXFLDoc == null)
-            {
-                return;
-            }
-
-            // Perform deletion
-            foreach (var item in _userLibrarySelection)
-            {
-                if (item?.Name == null)
+            try {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection.Length >= 5) // Show warning if 5 or more items are selected
                 {
-                    continue;
+                    bool userAccepted = await _genericDialogs.ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
+                    if (!userAccepted) { return; } // User cancelled
                 }
-                WorkingCsXFLDoc.Library.RemoveItem(item.Name);
-            }
 
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+                foreach (var item in _userLibrarySelection)
+                {
+                    if (item?.Name == null)
+                    {
+                        continue;
+                    }
+                    _workingCsXFLDoc.Library.RemoveItem(item.Name);
+                }
+
+                _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            } catch (Exception e) {
+                await _genericDialogs.ShowError(e.Message);
+            }
         }
 
         // Todo: Duplicate is generic

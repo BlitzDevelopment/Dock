@@ -1,11 +1,8 @@
 ﻿using Avalonia.Controls;
 using Avalonia.Controls.Models.TreeDataGrid;
-using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
-using Avalonia.Media;
 using Blitz.Events;
-using Blitz.Models.Tools;
 using Blitz.ViewModels.Tools;
 using CsXFL;
 using NAudio.Wave;
@@ -15,7 +12,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -23,24 +19,20 @@ using System.Threading.Tasks;
 
 namespace Blitz.Views.Tools;
 
-// Todo Improvement:
-// private readonly Dictionary<string, byte[]> _bitmapCache = new();
-// When should we dispose the bitmap cache? OnDocumentClosed? Does a bitmap's href ever change?
-// One ZipArchive per document, dispose OnDocumentClosed, arbitrary 200MB limit/doc, lazy load hashmap with LRU eviction strat
 public partial class LibraryView : UserControl
 {
     private readonly EventAggregator _eventAggregator;
-    private LibraryViewModel _libraryViewModel { set; get; }
-    Blitz.Models.Tools.Library.LibraryItem previousItem;
-    private CsXFL.Document? WorkingCsXFLDoc;
-    private string? SearchText = "";
-    private bool UseFlatSource = false;
-    bool isDragging = false;
+    private LibraryViewModel _libraryViewModel;
+    private Blitz.Models.Tools.Library.LibraryItem? _previousItem;
+    private CsXFL.Document? _workingCsXFLDoc;
+    private string? _searchText = "";
+    private bool _useFlatSource = false;
+    private bool _isDragging = false;
     
     public LibraryView()
     {
         InitializeComponent();
-        WorkingCsXFLDoc = null;
+        _workingCsXFLDoc = null;
 
         var _viewModelRegistry = ViewModelRegistry.Instance;
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
@@ -49,7 +41,7 @@ public partial class LibraryView : UserControl
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
         _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
-        LibrarySearch.TextChanged += OnLibrarySearchTextChanged!;
+        LibrarySearch.TextChanged += OnLibrary_searchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
 
         // Handle pointer movement
@@ -59,33 +51,33 @@ public partial class LibraryView : UserControl
             var hitTestResult = HierarchalTreeView.InputHitTest(position);
 
             var pointerPoint = e.GetCurrentPoint(HierarchalTreeView);
-            isDragging = pointerPoint.Properties.IsLeftButtonPressed;
+            _isDragging = pointerPoint.Properties.IsLeftButtonPressed;
 
-            Blitz.Models.Tools.Library.LibraryItem targetItem = null;
+            Blitz.Models.Tools.Library.LibraryItem targetItem = default!;
 
             if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
             {
                 targetItem = item;
 
                 // Highlight the folder if it's a valid target and dragging is active
-                if (isDragging && targetItem.CsXFLItem.ItemType == "folder")
+                if (_isDragging && targetItem.CsXFLItem!.ItemType == "folder")
                 {
-                    if (previousItem != null && previousItem != targetItem)
+                    if (_previousItem != null && _previousItem != targetItem)
                     {
-                        previousItem.IsDragOver = false;
+                        _previousItem.IsDragOver = false;
                     }
 
                     targetItem.IsDragOver = true;
-                    previousItem = targetItem;
+                    _previousItem = targetItem;
                 }
             }
             else
             {
                 // Reset IsDragOver for the last hovered item if no valid target is hit
-                if (previousItem != null)
+                if (_previousItem != null)
                 {
-                    previousItem.IsDragOver = false;
-                    previousItem = null;
+                    _previousItem.IsDragOver = false;
+                    _previousItem = null;
                 }
             }
         };
@@ -93,13 +85,13 @@ public partial class LibraryView : UserControl
         // PointerReleased to handle drop logic
         HierarchalTreeView.PointerReleased += (sender, e) =>
         {
-            isDragging = false;
+            _isDragging = false;
 
             // Reset IsDragOver for the last hovered item
-            if (previousItem != null)
+            if (_previousItem != null)
             {
-                previousItem.IsDragOver = false;
-                previousItem = null;
+                _previousItem.IsDragOver = false;
+                _previousItem = null;
             }
 
             Console.WriteLine("PointerReleased: Checking for Drop");
@@ -108,13 +100,13 @@ public partial class LibraryView : UserControl
             var hitTestResult = HierarchalTreeView.InputHitTest(pointerPosition);
             if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
             {
-                if (targetItem.CsXFLItem.ItemType != "folder") { return; }
+                if (targetItem.CsXFLItem!.ItemType != "folder") { return; }
                 var folderName = targetItem.CsXFLItem!.Name;
                 Console.WriteLine($"PointerReleased: Dropped onto {targetItem.CsXFLItem!.Name}");
 
                 foreach (var selectedItem in _libraryViewModel.UserLibrarySelection!)
                 {
-                    WorkingCsXFLDoc.Library.MoveToFolder(folderName, selectedItem);
+                    _workingCsXFLDoc!.Library.MoveToFolder(folderName, selectedItem);
                 }
                 _libraryViewModel.RebuildLibrary();
             }
@@ -137,31 +129,30 @@ public partial class LibraryView : UserControl
 
     private void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
     {
-        FilterAndUpdateFlatLibrary(SearchText!);
+        FilterAndUpdateFlatLibrary(_searchText!);
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        WorkingCsXFLDoc = CsXFL.An.GetDocument(e.Index)!;
+        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Index)!;
 
         // Rebuild the FlatLibrary with the current search parameters
-        if (_libraryViewModel != null && WorkingCsXFLDoc != null)
+        if (_libraryViewModel != null && _workingCsXFLDoc != null)
         {
-            FilterAndUpdateFlatLibrary(SearchText!);
+            FilterAndUpdateFlatLibrary(_searchText!);
         }
     }
 
-    public void OnLibrarySearchTextChanged(object sender, TextChangedEventArgs e)
+    public void OnLibrary_searchTextChanged(object sender, TextChangedEventArgs e)
     {
-        if (WorkingCsXFLDoc == null) { return; }
+        if (_workingCsXFLDoc == null) { return; }
 
-        string searchText = "";
+        string _searchText = "";
         var textBox = sender as TextBox;
-        if (textBox != null) { searchText = textBox.Text!; }
-        SearchText = searchText;
+        if (textBox != null) { _searchText = textBox.Text!; }
 
         // Handle illegal input
-        if (searchText.Contains('/') || searchText.Contains('\\'))
+        if (_searchText.Contains('/') || _searchText.Contains('\\'))
         {
             if (textBox == null) { return; }
             
@@ -175,17 +166,17 @@ public partial class LibraryView : UserControl
             {
                 flyout.Hide();
             }, TaskScheduler.FromCurrentSynchronizationContext());
-            textBox.Text = new string(searchText.Where(c => c != '/' && c != '\\').ToArray());
+            textBox.Text = new string(_searchText.Where(c => c != '/' && c != '\\').ToArray());
         }
 
-        FilterAndUpdateFlatLibrary(searchText);
+        FilterAndUpdateFlatLibrary(_searchText);
     }
 
-    private void FilterAndUpdateFlatLibrary(string searchText)
+    private void FilterAndUpdateFlatLibrary(string _searchText)
     {
-        if (string.IsNullOrEmpty(searchText))
+        if (string.IsNullOrEmpty(_searchText))
         {
-            UseFlatSource = false;
+            _useFlatSource = false;
             HierarchalTreeView.IsVisible = true;
             HierarchalTreeView.RowSelection!.Clear();
             _libraryViewModel.UserLibrarySelection = null;
@@ -194,9 +185,9 @@ public partial class LibraryView : UserControl
         }
         else
         {
-            if (!UseFlatSource)
+            if (!_useFlatSource)
             {
-                UseFlatSource = true;
+                _useFlatSource = true;
                 HierarchalTreeView.IsVisible = false;
                 HierarchalTreeView.RowSelection!.Clear();
                 _libraryViewModel.UserLibrarySelection = null;
@@ -207,7 +198,7 @@ public partial class LibraryView : UserControl
 
             // Filter items based on the search text and exclude folders
             var filteredItems = _libraryViewModel.Items
-                .Where(item => Path.GetFileName(item.Name).Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                .Where(item => Path.GetFileName(item.Name).Contains(_searchText, StringComparison.OrdinalIgnoreCase)
                             && item.Type != "Folder")
                 .ToList();
 
@@ -224,7 +215,7 @@ public partial class LibraryView : UserControl
             _libraryViewModel.FlatSource.RowSelection!.SingleSelect = false;
             FlatTreeView.Source = _libraryViewModel.FlatSource;
 
-            FlatTreeView.RowSelection.SelectionChanged += (sender, e) =>
+            FlatTreeView.RowSelection!.SelectionChanged += (sender, e) =>
             {
                 var selectedItems = FlatTreeView.RowSelection.SelectedItems.OfType<Blitz.Models.Tools.Library.LibraryItem>();
                 _libraryViewModel.UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
@@ -240,6 +231,8 @@ public partial class LibraryView : UserControl
     /// </summary>
     private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
     {
+        if (_libraryViewModel == null || _workingCsXFLDoc == null) { return; }
+        
         var canvas = e.Surface.Canvas;
 
         if (_libraryViewModel.SvgData != null)
@@ -273,10 +266,10 @@ public partial class LibraryView : UserControl
 
             byte[] audioData;
 
-            if (WorkingCsXFLDoc!.IsXFL)
+            if (_workingCsXFLDoc!.IsXFL)
             {
                 // If the document is not a Zip archive, read the audio file directly
-                string fullPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, audioFilePath);
+                string fullPath = Path.Combine(Path.GetDirectoryName(_workingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, audioFilePath);
                 if (!File.Exists(fullPath))
                 {
                     throw new FileNotFoundException($"Audio file not found: {fullPath}");
@@ -286,7 +279,7 @@ public partial class LibraryView : UserControl
             else
             {
                 // If the document is a Zip archive, extract the audio file
-                using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
+                using (ZipArchive archive = ZipFile.Open(_workingCsXFLDoc.Filename, ZipArchiveMode.Read))
                 {
                     string zipPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
                     ZipArchiveEntry? entry = archive.GetEntry(zipPath);
@@ -334,15 +327,15 @@ public partial class LibraryView : UserControl
     /// </summary>
     private byte[] GetBitmapData(BitmapItem bitmap)
     {
-        if (WorkingCsXFLDoc!.IsXFL)
+        if (_workingCsXFLDoc!.IsXFL)
         {
-            string imgPath = Path.Combine(Path.GetDirectoryName(WorkingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href);
+            string imgPath = Path.Combine(Path.GetDirectoryName(_workingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href);
             byte[] data = File.ReadAllBytes(imgPath);
             return data;
         }
         else
         {
-            using (ZipArchive archive = ZipFile.Open(WorkingCsXFLDoc.Filename, ZipArchiveMode.Read))
+            using (ZipArchive archive = ZipFile.Open(_workingCsXFLDoc.Filename, ZipArchiveMode.Read))
             {
                 string imgPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href).Replace("\\", "/");
                 ZipArchiveEntry? entry = archive.GetEntry(imgPath);

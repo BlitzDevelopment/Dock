@@ -139,9 +139,9 @@ public partial class MainWindowViewModel : ObservableObject
         WorkingCsXFLDoc!.Save();
     }
 
-    private async void OpenRecent(string filePath)
+    private void OpenRecent(string filePath)
     {
-        OpenDocumentHelper(filePath);
+        OpenDocumentHelper(filePath!);
     }
 
     public void LoadRecentFiles()
@@ -196,6 +196,7 @@ public partial class MainWindowViewModel : ObservableObject
     // MARK: Importing
     private async void ImportToLibrary() 
     {
+        if (WorkingCsXFLDoc is null) { return; }
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
         var filePath = await _fileService.OpenFileAsync(mainWindow, FileService.BitmapCompatible, "Import to Library");
         WorkingCsXFLDoc.ImportFile(filePath);
@@ -218,6 +219,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel()
     {
+        OpenRecentMenuItem = new MenuItem();
         _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
         _factory = new DockFactory(this, new DemoData());
         _eventAggregator = EventAggregator.Instance;
@@ -230,7 +232,7 @@ public partial class MainWindowViewModel : ObservableObject
         _importToLibraryCommand = new RelayCommand(ImportToLibrary);
 
         recentFilesPath = _blitzAppData.GetRecentFilesPath();
-        OpenRecentCommand = new RelayCommand<string>(OpenRecent);
+        OpenRecentCommand = new RelayCommand<string>(OpenRecent!);
 
         DebugFactoryEvents(_factory);
 

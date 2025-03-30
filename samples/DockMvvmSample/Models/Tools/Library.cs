@@ -30,6 +30,8 @@ public class Library
                 }
             }
         }
+        public bool IsExpanded { get; set; }
+
         public string? Type { get; set; }
         public string? UseCount { get; set; }
         public ObservableCollection<LibraryItem> Children { get; set; } = new();
