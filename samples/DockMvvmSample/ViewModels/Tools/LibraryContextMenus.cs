@@ -3,7 +3,6 @@ using Avalonia.Data.Converters;
 using Blitz.Events;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
-using CsXFL;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
 using System;
@@ -12,6 +11,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Blitz.ViewModels.Documents;
 
 using static Blitz.Models.Tools.Library;
 
@@ -36,15 +36,24 @@ namespace Blitz.ViewModels.Tools
 
     public partial class ContextMenuFactory
     {
+        private readonly AudioService _audioService;
         private readonly EventAggregator _eventAggregator;
         private readonly IGenericDialogs _genericDialogs = new IGenericDialogs();
         private LibraryViewModel _libraryViewModel;
         private CsXFL.Item[]? _userLibrarySelection;
         private CsXFL.Document? _workingCsXFLDoc;
+
         public ContextMenuFactory()
         {
+            _audioService = AudioService.Instance;
             _eventAggregator = EventAggregator.Instance;
             _eventAggregator.Subscribe<UserLibrarySelectionChangedEvent>(OnUserLibrarySelectionChanged);
+            _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        }
+
+        private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
+        {
+            Console.WriteLine("ActiveDocumentChangedEvent received in ContextMenuFactory.");
         }
 
         private void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
@@ -78,8 +87,8 @@ namespace Blitz.ViewModels.Tools
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Copy"});
-            contextMenu.Items.Add(new MenuItem { Header = "Paste"});
+            contextMenu.Items.Add(new MenuItem { Header = "Copy", Command = CopyCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
@@ -132,8 +141,8 @@ namespace Blitz.ViewModels.Tools
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Copy"});
-            contextMenu.Items.Add(new MenuItem { Header = "Paste"});
+            contextMenu.Items.Add(new MenuItem { Header = "Copy", Command = CopyCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
@@ -152,15 +161,15 @@ namespace Blitz.ViewModels.Tools
 
             foreach (var item in items)
             {
-                string itemPath = item.CsXFLItem.Name;
+                string itemPath = item.CsXFLItem!.Name;
 
                 // Build the hierarchical path for the current item
                 var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
-
+                
                 // Check if the current item matches any selected item
-                if (_userLibrarySelection.Any(selection => selection.Name == itemPath))
+                if (_userLibrarySelection!.Any(selection => selection.Name == itemPath))
                 {
-                    _libraryViewModel.HierarchicalSource.Expand(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
+                    _libraryViewModel.HierarchicalSource!.Expand(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
                 }
 
                 // Recursively check and expand child items
@@ -180,15 +189,15 @@ namespace Blitz.ViewModels.Tools
 
             foreach (var item in items)
             {
-                string itemPath = item.CsXFLItem.Name;
+                string itemPath = item.CsXFLItem!.Name;
 
                 // Build the hierarchical path for the current item
                 var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
 
                 // Check if the current item matches any selected item
-                if (_userLibrarySelection.Any(selection => selection.Name == itemPath))
+                if (_userLibrarySelection!.Any(selection => selection.Name == itemPath))
                 {
-                    _libraryViewModel.HierarchicalSource.Collapse(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
+                    _libraryViewModel.HierarchicalSource!.Collapse(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
                 }
 
                 // Recursively check and expand child items
@@ -214,7 +223,7 @@ namespace Blitz.ViewModels.Tools
                 var _viewModelRegistry = ViewModelRegistry.Instance;
                 _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
 
-                ExpandMatchingItems(_libraryViewModel.HierarchicalSource.Items);
+                ExpandMatchingItems(_libraryViewModel.HierarchicalSource!.Items);
             }
             catch (Exception e)
             {
@@ -234,7 +243,7 @@ namespace Blitz.ViewModels.Tools
                 var _viewModelRegistry = ViewModelRegistry.Instance;
                 _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
 
-                CollapseMatchingItems(_libraryViewModel.HierarchicalSource.Items);
+                CollapseMatchingItems(_libraryViewModel.HierarchicalSource!.Items);
             }
             catch (Exception e)
             {
@@ -283,7 +292,6 @@ namespace Blitz.ViewModels.Tools
                 await _genericDialogs.ShowError(e.Message);
             }
         }
-
         #endregion
 
         #region Sound
@@ -291,20 +299,51 @@ namespace Blitz.ViewModels.Tools
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Copy"});
-            contextMenu.Items.Add(new MenuItem { Header = "Paste"});
+            contextMenu.Items.Add(new MenuItem { Header = "Copy", Command = CopyCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             // TODO: Audio thread
-            contextMenu.Items.Add(new MenuItem { Header = "Play"});
+            contextMenu.Items.Add(new MenuItem { Header = "Play", Command = PlayCommand, CommandParameter = this});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
             // TODO: Sound Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
+
+        [RelayCommand]
+        private void Play()
+        {
+            if (_userLibrarySelection == null) { return; }
+            if (_userLibrarySelection[0].ItemType != "sound") { return; }
+
+            var soundItem = _userLibrarySelection[0] as CsXFL.SoundItem;
+            var _viewModelRegistry = ViewModelRegistry.Instance;
+            _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
+            if (_libraryViewModel.DocumentViewModel == null)
+            {
+                throw new InvalidOperationException("_documentViewModel is null.");
+            }
+
+            if (soundItem == null)
+            {
+                throw new ArgumentNullException(nameof(soundItem), "soundItem is null.");
+            }
+
+            var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
+            // Load audio data into OpenAL buffer
+            using (MemoryStream memoryStream = new MemoryStream(audioData))
+            {
+                // Assuming the audio data is in WAV format
+                var (format, data, sampleRate) = _audioService.LoadWave(memoryStream);
+                _audioService.Play(data, format, sampleRate);
+            }
+        }
+
         #endregion
 
         #region Bitmap
@@ -312,8 +351,8 @@ namespace Blitz.ViewModels.Tools
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Copy"});
-            contextMenu.Items.Add(new MenuItem { Header = "Paste"});
+            contextMenu.Items.Add(new MenuItem { Header = "Copy", Command = CopyCommand});
+            contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
@@ -367,6 +406,18 @@ namespace Blitz.ViewModels.Tools
             } catch (Exception e) {
                 await _genericDialogs.ShowError(e.Message);
             }
+        }
+
+        [RelayCommand]
+        private async Task Copy()
+        {
+
+        }
+
+        [RelayCommand]
+        private async Task Paste()
+        {
+
         }
 
         // Todo: Duplicate is generic

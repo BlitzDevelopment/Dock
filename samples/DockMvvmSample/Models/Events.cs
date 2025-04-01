@@ -1,12 +1,14 @@
+using Blitz.ViewModels.Documents;
+
 namespace Blitz.Events
 {
     public class ActiveDocumentChangedEvent
     {
-        public int Index { get; set; }
+        public DocumentViewModel Document { get; set; }
 
-        public ActiveDocumentChangedEvent(int index)
+        public ActiveDocumentChangedEvent(DocumentViewModel document)
         {
-            Index = index;
+            Document = document;
         }
     }
     public class UserLibrarySelectionChangedEvent

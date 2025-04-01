@@ -2,10 +2,9 @@
 using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
-using Avalonia.Threading;
 using Blitz.Events;
+using Blitz.ViewModels;
 using Blitz.ViewModels.Tools;
-using CsXFL;
 using NAudio.Wave;
 using SkiaSharp;
 using Svg.Skia;
@@ -15,9 +14,9 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
+using Blitz.ViewModels.Documents;
 
 namespace Blitz.Views.Tools;
 
@@ -25,6 +24,8 @@ public partial class LibraryView : UserControl
 {
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel;
+    private MainWindowViewModel _mainWindowViewModel;
+    private DocumentViewModel _documentViewModel;
     private Blitz.Models.Tools.Library.LibraryItem? _previousItem;
     private CsXFL.Document? _workingCsXFLDoc;
     private string? _searchText = "";
@@ -39,6 +40,7 @@ public partial class LibraryView : UserControl
 
         var _viewModelRegistry = ViewModelRegistry.Instance;
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+        _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
 
         _eventAggregator = EventAggregator.Instance;
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
@@ -109,7 +111,7 @@ public partial class LibraryView : UserControl
                 _previousItem = null;
             }
 
-            Console.WriteLine("PointerReleased: Checking for Drop");
+            //Console.WriteLine("PointerReleased: Checking for Drop");
 
             var pointerPosition = e.GetPosition(HierarchalTreeView);
             var hitTestResult = HierarchalTreeView.InputHitTest(pointerPosition);
@@ -118,28 +120,58 @@ public partial class LibraryView : UserControl
                 // Skip dropping if the target item is in the current selection
                 if (_libraryViewModel.UserLibrarySelection?.Contains(targetItem.CsXFLItem) == true)
                 {
-                    Console.WriteLine("PointerReleased: Cannot drop onto an item in the current selection.");
+                    //Console.WriteLine("PointerReleased: Cannot drop onto an item in the current selection.");
                     return;
                 }
 
                 if (targetItem.CsXFLItem!.ItemType != "folder") { return; }
                 var folderName = targetItem.CsXFLItem!.Name;
-                Console.WriteLine($"PointerReleased: Dropped onto {targetItem.CsXFLItem!.Name}");
+                //Console.WriteLine($"PointerReleased: Dropped onto {targetItem.CsXFLItem!.Name}");
 
                 foreach (var selectedItem in _libraryViewModel.UserLibrarySelection!)
                 {
                     _workingCsXFLDoc!.Library.MoveToFolder(folderName, selectedItem);
                 }
+                ExpandFolderOnDrop(targetItem.CsXFLItem, _libraryViewModel.HierarchicalItems);
                 _eventAggregator.Publish(new LibraryItemsChangedEvent());
             }
             else
             {
-                Console.WriteLine("PointerReleased: No valid drop target found.");
+                //Console.WriteLine("PointerReleased: No valid drop target found.");
             }
 
             e.Handled = true;
         };
 
+    }
+
+    private void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
+    {
+        int localIndex = 0; // Tracks the index at the current level
+
+        foreach (var item in items)
+        {
+            string itemPath = item.CsXFLItem!.Name;
+
+            // Build the hierarchical path for the current item
+            var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
+            Console.WriteLine($"HierarchicalPath: {string.Join(" -> ", hierarchicalPath)}");
+
+            // Check if the current item matches the folder name
+            if (item.CsXFLItem == folder)
+            {
+                _libraryViewModel.HierarchicalSource!.Expand(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
+            }
+
+            //Recursively check and expand child items
+            if (item.Children != null && item.Children.Any())
+            {
+                ExpandFolderOnDrop(folder, item.Children, hierarchicalPath);
+            }
+
+            // Increment the local index for the next sibling
+            localIndex++;
+        }
     }
 
     // MARK: Event Handlers
@@ -156,13 +188,15 @@ public partial class LibraryView : UserControl
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Index)!;
+        _documentViewModel = e.Document;
+        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
 
         // Rebuild the FlatLibrary with the current search parameters
         if (_libraryViewModel != null && _workingCsXFLDoc != null)
         {
             FilterAndUpdateFlatLibrary(_searchText!);
         }
+        
     }
 
     public void OnLibrary_searchTextChanged(object sender, TextChangedEventArgs e)
@@ -279,51 +313,7 @@ public partial class LibraryView : UserControl
 
         if (_libraryViewModel.Sound != null)
         {
-            string audioFilePath = (_libraryViewModel.Sound as SoundItem)!.Href;
-
-            if (string.IsNullOrEmpty(audioFilePath))
-            {
-                return;
-            }
-
-            byte[] audioData;
-
-            if (_workingCsXFLDoc!.IsXFL)
-            {
-                // If the document is not a Zip archive, read the audio file directly
-                string fullPath = Path.Combine(Path.GetDirectoryName(_workingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, audioFilePath);
-                if (!File.Exists(fullPath))
-                {
-                    throw new FileNotFoundException($"Audio file not found: {fullPath}");
-                }
-                audioData = File.ReadAllBytes(fullPath);
-            }
-            else
-            {
-                // If the document is a Zip archive, extract the audio file
-                using (ZipArchive archive = ZipFile.Open(_workingCsXFLDoc.Filename, ZipArchiveMode.Read))
-                {
-                    string zipPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, audioFilePath).Replace("\\", "/");
-                    ZipArchiveEntry? entry = archive.GetEntry(zipPath);
-
-                    if (entry is null)
-                    {
-                        // Try to find the entry by normalizing slashes
-                        zipPath = zipPath.Replace('/', '\\').Replace('\\', '_');
-                        entry = archive.Entries.Where(x => x.FullName.Replace('/', '\\').Replace('\\', '_') == zipPath).FirstOrDefault();
-                        if (entry is null)
-                        {
-                            throw new Exception($"Audio file not found in archive: {zipPath}");
-                        }
-                    }
-
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        entry.Open().CopyTo(ms);
-                        audioData = ms.ToArray();
-                    }
-                }
-            }
+            var audioData = _documentViewModel.GetAudioData(_libraryViewModel.Sound);
 
             var waveformWidth = 800; // Width of the waveform
             var waveformHeight = 200; // Height of the waveform
@@ -344,40 +334,6 @@ public partial class LibraryView : UserControl
     }
 
     // MARK: Bitmap Preview
-    /// <summary>
-    /// Retrieves the binary data of a bitmap image from the file system or a ZIP archive.
-    /// </summary>
-    private byte[] GetBitmapData(BitmapItem bitmap)
-    {
-        if (_workingCsXFLDoc!.IsXFL)
-        {
-            string imgPath = Path.Combine(Path.GetDirectoryName(_workingCsXFLDoc.Filename)!, CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href);
-            byte[] data = File.ReadAllBytes(imgPath);
-            return data;
-        }
-        else
-        {
-            using (ZipArchive archive = ZipFile.Open(_workingCsXFLDoc.Filename, ZipArchiveMode.Read))
-            {
-                string imgPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, (bitmap as BitmapItem)!.Href).Replace("\\", "/");
-                ZipArchiveEntry? entry = archive.GetEntry(imgPath);
-                if (entry is null)
-                {
-                    // try to find it while removing slashes from both paths
-                    imgPath = imgPath.Replace('/', '\\').Replace('\\', '_');
-                    entry = archive.Entries.Where(x => x.FullName.Replace('/', '\\').Replace('\\', '_') == imgPath).FirstOrDefault();
-                    if (entry is null) throw new Exception($"Bitmap not found: {imgPath}");
-                }
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    entry.Open().CopyTo(ms);
-                    byte[] imageData = ms.ToArray();
-                    return imageData;
-                }
-            }
-        }
-    }
-
     private void UpdateBitmapPreview()
     {
         var imageControl = this.FindControl<Avalonia.Controls.Image>("LibraryBitmapPreview");
@@ -392,7 +348,7 @@ public partial class LibraryView : UserControl
             imageControl!.IsVisible = true;
         }
 
-        var bitmapData = GetBitmapData(_libraryViewModel.Bitmap);
+        var bitmapData = _documentViewModel.GetBitmapData(_libraryViewModel.Bitmap);
 
         // Use SixLabors.ImageSharp to load the image and convert it to a stream
         using (var image = SixLabors.ImageSharp.Image.Load(bitmapData))

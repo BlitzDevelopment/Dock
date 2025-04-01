@@ -12,13 +12,15 @@ namespace Blitz;
 public class App : Application
 {
     public static IThemeManager? ThemeManager;
+    public static AudioService? AudioService;
 
     public override void Initialize()
     {
         ThemeManager = new FluentThemeManager();
         ThemeManager.Initialize(this);
 
-
+        AudioService = new AudioService();
+        AudioService.InitializeOpenAL();
 
         AvaloniaXamlLoader.Load(this);
     }

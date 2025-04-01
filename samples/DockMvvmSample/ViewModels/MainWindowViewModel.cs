@@ -214,7 +214,7 @@ public partial class MainWindowViewModel : ObservableObject
     // MARK: Events
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
     {
-        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Index);
+        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Document.DocumentIndex.Value);
     }
 
     public MainWindowViewModel()

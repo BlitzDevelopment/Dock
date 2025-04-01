@@ -27,7 +27,7 @@ public class CustomDocumentDock : DocumentDock
         }
 
         var index = VisibleDockables?.Count + 1;
-        var document = new DocumentViewModel {Id = $"Document{index}", Title = $"Document{index}"};
+        var document = new DocumentViewModel(false, "Untitled Document") { Id = $"Document{index}", Title = $"Document{index}"};
 
         Factory?.AddDockable(this, document);
         Factory?.SetActiveDockable(document);
@@ -37,7 +37,7 @@ public class CustomDocumentDock : DocumentDock
     private void OnDocumentOpened(int index)
     {
         // Create a new DocumentViewModel based on the opened document
-        var documentViewModel = new DocumentViewModel
+        var documentViewModel = new DocumentViewModel(CsXFL.An.GetDocument(index).IsXFL, CsXFL.An.GetDocument(index).Filename)
         {
             Id = CsXFL.An.GetDocument(index).Filename,
             Title = Path.GetFileName(CsXFL.An.GetDocument(index).Filename),

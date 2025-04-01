@@ -17,7 +17,9 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Blitz.ViewModels.Documents;
 using static Blitz.Models.Tools.Library;
+using Blitz.Views.Documents;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -121,6 +123,7 @@ public partial class LibraryViewModel : Tool
     private readonly EventAggregator _eventAggregator;
     private readonly BlitzAppData _blitzAppData;
     private readonly MainWindowViewModel _mainWindowViewModel;
+    public DocumentViewModel DocumentViewModel;
 
     public LibraryViewModel(
         IGenericDialogs genericDialogs,
@@ -185,7 +188,8 @@ public partial class LibraryViewModel : Tool
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Index);
+        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
+        DocumentViewModel = e.Document;
         Console.WriteLine($"[LibraryViewModel] _workingCsXFLDoc changed to {_workingCsXFLDoc.Filename}");
         RebuildLibrary();
     }
@@ -457,7 +461,17 @@ public partial class LibraryViewModel : Tool
             }
 
             string newGraphicName = $"{baseName} {maxNumber + 1}";
-            _workingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
+
+            // Create a new LibraryItem
+            var newLibraryItem = new LibraryItem
+            {
+                Name = newGraphicName,
+                Type = "graphic",
+                UseCount = "0"
+            };
+
+            // Add the new LibraryItem to the library
+            var createdItem = _workingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
             await _genericDialogs.ShowError(e.Message);

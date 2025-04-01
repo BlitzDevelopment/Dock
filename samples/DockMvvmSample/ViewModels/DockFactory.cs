@@ -41,7 +41,7 @@ public class DockFactory : Factory
         if (e.Dockable is DocumentViewModel document)
         {
             CsXFL.An.SetActiveDocument(CsXFL.An.GetDocument(document.DocumentIndex!.Value));
-            _eventAggregator.Publish(new ActiveDocumentChangedEvent(document.DocumentIndex!.Value));
+            _eventAggregator.Publish(new ActiveDocumentChangedEvent(document));
         }
     }
 
