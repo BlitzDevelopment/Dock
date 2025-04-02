@@ -1,0 +1,8 @@
+library can be dragged to the middle box (apparently it shouldn't do that)
+attempting to drag it back to where it was causes ctd
+
+renaming an item then trying to preview it causes ctd
+
+preview of audio waveform is not centered vertically
+
+clicking and dragging wilhelmscream.wav into the folder, then trying to click on it causes ctd
