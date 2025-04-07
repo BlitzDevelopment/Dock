@@ -20,6 +20,7 @@ namespace Blitz.ViewModels;
 public class DockFactory : Factory
 {
     private readonly object _context;
+    private readonly List<DocumentViewModel> OpenDocuments = new();
     private readonly EventAggregator _eventAggregator;
     private MainWindowViewModel _mainWindowViewModel;
     private IRootDock? _rootDock;
@@ -40,6 +41,12 @@ public class DockFactory : Factory
         // Switching active documents
         if (e.Dockable is DocumentViewModel document)
         {
+            if (!OpenDocuments.Contains(document))
+            {
+                Console.WriteLine($"Adding document {document.Title} to OpenDocuments list.");
+                OpenDocuments.Add(document);
+            }
+
             CsXFL.An.SetActiveDocument(CsXFL.An.GetDocument(document.DocumentIndex!.Value));
             _eventAggregator.Publish(new ActiveDocumentChangedEvent(document));
         }
@@ -47,10 +54,19 @@ public class DockFactory : Factory
 
     private void OnDockableClosed(object? sender, DockableClosedEventArgs e)
     {
-        // Closed any document, can be non focused
+        // Closed any document, can be non-focused
         if (e.Dockable is DocumentViewModel document)
         {
-            // Todo: Closing document err, need to update Document list on close & update other document's indeces. Bummer
+            // Remove the closed document from the list
+            OpenDocuments.Remove(document);
+
+            // Recalculate indices for remaining documents
+            for (int i = 0; i < OpenDocuments.Count; i++)
+            {
+                OpenDocuments[i].DocumentIndex = i;
+            }
+
+            // Call CloseDocument with the updated index
             CsXFL.An.CloseDocument(document.DocumentIndex!.Value);
         }
     }

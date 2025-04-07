@@ -43,35 +43,13 @@ public class AudioService
         _source = AL.GenSource();
     }
 
-    // Helper method to load WAV data
-    public (ALFormat Format, byte[] Data, int SampleRate) LoadWave(Stream stream)
+    // Helper method to load headerless WAV data
+    public (ALFormat Format, byte[] Data, int SampleRate) LoadWave(Stream stream, int numChannels, int sampleRate, int bitsPerSample)
     {
         using (BinaryReader reader = new BinaryReader(stream))
         {
-            // Read WAV header
-            string chunkId = new string(reader.ReadChars(4));
-            if (chunkId != "RIFF")
-                throw new FormatException("Invalid WAV file");
-
-            reader.ReadInt32(); // Chunk size
-            string format = new string(reader.ReadChars(4));
-            if (format != "WAVE")
-                throw new FormatException("Invalid WAV file");
-
-            // Read format chunk
-            string subChunk1Id = new string(reader.ReadChars(4));
-            reader.ReadInt32(); // Subchunk1 size
-            reader.ReadInt16(); // Audio format
-            short numChannels = reader.ReadInt16();
-            int sampleRate = reader.ReadInt32();
-            reader.ReadInt32(); // Byte rate
-            reader.ReadInt16(); // Block align
-            short bitsPerSample = reader.ReadInt16();
-
-            // Read data chunk
-            string subChunk2Id = new string(reader.ReadChars(4));
-            int subChunk2Size = reader.ReadInt32();
-            byte[] data = reader.ReadBytes(subChunk2Size);
+            // Read the raw audio data
+            byte[] data = reader.ReadBytes((int)stream.Length);
 
             // Determine OpenAL format
             ALFormat alFormat = (numChannels == 1 && bitsPerSample == 8) ? ALFormat.Mono8 :

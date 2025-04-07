@@ -173,12 +173,12 @@ public partial class LibraryViewModel : Tool
     #region UI State
     [ObservableProperty]
     private string _itemCount = "-";
-
     [ObservableProperty]
     private string? _canvasColor;
-
     [ObservableProperty]
     private XDocument? _svgData;
+    [ObservableProperty]
+    private CsXFL.Rectangle? _boundingBox;
     [ObservableProperty]
     private CsXFL.BitmapItem? _bitmap;
     [ObservableProperty]
@@ -355,7 +355,6 @@ public partial class LibraryViewModel : Tool
 
             // Recursively restore the state for child items
             if (item.Children != null && item.Children.Any())
-            Console.WriteLine($"[LibraryViewModel] Restoring expansion state for {item.Name}");
             {
                 RestoreExpansionState(item.Children, hierarchicalPath);
             }
@@ -377,8 +376,10 @@ public partial class LibraryViewModel : Tool
             SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
             // TODO: This
-            //var renderedSVG = renderer.RenderSymbol((UserLibrarySelection[0] as CsXFL.SymbolItem)!, 0, 512, 512);
-            //SvgData = renderedSVG;
+            var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
+            (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
+            SvgData = renderedSVG;
+            BoundingBox = bbox;
         }
 
         if (UserLibrarySelection[0].ItemType == "bitmap") { Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem; }
@@ -429,6 +430,7 @@ public partial class LibraryViewModel : Tool
             }
 
             string newFolderName = $"{baseName} {maxNumber + 1}";
+            
             _workingCsXFLDoc.Library.NewFolder(newFolderName);
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
@@ -462,16 +464,19 @@ public partial class LibraryViewModel : Tool
 
             string newGraphicName = $"{baseName} {maxNumber + 1}";
 
+            // Add the new LibraryItem to the library
+            var createdItem = _workingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
+
             // Create a new LibraryItem
             var newLibraryItem = new LibraryItem
             {
                 Name = newGraphicName,
                 Type = "graphic",
-                UseCount = "0"
+                UseCount = "0",
+                CsXFLItem = createdItem
             };
 
-            // Add the new LibraryItem to the library
-            var createdItem = _workingCsXFLDoc.Library.AddNewItem("graphic", newGraphicName);
+            Items.Add(newLibraryItem);
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
             await _genericDialogs.ShowError(e.Message);

@@ -28,6 +28,7 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
         if (!_isXFL)
         {
             // Initialize ZipArchive for non-XFL documents
+            
             _zipArchive = ZipFile.Open(_documentPath, ZipArchiveMode.Read);
         }
     }
@@ -83,7 +84,7 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
 
     public byte[] GetAudioData(SoundItem sound)
     {
-        string href = sound.Href;
+        string href = sound.SoundDataHRef;
 
         if (string.IsNullOrEmpty(href))
         {
@@ -111,7 +112,7 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
         else
         {
             // Retrieve audio data from the ZipArchive
-            string zipPath = Path.Combine(CsXFL.Library.LIBRARY_PATH, href).Replace("\\", "/");
+            string zipPath = Path.Combine("bin", href).Replace("\\", "/");
             ZipArchiveEntry? entry = _zipArchive?.GetEntry(zipPath);
 
             if (entry is null)
@@ -142,5 +143,6 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
     public void Dispose()
     {
         _zipArchive?.Dispose();
+        _zipArchive = null;
     }
 }

@@ -79,26 +79,6 @@ public partial class MainWindowViewModel : ObservableObject
         return mapper.Map<CsXFL.Document>(document);
     }
 
-    // MARK: Mementos
-    public class CsXFLDocumentMemento : IMemento
-    {
-        private CsXFL.Document _document;
-        private MainWindowViewModel _viewModel;
-
-        public CsXFLDocumentMemento(MainWindowViewModel viewModel, CsXFL.Document document)
-        {
-            _viewModel = viewModel;
-            _document = CloneDocument(document);
-        }
-
-        public string Description => $"Opened Document {_document.Filename}";
-
-        public void Restore()
-        {
-            _viewModel.WorkingCsXFLDoc = _document;
-        }
-    }
-
     // MARK: Document Commands
     private async void OpenDocument()
     {
@@ -116,9 +96,6 @@ public partial class MainWindowViewModel : ObservableObject
         }
         WorkingCsXFLDoc = await An.OpenDocumentAsync(filePath);
         AddToRecentFiles(filePath);
-
-        var memento = new CsXFLDocumentMemento(this, WorkingCsXFLDoc);
-        ApplicationServices.MementoCaretaker.AddMemento(memento, $"You will never see this.");
 
         // Get the document list and find the index of the opened document
         var documentList = An.GetDocumentList();

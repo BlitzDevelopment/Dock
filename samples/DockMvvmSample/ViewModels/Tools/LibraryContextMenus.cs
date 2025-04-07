@@ -53,7 +53,7 @@ namespace Blitz.ViewModels.Tools
 
         private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
         {
-            Console.WriteLine("ActiveDocumentChangedEvent received in ContextMenuFactory.");
+            //Console.WriteLine("ActiveDocumentChangedEvent received in ContextMenuFactory.");
         }
 
         private void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
@@ -339,7 +339,7 @@ namespace Blitz.ViewModels.Tools
             using (MemoryStream memoryStream = new MemoryStream(audioData))
             {
                 // Assuming the audio data is in WAV format
-                var (format, data, sampleRate) = _audioService.LoadWave(memoryStream);
+                var (format, data, sampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
                 _audioService.Play(data, format, sampleRate);
             }
         }

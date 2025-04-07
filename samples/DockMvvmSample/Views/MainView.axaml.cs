@@ -11,7 +11,7 @@ namespace Blitz.Views;
 
 public static class ApplicationServices
 {
-    public static MementoCaretaker MementoCaretaker => (MementoCaretaker)MementoCaretakerInstance.Instance;
+    public static MementoCaretaker MementoCaretaker => ApplicationServices.MementoCaretaker;
 }
 
 public partial class MainView : UserControl
@@ -51,30 +51,22 @@ public partial class MainView : UserControl
         }
     }
 
+    public static MementoCaretaker MementoCaretaker => ApplicationServices.MementoCaretaker;
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
 
         // Check for Control + Z (Undo)
-        if (e.Key == Key.Z && (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control)
+        if (e.Key == Key.Z && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            var memento = ApplicationServices.MementoCaretaker.Undo();
-            if (memento != null)
-            {
-                Console.WriteLine($"Undo: {memento.Description}");
-                memento.Restore();
-            }
+            MementoCaretaker?.Undo();
             e.Handled = true;
         }
         // Check for Control + Y (Redo)
-        else if (e.Key == Key.Y && (e.KeyModifiers & KeyModifiers.Control) == KeyModifiers.Control)
+        else if (e.Key == Key.Y && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            var memento = ApplicationServices.MementoCaretaker.Redo();
-            if (memento != null)
-            {
-                Console.WriteLine($"Redo: {memento.Description}");
-                memento.Restore();
-            }
+            MementoCaretaker?.Redo();
             e.Handled = true;
         }
     }

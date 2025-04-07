@@ -155,7 +155,6 @@ public partial class LibraryView : UserControl
 
             // Build the hierarchical path for the current item
             var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
-            Console.WriteLine($"HierarchicalPath: {string.Join(" -> ", hierarchicalPath)}");
 
             // Check if the current item matches the folder name
             if (item.CsXFLItem == folder)
@@ -179,6 +178,7 @@ public partial class LibraryView : UserControl
     {
         if (e.PropertyName == nameof(LibraryViewModel.Bitmap)) { UpdateBitmapPreview(); }
         if (e.PropertyName == nameof(LibraryViewModel.Sound)) { LibrarySVGPreview.Invalidate(); }
+        if (e.PropertyName == nameof(LibraryViewModel.SvgData)) { LibrarySVGPreview.Invalidate(); }
     }
 
     private void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
@@ -297,14 +297,20 @@ public partial class LibraryView : UserControl
             {
                 var svg = new SKSvg();
                 svg.Load(stream);
-                
+
                 // Get bounding rectangle for SVG image
-                var boundingBox = svg.Picture!.CullRect;
+                var boundingBox = _libraryViewModel.BoundingBox; 
+
+                // Calculate the width, height, and center of the bounding box
+                var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
+                var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
+                var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
+                var boundingBoxCenterY = boundingBox.Bottom + boundingBoxHeight / 2;
 
                 // Translate and scale drawing canvas to fit SVG image
                 canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
-                canvas.Scale(0.9f * Math.Min(canvas.LocalClipBounds.Width / boundingBox.Width, canvas.LocalClipBounds.Height / boundingBox.Height));
-                canvas.Translate(-boundingBox.MidX, -boundingBox.MidY);
+                canvas.Scale(0.9f * (float)Math.Min(canvas.LocalClipBounds.Width / boundingBoxWidth, canvas.LocalClipBounds.Height / boundingBoxHeight));
+                canvas.Translate((float)-boundingBoxCenterX, (float)-boundingBoxCenterY);
 
                 // Now finally draw the SVG image
                 canvas.DrawPicture(svg.Picture);
@@ -317,7 +323,7 @@ public partial class LibraryView : UserControl
 
             var waveformWidth = 800; // Width of the waveform
             var waveformHeight = 200; // Height of the waveform
-            var amplitudes = GetAudioAmplitudes(audioData, _libraryViewModel.Sound.SampleRate);
+            var amplitudes = GetAudioAmplitudes(audioData, 16, 1);
             var (waveformPicture, analogousColor, lighterColor) = GenerateWaveform(amplitudes, waveformWidth, waveformHeight);
             var canvasWidth = e.Info.Width;
             var canvasHeight = e.Info.Height;
@@ -343,25 +349,21 @@ public partial class LibraryView : UserControl
             imageControl!.IsVisible = false;
             return;
         }
-        else
-        {
-            imageControl!.IsVisible = true;
-        }
+
+        imageControl!.IsVisible = true;
 
         var bitmapData = _documentViewModel.GetBitmapData(_libraryViewModel.Bitmap);
+        var correctImage = CsXFL.ImageUtils.ConvertDatToRawImage(bitmapData);
 
-        // Use SixLabors.ImageSharp to load the image and convert it to a stream
-        using (var image = SixLabors.ImageSharp.Image.Load(bitmapData))
+        // Directly use the bitmap data if it's already in a compatible format
         using (var memoryStream = new MemoryStream())
         {
-            // Save the image as a PNG to the memory stream
-            image.Save(memoryStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-            memoryStream.Seek(0, SeekOrigin.Begin);
+            correctImage.Save(memoryStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder()); // Save as PNG
+            memoryStream.Seek(0, SeekOrigin.Begin); // Reset the stream position
 
             // Set the MemoryStream directly to the Image control
             imageControl.Source = new Avalonia.Media.Imaging.Bitmap(memoryStream);
         }
-        return;
     }
 
     // MARK: Audio Preview
@@ -434,49 +436,45 @@ public partial class LibraryView : UserControl
         return (picture, analogousColor, lighterColor);
     }
 
-    private float[] GetAudioAmplitudes(byte[] audioData, int sampleRate = 1000)
+    private float[] GetAudioAmplitudes(byte[] audioData, int bitsPerSample, int channels, int downsampleFactor = 10)
     {
-        using var ms = new MemoryStream(audioData);
-        using var reader = new WaveFileReader(ms); // Use WaveFileReader for streams
         var samples = new List<float>();
-        var buffer = new byte[sampleRate * reader.WaveFormat.BlockAlign]; // Adjust buffer size based on block align
-        int read;
+        int bytesPerSample = bitsPerSample / 8;
+        int blockAlign = bytesPerSample * channels;
 
-        while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+        for (int i = 0; i < audioData.Length; i += blockAlign * downsampleFactor)
         {
-            // Convert the byte buffer to float samples based on the audio format
-            for (int i = 0; i < read; i += reader.WaveFormat.BlockAlign)
+            switch (bitsPerSample)
             {
-                if (reader.WaveFormat.BitsPerSample == 16)
-                {
+                case 16:
                     // 16-bit PCM: Convert two bytes to a short and normalize
-                    if (i + 2 <= read)
+                    if (i + 2 <= audioData.Length)
                     {
-                        short sample = BitConverter.ToInt16(buffer, i);
-                        samples.Add(sample / 32768f); // Normalize to range [-1, 1]
+                        short sample16 = BitConverter.ToInt16(audioData, i);
+                        samples.Add(sample16 / 32768f); // Normalize to range [-1, 1]
                     }
-                }
-                else if (reader.WaveFormat.BitsPerSample == 8)
-                {
+                    break;
+
+                case 8:
                     // 8-bit PCM: Normalize byte to range [-1, 1]
-                    byte sample = buffer[i];
-                    samples.Add((sample - 128) / 128f);
-                }
-                else if (reader.WaveFormat.BitsPerSample == 32)
-                {
+                    byte sample8 = audioData[i];
+                    samples.Add((sample8 - 128) / 128f);
+                    break;
+
+                case 32:
                     // 32-bit float PCM: Directly convert
-                    if (i + 4 <= read)
+                    if (i + 4 <= audioData.Length)
                     {
-                        float sample = BitConverter.ToSingle(buffer, i);
-                        samples.Add(sample);
+                        float sample32 = BitConverter.ToSingle(audioData, i);
+                        samples.Add(sample32);
                     }
-                }
-                else
-                {
-                    throw new NotSupportedException("Unsupported bit depth: " + reader.WaveFormat.BitsPerSample);
-                }
+                    break;
+
+                default:
+                    throw new NotSupportedException($"Unsupported bit depth: {bitsPerSample}");
             }
         }
+
         return samples.ToArray();
     }
 
