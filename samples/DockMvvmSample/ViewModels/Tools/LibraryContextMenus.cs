@@ -339,8 +339,30 @@ namespace Blitz.ViewModels.Tools
             using (MemoryStream memoryStream = new MemoryStream(audioData))
             {
                 // Assuming the audio data is in WAV format
-                var (format, data, sampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
-                _audioService.Play(data, format, sampleRate);
+                var (badFormat, data, badSampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
+
+                string format = soundItem.Format;
+                string[] parts = format.Split(' ');
+
+                string sampleRateString = new string(parts[0].Where(char.IsDigit).ToArray());
+                int sampleRate = int.Parse(sampleRateString);
+
+                if (parts[0].Contains("kHz", StringComparison.OrdinalIgnoreCase))
+                {
+                    sampleRate *= 1000; // Convert kHz to Hz
+                }
+
+                // Extract the audio format (e.g., "Mono" or "Stereo")
+                string audioFormat = parts[2];
+
+                OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
+                {
+                    "Mono" => OpenTK.Audio.OpenAL.ALFormat.Mono16,
+                    "Stereo" => OpenTK.Audio.OpenAL.ALFormat.Stereo16,
+                    _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
+                };
+
+                _audioService.Play(data, alFormat, sampleRate);
             }
         }
 
