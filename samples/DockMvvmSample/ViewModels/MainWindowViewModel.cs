@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using System;
+using Blitz.ViewModels.Documents;
 
 namespace Blitz.ViewModels;
 
@@ -54,6 +55,7 @@ public partial class MainWindowViewModel : ObservableObject
     #endregion
 
     #region Document State
+    private DocumentViewModel _workingCsXFLDocViewModel;
     private CsXFL.Document? _workingCsXFLDoc;
     public CsXFL.Document? WorkingCsXFLDoc
     {
@@ -113,7 +115,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void SaveDocument()
     {
+        _workingCsXFLDocViewModel.Dispose();
         WorkingCsXFLDoc!.Save();
+        _workingCsXFLDocViewModel.InitializeZipArchive();
     }
 
     private void OpenRecent(string filePath)
@@ -192,6 +196,7 @@ public partial class MainWindowViewModel : ObservableObject
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
     {
         WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Document.DocumentIndex.Value);
+        _workingCsXFLDocViewModel = activeDocumentChangedEvent.Document;
     }
 
     public MainWindowViewModel()

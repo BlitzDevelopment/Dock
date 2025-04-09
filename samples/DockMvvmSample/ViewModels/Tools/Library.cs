@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using Blitz.ViewModels.Documents;
 using static Blitz.Models.Tools.Library;
-using Blitz.Views.Documents;
+using Serilog;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -190,7 +190,7 @@ public partial class LibraryViewModel : Tool
     {
         _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
         DocumentViewModel = e.Document;
-        Console.WriteLine($"[LibraryViewModel] _workingCsXFLDoc changed to {_workingCsXFLDoc.Filename}");
+        Log.Information($"[LibraryViewModel] _workingCsXFLDoc changed to {_workingCsXFLDoc.Filename}");
         RebuildLibrary();
     }
 
@@ -412,8 +412,9 @@ public partial class LibraryViewModel : Tool
     [RelayCommand]
     private async Task AddFolder()
     {
-        try {
-            if (_workingCsXFLDoc == null) { return; }
+        try
+        {
+            if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
             string baseName = "New Folder";
             int maxNumber = 0;
 
@@ -430,10 +431,27 @@ public partial class LibraryViewModel : Tool
             }
 
             string newFolderName = $"{baseName} {maxNumber + 1}";
-            
+
+            // Add the folder to the library
             _workingCsXFLDoc.Library.NewFolder(newFolderName);
+
+            // Create a new LibraryItem
+            var newLibraryItem = new LibraryItem
+            {
+                Name = newFolderName,
+                Type = "folder",
+                UseCount = "",
+                CsXFLItem = _workingCsXFLDoc.Library.Items[newFolderName]
+            };
+
+            Items.Add(newLibraryItem);
+
+            // Notify other components
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
             await _genericDialogs.ShowError(e.Message);
         }
     }
@@ -479,6 +497,7 @@ public partial class LibraryViewModel : Tool
             Items.Add(newLibraryItem);
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
+            Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
             await _genericDialogs.ShowError(e.Message);
         }
     }
@@ -510,6 +529,7 @@ public partial class LibraryViewModel : Tool
             }
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
+            Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
             await _genericDialogs.ShowError(e.Message);
         }
     }

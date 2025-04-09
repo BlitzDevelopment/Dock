@@ -2,6 +2,15 @@ using Blitz.ViewModels.Documents;
 
 namespace Blitz.Events
 {
+    public class OnDocumentSavedEvent
+    {
+        public DocumentViewModel Document { get; set; }
+
+        public OnDocumentSavedEvent(DocumentViewModel document)
+        {
+            Document = document;
+        }
+    }
     public class ActiveDocumentChangedEvent
     {
         public DocumentViewModel Document { get; set; }

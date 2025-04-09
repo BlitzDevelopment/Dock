@@ -17,11 +17,13 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Blitz.ViewModels.Documents;
+using CsXFL;
 
 namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
+    private readonly AudioService _audioService;
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel;
     private MainWindowViewModel _mainWindowViewModel;
@@ -42,6 +44,7 @@ public partial class LibraryView : UserControl
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
         _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
 
+        _audioService = AudioService.Instance;
         _eventAggregator = EventAggregator.Instance;
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
         _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
@@ -321,10 +324,12 @@ public partial class LibraryView : UserControl
         {
             var audioData = _documentViewModel.GetAudioData(_libraryViewModel.Sound);
 
+            Console.WriteLine($"Audio data length: {audioData.Length}");
+
             var waveformWidth = 800; // Width of the waveform
             var waveformHeight = 200; // Height of the waveform
-            var amplitudes = GetAudioAmplitudes(audioData, 16, 1);
-            var (waveformPicture, analogousColor, lighterColor) = GenerateWaveform(amplitudes, waveformWidth, waveformHeight);
+            var amplitudes = _audioService.GetAudioAmplitudes(audioData, 16, 1);
+            var (waveformPicture, analogousColor, lighterColor) = _audioService.GenerateWaveform(amplitudes, waveformWidth, waveformHeight, _libraryViewModel.CanvasColor!);
             var canvasWidth = e.Info.Width;
             var canvasHeight = e.Info.Height;
             var centerX = canvasWidth / 2f;
@@ -364,118 +369,6 @@ public partial class LibraryView : UserControl
             // Set the MemoryStream directly to the Image control
             imageControl.Source = new Avalonia.Media.Imaging.Bitmap(memoryStream);
         }
-    }
-
-    // MARK: Audio Preview
-    private (SkiaSharp.SKPicture Picture, SkiaSharp.SKColor AnalogousColor, SkiaSharp.SKColor LighterColor) GenerateWaveform(float[] amplitudes, int width, int height)
-    {
-        using var pictureRecorder = new SkiaSharp.SKPictureRecorder();
-        var canvas = pictureRecorder.BeginRecording(new SkiaSharp.SKRect(0, 0, width, height));
-
-        canvas.Clear(SkiaSharp.SKColors.Transparent);
-        SKColor canvasColor = SKColor.Parse(_libraryViewModel.CanvasColor);
-
-        // Two-tone waveform is an analogous color to the inverse color of the canvas.
-        // This means there is always contrast against the background without being ugly.
-        SKColor inverseColor = new SKColor(
-            (byte)(255 - canvasColor.Red),
-            (byte)(255 - canvasColor.Green),
-            (byte)(255 - canvasColor.Blue),
-            canvasColor.Alpha
-        );
-
-        SKColor analogousColor = new SKColor(
-            (byte)((inverseColor.Red + 30) % 256),
-            (byte)((inverseColor.Green + 15) % 256),
-            (byte)((inverseColor.Blue - 20 + 256) % 256),
-            inverseColor.Alpha
-        );
-
-        SKColor lighterColor = new SKColor(
-            (byte)Math.Min(analogousColor.Red + 50, 255),
-            (byte)Math.Min(analogousColor.Green + 50, 255),
-            (byte)Math.Min(analogousColor.Blue + 50, 255),
-            analogousColor.Alpha
-        );
-
-        var paint = new SkiaSharp.SKPaint
-        {
-            StrokeWidth = 1,
-            IsAntialias = true
-        };
-
-        var centerY = height / 2;
-        var step = (float)width / amplitudes.Length; // Stepsize for each sample
-
-        // Draw the waveform with analogousColor
-        paint.Color = analogousColor;
-        for (int i = 0; i < amplitudes.Length - 1; i++)
-        {
-            var x1 = i * step;
-            var y1 = centerY - amplitudes[i] * centerY;
-            var x2 = (i + 1) * step;
-            var y2 = centerY - amplitudes[i + 1] * centerY;
-
-            canvas.DrawLine(x1, y1, x2, y2, paint);
-        }
-
-        // Draw a slightly less tall waveform with lighterColor
-        float scale = 0.4f;
-        paint.Color = lighterColor;
-        for (int i = 0; i < amplitudes.Length - 1; i++)
-        {
-            var x1 = i * step;
-            var y1 = centerY - amplitudes[i] * centerY * scale;
-            var x2 = (i + 1) * step;
-            var y2 = centerY - amplitudes[i + 1] * centerY * scale;
-
-            canvas.DrawLine(x1, y1, x2, y2, paint);
-        }
-
-        var picture = pictureRecorder.EndRecording();
-        return (picture, analogousColor, lighterColor);
-    }
-
-    private float[] GetAudioAmplitudes(byte[] audioData, int bitsPerSample, int channels, int downsampleFactor = 10)
-    {
-        var samples = new List<float>();
-        int bytesPerSample = bitsPerSample / 8;
-        int blockAlign = bytesPerSample * channels;
-
-        for (int i = 0; i < audioData.Length; i += blockAlign * downsampleFactor)
-        {
-            switch (bitsPerSample)
-            {
-                case 16:
-                    // 16-bit PCM: Convert two bytes to a short and normalize
-                    if (i + 2 <= audioData.Length)
-                    {
-                        short sample16 = BitConverter.ToInt16(audioData, i);
-                        samples.Add(sample16 / 32768f); // Normalize to range [-1, 1]
-                    }
-                    break;
-
-                case 8:
-                    // 8-bit PCM: Normalize byte to range [-1, 1]
-                    byte sample8 = audioData[i];
-                    samples.Add((sample8 - 128) / 128f);
-                    break;
-
-                case 32:
-                    // 32-bit float PCM: Directly convert
-                    if (i + 4 <= audioData.Length)
-                    {
-                        float sample32 = BitConverter.ToSingle(audioData, i);
-                        samples.Add(sample32);
-                    }
-                    break;
-
-                default:
-                    throw new NotSupportedException($"Unsupported bit depth: {bitsPerSample}");
-            }
-        }
-
-        return samples.ToArray();
     }
 
     private void InitializeComponent()

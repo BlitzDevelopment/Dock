@@ -14,6 +14,7 @@ using Dock.Model.Mvvm;
 using Dock.Model.Mvvm.Controls;
 using Dock.Model.Core.Events;
 using Blitz.Events;
+using Serilog;
 
 namespace Blitz.ViewModels;
 
@@ -43,7 +44,7 @@ public class DockFactory : Factory
         {
             if (!OpenDocuments.Contains(document))
             {
-                Console.WriteLine($"Adding document {document.Title} to OpenDocuments list.");
+                Log.Information($"Adding document {document.Title} to OpenDocuments list.");
                 OpenDocuments.Add(document);
             }
 

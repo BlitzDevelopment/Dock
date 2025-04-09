@@ -27,10 +27,14 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
 
         if (!_isXFL)
         {
-            // Initialize ZipArchive for non-XFL documents
-            
-            _zipArchive = ZipFile.Open(_documentPath, ZipArchiveMode.Read);
+            InitializeZipArchive();
         }
+    }
+
+    public void InitializeZipArchive()
+    {
+        // Logic to reinstantiate the _zipArchive
+        _zipArchive = ZipFile.Open(_documentPath, ZipArchiveMode.Read);
     }
 
     public byte[] GetBitmapData(BitmapItem bitmap)

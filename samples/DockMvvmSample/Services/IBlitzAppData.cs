@@ -23,6 +23,19 @@ public class BlitzAppData : IBlitzAppData
         return appDataFolder;
     }
 
+    public string GetLogFilePath()
+    {
+        string logFilePath = Path.Combine(localAppDataPath, "Blitz", "log.txt");
+
+        string directoryPath = Path.Combine(localAppDataPath, "Blitz");
+        if (!Directory.Exists(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);  // Create the directory if it doesn't exist
+        }
+
+        return logFilePath;
+    }
+
     public string GetRecentFilesPath()
     {
         string recentFilesPath = Path.Combine(localAppDataPath, "Blitz", "recentFiles.txt");

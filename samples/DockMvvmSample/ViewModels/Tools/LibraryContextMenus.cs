@@ -5,13 +5,13 @@ using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Blitz.ViewModels.Documents;
 
 using static Blitz.Models.Tools.Library;
 
@@ -48,12 +48,6 @@ namespace Blitz.ViewModels.Tools
             _audioService = AudioService.Instance;
             _eventAggregator = EventAggregator.Instance;
             _eventAggregator.Subscribe<UserLibrarySelectionChangedEvent>(OnUserLibrarySelectionChanged);
-            _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
-        }
-
-        private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
-        {
-            //Console.WriteLine("ActiveDocumentChangedEvent received in ContextMenuFactory.");
         }
 
         private void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
@@ -324,45 +318,53 @@ namespace Blitz.ViewModels.Tools
             var _viewModelRegistry = ViewModelRegistry.Instance;
             _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
 
-            if (_libraryViewModel.DocumentViewModel == null)
-            {
-                throw new InvalidOperationException("_documentViewModel is null.");
+            if (_libraryViewModel.DocumentViewModel == null) { throw new InvalidOperationException("_documentViewModel is null."); }
+            if (soundItem == null) { throw new ArgumentNullException(nameof(soundItem), "soundItem is null."); }
+            string fileExtension = "";
+            string format = soundItem.Format;
+            string[] parts = format.Split(' ');
+
+            string sampleRateString = new string(parts[0].Where(char.IsDigit).ToArray());
+            int sampleRate = int.Parse(sampleRateString);
+
+            if (soundItem.Href != null) {
+                fileExtension = Path.GetExtension(soundItem.Href)?.TrimStart('.').ToLower() ?? string.Empty;
             }
 
-            if (soundItem == null)
+            if (fileExtension == "wav" || fileExtension == "flac")
             {
-                throw new ArgumentNullException(nameof(soundItem), "soundItem is null.");
-            }
-
-            var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
-            // Load audio data into OpenAL buffer
-            using (MemoryStream memoryStream = new MemoryStream(audioData))
-            {
-                // Assuming the audio data is in WAV format
-                var (badFormat, data, badSampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
-
-                string format = soundItem.Format;
-                string[] parts = format.Split(' ');
-
-                string sampleRateString = new string(parts[0].Where(char.IsDigit).ToArray());
-                int sampleRate = int.Parse(sampleRateString);
-
-                if (parts[0].Contains("kHz", StringComparison.OrdinalIgnoreCase))
+                var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
+                // Load audio data into OpenAL buffer
+                using (MemoryStream memoryStream = new MemoryStream(audioData))
                 {
-                    sampleRate *= 1000; // Convert kHz to Hz
+                    // Assuming the audio data is in WAV format
+                    var (badFormat, data, badSampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
+
+                    if (parts[0].Contains("kHz", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sampleRate *= 1000; // Convert kHz to Hz
+                    }
+
+                    // Extract the audio format (e.g., "Mono" or "Stereo")
+                    string audioFormat = parts[2];
+
+                    OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
+                    {
+                        "Mono" => OpenTK.Audio.OpenAL.ALFormat.Mono16,
+                        "Stereo" => OpenTK.Audio.OpenAL.ALFormat.Stereo16,
+                        _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
+                    };
+
+                    _audioService.Play(data, alFormat, sampleRate);
                 }
-
-                // Extract the audio format (e.g., "Mono" or "Stereo")
-                string audioFormat = parts[2];
-
-                OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
-                {
-                    "Mono" => OpenTK.Audio.OpenAL.ALFormat.Mono16,
-                    "Stereo" => OpenTK.Audio.OpenAL.ALFormat.Stereo16,
-                    _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
-                };
-
-                _audioService.Play(data, alFormat, sampleRate);
+            }
+            else if (fileExtension == "mp3")
+            {
+                Log.Error("[LibraryContextMenu] MP3 format is not supported yet.");
+            }
+            else
+            {
+                Log.Error($"[LibraryContextMenu] Unsupported audio format or href not found: {fileExtension}");
             }
         }
 
@@ -440,6 +442,23 @@ namespace Blitz.ViewModels.Tools
         private async Task Paste()
         {
 
+        }
+
+        [RelayCommand]
+        private async Task Duplicate()
+        {
+            _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+            if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
+            if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+
+            foreach (var item in _userLibrarySelection)
+            {
+                // Use the copy constructor to create a duplicate
+                //var duplicatedItem = new CsXFL.Item(item); // Replace 'ItemClass' with the actual class name
+                //_workingCsXFLDoc.AddItem(duplicatedItem);
+            }
+
+            _eventAggregator.Publish(new LibraryItemsChangedEvent());
         }
 
         // Todo: Duplicate is generic
