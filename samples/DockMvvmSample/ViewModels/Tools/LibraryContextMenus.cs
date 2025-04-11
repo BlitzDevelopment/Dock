@@ -360,7 +360,31 @@ namespace Blitz.ViewModels.Tools
             }
             else if (fileExtension == "mp3")
             {
-                Log.Error("[LibraryContextMenu] MP3 format is not supported yet.");
+                var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
+                byte[] pcmData = _audioService.DecodeMp3ToPcm(audioData);
+
+                using (MemoryStream memoryStream = new MemoryStream(pcmData))
+                {
+                    // Assuming the audio data is in WAV format
+                    var (badFormat, data, badSampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
+
+                    if (parts[0].Contains("kHz", StringComparison.OrdinalIgnoreCase))
+                    {
+                        sampleRate *= 1000; // Convert kHz to Hz
+                    }
+
+                    // Extract the audio format (e.g., "Mono" or "Stereo")
+                    string audioFormat = parts[2];
+
+                    OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
+                    {
+                        "Mono" => OpenTK.Audio.OpenAL.ALFormat.Mono16,
+                        "Stereo" => OpenTK.Audio.OpenAL.ALFormat.Stereo16,
+                        _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
+                    };
+
+                    _audioService.Play(data, alFormat, sampleRate);
+                }
             }
             else
             {

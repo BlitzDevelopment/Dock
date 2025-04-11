@@ -5,8 +5,6 @@ using Avalonia.Markup.Xaml;
 using Blitz.Events;
 using Blitz.ViewModels;
 using Blitz.ViewModels.Tools;
-using NAudio.Wave;
-using SkiaSharp;
 using Svg.Skia;
 using System;
 using System.Collections.Generic;
@@ -17,12 +15,12 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Blitz.ViewModels.Documents;
-using CsXFL;
 
 namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
+    private readonly IGenericDialogs _genericDialogs;
     private readonly AudioService _audioService;
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel;
@@ -51,6 +49,18 @@ public partial class LibraryView : UserControl
 
         LibrarySearch.TextChanged += OnLibrary_searchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
+
+        //MARK: File Explorer D&D
+        var treeView = FlatTreeView;
+        
+        // Enable drag-and-drop events
+        treeView.SetValue(DragDrop.AllowDropProperty, true);
+        treeView.AddHandler(DragDrop.DragOverEvent, FlatDoDrag);
+        treeView.AddHandler(DragDrop.DropEvent, FlatDrop);
+        treeView.AddHandler(DragDrop.DragLeaveEvent, FlatDragLeave);
+        treeView.AddHandler(DragDrop.DragEnterEvent, FlatDragEnter);
+
+        //MARK: Library D&D
 
         // Handle pointer pressed
         HierarchalTreeView.PointerPressed += (sender, e) =>
@@ -146,6 +156,44 @@ public partial class LibraryView : UserControl
             e.Handled = true;
         };
 
+    }
+
+    private void FlatDoDrag(object? sender, DragEventArgs e) 
+    {
+        e.DragEffects = DragDropEffects.Move;
+    }
+
+    private void FlatDrop(object? sender, DragEventArgs e)
+    {
+        // Check if the dragged data contains files using "FileNameW" or "FileName"
+        if (e.Data.Contains("FileNameW") || e.Data.Contains("FileName"))
+        {
+            var files = e.Data.GetFileNames();
+            var validExtensions = new[] { ".png", ".jpg", ".gif", ".mp3", ".wav", ".flac" };
+            if (files.Any(file => validExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))))
+            {
+                bool anyFailures = false; // Track if any file fails to import
+                foreach (var file in files)
+                {
+                    bool didWork = _workingCsXFLDoc.ImportFile(file);
+                    if (!didWork) {anyFailures = true;} // Mark failure
+                }
+
+                if (anyFailures) { _genericDialogs.ShowWarning("One or more files could not be imported."); } // Show a warning if any file failed to import
+            }
+            else { _genericDialogs.ShowError("File not in valid format."); }
+        } else {_genericDialogs.ShowError("DragDrop data does not contain FileName or FileNameW"); }
+        _eventAggregator.Publish(new LibraryItemsChangedEvent());
+    }
+
+    private void FlatDragLeave(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void FlatDragEnter(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
     }
 
     private void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)

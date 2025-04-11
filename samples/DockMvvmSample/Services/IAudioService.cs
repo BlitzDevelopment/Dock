@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using SkiaSharp;
+using System.Diagnostics;
 
 namespace Blitz;
 
@@ -45,7 +46,6 @@ public class AudioService
         _source = AL.GenSource();
     }
 
-    // Helper method to load headerless WAV data
     public (ALFormat Format, byte[] Data, int SampleRate) LoadWave(Stream stream, int numChannels, int sampleRate, int bitsPerSample)
     {
         using (BinaryReader reader = new BinaryReader(stream))
@@ -173,6 +173,59 @@ public class AudioService
         }
 
         return samples.ToArray();
+    }
+
+    public byte[] DecodeMp3ToPcm(byte[] mp3Data)
+    {
+        // Locate ffmpeg executable
+        string baseDirectory = AppContext.BaseDirectory;
+        string threeDirectoriesUp = Path.GetFullPath(Path.Combine(baseDirectory, @"..\..\.."));
+        string ffmpegPath = Path.Combine(threeDirectoriesUp, "dlls", "ffmpeg.exe");
+
+        if (!File.Exists(ffmpegPath))
+        {
+            throw new FileNotFoundException("ffmpeg executable not found at: " + ffmpegPath);
+        }
+
+        // Prepare ffmpeg process
+        var processStartInfo = new ProcessStartInfo
+        {
+            FileName = ffmpegPath,
+            Arguments = "-i pipe:0 -f s16le -acodec pcm_s16le -ar 44100 -ac 2 pipe:1",
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using (var process = new Process { StartInfo = processStartInfo })
+        {
+            process.Start();
+
+            // Write MP3 data to ffmpeg's standard input
+            using (var inputStream = process.StandardInput.BaseStream)
+            {
+                inputStream.Write(mp3Data, 0, mp3Data.Length);
+                inputStream.Flush();
+                inputStream.Close();
+            }
+
+            // Read PCM data from ffmpeg's standard output
+            using (var memoryStream = new MemoryStream())
+            {
+                process.StandardOutput.BaseStream.CopyTo(memoryStream);
+                process.WaitForExit();
+
+                if (process.ExitCode != 0)
+                {
+                    string error = process.StandardError.ReadToEnd();
+                    throw new Exception($"ffmpeg failed with exit code {process.ExitCode}: {error}");
+                }
+
+                return memoryStream.ToArray();
+            }
+        }
     }
 
     public void Play(byte[] audioData, ALFormat format, int sampleRate)
