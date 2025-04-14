@@ -39,6 +39,7 @@ public class DockFactory : Factory
 
     private void OnActiveDockableChanged(object? sender, ActiveDockableChangedEventArgs e)
     {
+
         // Switching active documents
         if (e.Dockable is DocumentViewModel document)
         {

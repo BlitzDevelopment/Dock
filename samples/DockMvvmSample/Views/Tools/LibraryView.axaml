@@ -11,6 +11,7 @@
              xmlns:local="clr-namespace:Blitz.Views.Tools"
              mc:Ignorable="d"
              d:DesignWidth="300" d:DesignHeight="400">
+
   <Grid Focusable="True">
 
       <Grid ColumnDefinitions="*" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -62,12 +63,13 @@
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
             <vm:BooleanToBorderBrushConverter x:Key="BooleanToBorderBrushConverter"/>
             <vm:BooleanToBackgroundConverter x:Key="BooleanToBackgroundConverter"/>
+            <vm:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
               <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
                 <Border BorderThickness="2" CornerRadius="4" 
                         BorderBrush="{Binding IsDragOver, Converter={StaticResource BooleanToBorderBrushConverter}}" 
                         Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}">
                   <StackPanel Orientation="Horizontal">
-                    <Button Background="Transparent">
+                    <Button IsEnabled ="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" Background="Transparent" >
                       <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
                     </Button>
                     <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>

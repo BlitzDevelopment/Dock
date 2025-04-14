@@ -8,7 +8,7 @@
         xmlns:vm="using:Blitz.ViewModels"
         xmlns:views="using:Blitz.Views"
         mc:Ignorable="d"
-        d:DesignWidth="1200" d:DesignHeight="680"
+        d:DesignWidth="720" d:DesignHeight="1280"
         x:Name="MainWindowView"
         UseLayoutRounding="True" RenderOptions.BitmapInterpolationMode="HighQuality"
         WindowState="Normal" WindowStartupLocation="CenterScreen"
@@ -17,10 +17,10 @@
         Foreground="{DynamicResource DockThemeForegroundBrush}"
         BorderThickness="1" BorderBrush="{DynamicResource DockThemeBorderLowBrush}"
         FontFamily="Segoe UI, SF Pro Display, Noto Sans, Cantarel"
-        Title="Blitz" Height="680" Width="1200"
+        Title="Blitz" Height="720" Width="1280"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="PreferSystemChrome"
-        Icon="/Assets/BlitzIco.ico"
+        Icon="/Assets/Blitz.ico"
         ids:DockProperties.IsDragEnabled="True" ids:DockProperties.IsDropEnabled="True">
 
   <Window.Resources>

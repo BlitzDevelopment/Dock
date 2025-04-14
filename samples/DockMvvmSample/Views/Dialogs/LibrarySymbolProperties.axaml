@@ -1,34 +1,55 @@
 <Window x:Class="Blitz.Views.LibrarySymbolProperties"
         xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
         xmlns="https://github.com/avaloniaui"
+        xmlns:skia="clr-namespace:Avalonia.Controls;assembly=Blitz"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Width="626">
   <Grid Margin="0">
     <Border Height="3" Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
     <StackPanel Margin="6">
         <TextBlock Margin="8 5" FontSize="12" FontWeight="Bold">Symbol Properties</TextBlock>
-        <Border Padding="12">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="50"/>
-              <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Vertical">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Grid.Column="0" Margin="5" VerticalAlignment="Center">Name:</TextBlock>
-                        <TextBox x:Name="Name" Grid.Column="1" Margin="5" VerticalAlignment="Center"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Grid.Column="0" Margin="5" VerticalAlignment="Center">Type:</TextBlock>
-                        <ComboBox x:Name="Type" Grid.Column="1" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
-                            <ComboBoxItem Content="Graphic" />
-                            <ComboBoxItem Content="Movie Clip" />
-                            <ComboBoxItem Content="Button" />
-                        </ComboBox>
-                    </StackPanel>
-                </StackPanel>
-          </Grid>
-        </Border>
+          <Border Padding="12">
+              <Grid>
+                  <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="100"/> <!-- Adjusted width for the canvas -->
+                      <ColumnDefinition Width="*"/>   <!-- Remaining space for the StackPanel -->
+                  </Grid.ColumnDefinitions>
+
+                  <!-- SKXamlCanvas overlaid on a white rectangle -->
+                  <Grid Grid.Column="0" Width="100" Height="100">
+                      <!-- White Rectangle -->
+                      <Rectangle Fill="White" />
+                      
+                      <!-- SKXamlCanvas -->
+                      <skia:SKXamlCanvas x:Name="SymbolPreview" 
+                                          PaintSurface="OnCanvasPaint" />
+                  </Grid>
+
+                <!-- StackPanel replaced with Grid for better alignment -->
+                <Grid Grid.Column="1" Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Name Row -->
+                    <TextBlock Grid.Row="0" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Name:" />
+                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="Name" Margin="5" VerticalAlignment="Center" />
+
+                    <!-- Type Row -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Type:" />
+                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="Type" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
+                        <ComboBoxItem Content="Graphic" />
+                        <ComboBoxItem Content="Movie Clip" />
+                        <ComboBoxItem Content="Button" />
+                    </ComboBox>
+                </Grid>
+              </Grid>
+          </Border>
       <Button HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click" IsDefault="True">
         <TextBlock HorizontalAlignment="Center" FontWeight="Bold" Text="OK"/>
       </Button>

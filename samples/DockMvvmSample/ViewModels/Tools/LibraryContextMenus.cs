@@ -3,7 +3,6 @@ using Avalonia.Data.Converters;
 using Blitz.Events;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
-using CsXFL;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
 using Serilog;
@@ -112,7 +111,7 @@ namespace Blitz.ViewModels.Tools
                 dialog.DialogIdentifier = dialogIdentifier!;
 
                 var resultObject = result as dynamic;
-                if (resultObject == null) { throw new Exception("LibrarySymbolProperties dialog error, returned object is null."); }
+                if (resultObject == null) { return; } // User cancelled
                 if (resultObject.Name is not string Name || resultObject.Type is not string Type || resultObject.IsOkay != true)
                 {
                     throw new Exception("LibrarySymbolProperties dialog error, returned object is missing properties.");
@@ -120,9 +119,12 @@ namespace Blitz.ViewModels.Tools
 
                 var processingSymbol = _userLibrarySelection[0] as CsXFL.SymbolItem;
                 string currentPath = processingSymbol!.Name;
-                string? directory = Path.GetDirectoryName(currentPath);
-                string newPath = directory != null ? Path.Combine(directory, resultObject.Name) : resultObject.Name;
-                processingSymbol.Name = newPath;
+
+                string originalPath = processingSymbol.Name.Contains("/") ? processingSymbol.Name.Substring(0, processingSymbol.Name.LastIndexOf('/') + 1) : "";
+                string newPath = originalPath + resultObject.Name;
+
+                _workingCsXFLDoc.Library.RenameItem(processingSymbol.Name, newPath);
+
                 processingSymbol.SymbolType = resultObject.Type.ToLower();
                 _eventAggregator.Publish(new LibraryItemsChangedEvent());
             } catch (Exception e) {
@@ -150,7 +152,7 @@ namespace Blitz.ViewModels.Tools
             return contextMenu;
         }
 
-        private void ExpandMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
+        private void ExpandMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
         {
             int localIndex = 0; // Tracks the index at the current level
 
@@ -178,7 +180,7 @@ namespace Blitz.ViewModels.Tools
             }
         }
 
-        private void CollapseMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
+        private void CollapseMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
         {
             int localIndex = 0; // Tracks the index at the current level
 
@@ -300,11 +302,9 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
-            // TODO: Audio thread
             contextMenu.Items.Add(new MenuItem { Header = "Play", Command = PlayCommand, CommandParameter = this});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
-            // TODO: Sound Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
@@ -394,10 +394,8 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
-            // TODO: What is update? Can we just make this "replace"?
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
-            // TODO: Bitmap Properties Dialog
             contextMenu.Items.Add(new MenuItem { Header = "Properties"});
             return contextMenu;
         }
@@ -465,15 +463,12 @@ namespace Blitz.ViewModels.Tools
 
             foreach (var item in _userLibrarySelection)
             {
-                // Use the copy constructor to create a duplicate
-                //var duplicatedItem = new CsXFL.Item(item); // Replace 'ItemClass' with the actual class name
-                //_workingCsXFLDoc.AddItem(duplicatedItem);
+
             }
 
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         }
 
-        // Todo: Duplicate is generic
         // Todo: Edit will be generic when Canvas is implemented
     }
 

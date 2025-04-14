@@ -23,8 +23,6 @@ using Serilog;
 
 namespace Blitz.ViewModels.Tools;
 
-//Todo: Thread safety
-
 // MARK: LibItem Icons
 /// <summary>
 /// Converts an item type string to a corresponding icon represented as a StreamGeometry object.
@@ -103,6 +101,26 @@ public class BooleanToBackgroundConverter : IValueConverter
                 : Brushes.Transparent;
         }
         return Brushes.Transparent;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Inverts a boolean
+/// </summary>
+public class InverseBooleanConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool booleanValue)
+        {
+            return !booleanValue;
+        }
+        return false;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -335,7 +353,7 @@ public partial class LibraryViewModel : Tool
         RestoreExpansionState(HierarchicalItems);
     }
 
-    private void RestoreExpansionState(IEnumerable<LibraryItem> items, List<int> currentPath = null)
+    private void RestoreExpansionState(IEnumerable<LibraryItem> items, List<int>? currentPath = null)
     {
         if (items == null) { return; }
 
@@ -350,7 +368,7 @@ public partial class LibraryViewModel : Tool
             if (expandedState.TryGetValue(item, out bool isExpanded) && isExpanded)
             {
                 // Expand the current item's path
-                HierarchicalSource.Expand(new IndexPath(hierarchicalPath.ToArray()));
+                HierarchicalSource!.Expand(new IndexPath(hierarchicalPath.ToArray()));
             }
 
             // Recursively restore the state for child items
@@ -370,16 +388,24 @@ public partial class LibraryViewModel : Tool
         if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; } // No selection or folder selected
 
         // Associated logic in LibraryView.axaml.cs for previewing datatypes
-        if (UserLibrarySelection![0].ItemType == "movieclip" || UserLibrarySelection[0].ItemType == "graphic")
+        if (UserLibrarySelection![0].ItemType == "movie clip" || UserLibrarySelection[0].ItemType == "graphic" || UserLibrarySelection[0].ItemType == "button")
         {
             string appDataFolder = _blitzAppData.GetTmpFolder();
             SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
-            // TODO: This
-            var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
-            (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
-            SvgData = renderedSVG;
-            BoundingBox = bbox;
+            try
+            {
+                var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
+                (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
+                SvgData = renderedSVG;
+                BoundingBox = bbox;
+            }
+            catch (Exception ex)
+            {
+                SvgData = null;
+                BoundingBox = null;
+                Log.Error(ex, "Failed to render symbol: {ErrorMessage}", ex.Message);
+            }
         }
 
         if (UserLibrarySelection[0].ItemType == "bitmap") { Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem; }
@@ -397,6 +423,7 @@ public partial class LibraryViewModel : Tool
                 new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
             },
         };
+        FlatSource.Columns.SetColumnWidth(0, new GridLength(250));
         FlatSource.RowSelection!.SingleSelect = false;
         FlatSource.RowSelection.SelectionChanged += (sender, e) =>
         {
@@ -564,6 +591,7 @@ public partial class LibraryViewModel : Tool
                 new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
             },
         };
+        HierarchicalSource.Columns.SetColumnWidth(0, new GridLength(250));
         HierarchicalSource.RowSelection!.SingleSelect = false;
         
         HierarchicalSource.RowSelection.SelectionChanged += (sender, e) =>

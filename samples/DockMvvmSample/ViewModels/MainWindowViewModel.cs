@@ -1,23 +1,22 @@
-﻿using System.Diagnostics;
-using System.Windows.Input;
-using Blitz.Models;
+﻿using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Blitz.Events;
+using Blitz.Models;
+using Blitz.ViewModels.Documents;
+using Blitz.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CsXFL;
+using DialogHostAvalonia;
 using Dock.Model.Controls;
 using Dock.Model.Core;
-using System.IO;
-using CsXFL;
-using Avalonia.Controls.ApplicationLifetimes;
-using Blitz.Views;
-using AutoMapper;
-using DialogHostAvalonia;
-using System.Collections.ObjectModel;
-using System.Collections.Generic;
-using System.Linq;
-using Avalonia.Controls;
 using System;
-using Blitz.ViewModels.Documents;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Windows.Input;
 
 namespace Blitz.ViewModels;
 
@@ -37,6 +36,8 @@ public partial class MainWindowViewModel : ObservableObject
     #endregion
 
     #region Commands
+    private ICommand _newDocumentCommand;
+    public ICommand NewDocumentCommand => _newDocumentCommand;
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
 
@@ -55,7 +56,7 @@ public partial class MainWindowViewModel : ObservableObject
     #endregion
 
     #region Document State
-    private DocumentViewModel _workingCsXFLDocViewModel;
+    private DocumentViewModel? _workingCsXFLDocViewModel;
     private CsXFL.Document? _workingCsXFLDoc;
     public CsXFL.Document? WorkingCsXFLDoc
     {
@@ -74,14 +75,12 @@ public partial class MainWindowViewModel : ObservableObject
     public bool IsDocumentLoaded => WorkingCsXFLDoc != null;
     #endregion
 
-    private static CsXFL.Document CloneDocument(CsXFL.Document document)
+    // MARK: Document Commands
+    private void NewDocument()
     {
-        var config = new MapperConfiguration(cfg => cfg.CreateMap<CsXFL.Document, CsXFL.Document>());
-        var mapper = config.CreateMapper();
-        return mapper.Map<CsXFL.Document>(document);
+        WorkingCsXFLDoc = An.CreateDocument(Path.Combine(_blitzAppData.GetTmpFolder(), "Untitled.xfl"));
     }
 
-    // MARK: Document Commands
     private async void OpenDocument()
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
@@ -115,7 +114,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void SaveDocument()
     {
-        _workingCsXFLDocViewModel.Dispose();
+        _workingCsXFLDocViewModel!.Dispose();
         WorkingCsXFLDoc!.Save();
         _workingCsXFLDocViewModel.InitializeZipArchive();
     }
@@ -195,7 +194,7 @@ public partial class MainWindowViewModel : ObservableObject
     // MARK: Events
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
     {
-        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Document.DocumentIndex.Value);
+        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Document.DocumentIndex!.Value);
         _workingCsXFLDocViewModel = activeDocumentChangedEvent.Document;
     }
 
@@ -208,6 +207,7 @@ public partial class MainWindowViewModel : ObservableObject
 
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
+        _newDocumentCommand = new RelayCommand(NewDocument);
         _openDocumentCommand = new RelayCommand(OpenDocument);
         _saveDocumentCommand = new RelayCommand(SaveDocument);
         _renderVideoDialogCommand = new RelayCommand(RenderVideoDialog);

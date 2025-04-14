@@ -8,16 +8,21 @@ public class Library
     public class LibraryItem : INotifyPropertyChanged
     {
         private string? _name;
+        private bool _isDragOver;
+        
         public string Name
         {
-            get { return _name!; }
+            get => _name!;
             set
             {
-                _name = value;
-                OnPropertyChanged(nameof(Name));
+                if (_name != value)
+                {
+                    _name = value;
+                    OnPropertyChanged(nameof(Name));
+                }
             }
         }
-        private bool _isDragOver;
+
         public bool IsDragOver
         {
             get => _isDragOver;
@@ -30,34 +35,20 @@ public class Library
                 }
             }
         }
+
         public bool IsExpanded { get; set; }
         public string? Type { get; set; }
         public string? UseCount { get; set; }
+        public bool IsFolder => Type == "Folder";
+
         public ObservableCollection<LibraryItem> Children { get; set; } = new();
         public CsXFL.Item? CsXFLItem { get; set; }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        // Override Equals
-        public override bool Equals(object obj)
-        {
-            if (obj is LibraryItem other)
-            {
-                return Name == other.Name; // Compare based on Name or other unique properties
-            }
-            return false;
-        }
-
-        // Override GetHashCode
-        public override int GetHashCode()
-        {
-            return Name?.GetHashCode() ?? 0; // Use Name's hash code or a default value
-        }
-
         protected virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
     }
 }

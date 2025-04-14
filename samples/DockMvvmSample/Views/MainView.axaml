@@ -21,8 +21,8 @@
     
     <Menu Grid.Row="0" Grid.Column="0" VerticalAlignment="Top">
       <MenuItem Header="_File">
-        <MenuItem Header="New" />
-        <MenuItem Header="Open Document" Command="{Binding OpenDocumentCommand}"/>
+        <MenuItem Header="New" Command="{Binding NewDocumentCommand}" />
+        <MenuItem Header="Open Document" Command="{Binding OpenDocumentCommand}" />
         <MenuItem Header="Open Recent" x:Name="OpenRecentMenuItem" Loaded="OpenRecentMenuItem_Loaded" >
           <ItemsControl ItemsSource="{Binding RecentFiles}, Source={StaticResource MainWindowViewModel}}">
             <ItemsControl.ItemTemplate>

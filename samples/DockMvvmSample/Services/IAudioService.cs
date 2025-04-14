@@ -31,7 +31,7 @@ public class AudioService
         }
 
         // Create an OpenAL context
-        _context = ALC.CreateContext(_device, (int[])null);
+        _context = ALC.CreateContext(_device, (int[]?)null);
         if (_context == ALContext.Null)
         {
             throw new Exception("Failed to create an OpenAL context.");

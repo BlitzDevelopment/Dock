@@ -7,13 +7,19 @@ using Blitz.ViewModels;
 using System.Linq;
 using System.Globalization;
 using System;
-using System.Reactive.Subjects;
+using Serilog;
+using System.Xml.Linq;
+using Rendering;
+using CsXFL;
+using System.IO;
+using Svg.Skia;
 
 namespace Blitz.Views
 {
     public partial class LibrarySymbolProperties : UserControl
     {
-        private LibraryViewModel _viewModel;
+        private readonly BlitzAppData _blitzAppData;
+        private LibraryViewModel _libraryViewModel;
         private MainWindowViewModel _mainWindowViewModel;
         public string? DialogIdentifier { get; set; }
         public string? SymbolName { get; set; }
@@ -23,17 +29,18 @@ namespace Blitz.Views
         public LibrarySymbolProperties(CsXFL.Item item)
         {
             AvaloniaXamlLoader.Load(this);
+            _blitzAppData = new BlitzAppData();
             TypeComboBox = this.FindControl<ComboBox>("Type");
-            var _viewModelRegistry = ViewModelRegistry.Instance;
-            _viewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
-            _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
+            var _libraryViewModelRegistry = ViewModelRegistry.Instance;
+            _libraryViewModel = (LibraryViewModel)_libraryViewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+            _mainWindowViewModel = (MainWindowViewModel)_libraryViewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
             SetTextBoxText();
             SetComboBox();
         }
 
         private void SetComboBox()
         {
-            var itemType = _viewModel.UserLibrarySelection!.FirstOrDefault()?.ItemType;
+            var itemType = _libraryViewModel.UserLibrarySelection!.FirstOrDefault()?.ItemType;
             var titleCaseItemType = itemType != null 
                 ? CultureInfo.CurrentCulture.TextInfo.ToTitleCase(itemType.ToLower()) 
                 : null;
@@ -51,10 +58,48 @@ namespace Blitz.Views
 
         private void SetTextBoxText()
         {
-            string path = _viewModel.UserLibrarySelection!.FirstOrDefault()?.Name!;
+            string path = _libraryViewModel.UserLibrarySelection!.FirstOrDefault()?.Name!;
             int lastIndex = path.LastIndexOf('/');
             string fileName = lastIndex != -1 ? path.Substring(lastIndex + 1) : path;
             Name.Text = fileName;
+        }
+
+        private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
+        {
+            string appDataFolder = _blitzAppData.GetTmpFolder();
+            SVGRenderer renderer = new SVGRenderer(An.GetActiveDocument(), appDataFolder, true);
+            var canvas = e.Surface.Canvas;
+
+            try
+            {
+                var symbolToRender = _libraryViewModel.UserLibrarySelection[0] as CsXFL.SymbolItem;
+                (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
+                SkiaSharp.SKPicture renderedSymbol = null!;
+
+                using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(renderedSVG.ToString())))
+                {
+                    var svg = new SKSvg();
+                    svg.Load(stream);
+                    renderedSymbol = svg.Picture;
+                }
+
+                // Use the cached picture
+                var boundingBox = bbox!;
+                var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
+                var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
+                var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
+                var boundingBoxCenterY = boundingBox.Bottom + boundingBoxHeight / 2;
+
+                canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
+                canvas.Scale(0.9f * (float)Math.Min(canvas.LocalClipBounds.Width / boundingBoxWidth, canvas.LocalClipBounds.Height / boundingBoxHeight));
+                canvas.Translate((float)-boundingBoxCenterX, (float)-boundingBoxCenterY);
+
+                canvas.DrawPicture(renderedSymbol);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to render symbol: {ErrorMessage}", ex.Message);
+            }
         }
 
         private void OkayButton_Click(object sender, RoutedEventArgs e)

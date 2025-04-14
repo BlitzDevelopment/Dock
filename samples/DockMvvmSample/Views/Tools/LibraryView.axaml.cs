@@ -4,8 +4,9 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Blitz.Events;
 using Blitz.ViewModels;
+using Blitz.ViewModels.Documents;
 using Blitz.ViewModels.Tools;
-using NAudio.Wave;
+using SixLabors.ImageSharp;
 using SkiaSharp;
 using Svg.Skia;
 using System;
@@ -16,32 +17,36 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Blitz.ViewModels.Documents;
-using CsXFL;
-
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Formats.Png;
 
 namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
-    private readonly IGenericDialogs _genericDialogs;
+    #region Dependencies
     private readonly AudioService _audioService;
     private readonly EventAggregator _eventAggregator;
+    private readonly IGenericDialogs? _genericDialogs;
+    #endregion
+
+    #region ViewModels
+    private DocumentViewModel? _documentViewModel;
     private LibraryViewModel _libraryViewModel;
     private MainWindowViewModel _mainWindowViewModel;
-    private DocumentViewModel _documentViewModel;
+    #endregion
+
+    #region State
     private Blitz.Models.Tools.Library.LibraryItem? _previousItem;
     private CsXFL.Document? _workingCsXFLDoc;
+    private bool _isDragging = false;
+    private readonly Stopwatch _stopwatch = new Stopwatch();
     private string? _searchText = "";
     private bool _useFlatSource = false;
-    private readonly Stopwatch _stopwatch = new Stopwatch();
-    private bool _isDragging = false;
+    #endregion
 
+    #region Cached Data
     private SKPicture? _cachedSvgPicture;
     private SKPicture? _cachedWaveformPicture;
+    #endregion
     
     public LibraryView()
     {
@@ -57,7 +62,7 @@ public partial class LibraryView : UserControl
         _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
         _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
-        LibrarySearch.TextChanged += OnLibrary_searchTextChanged!;
+        LibrarySearch.TextChanged += OnLibrary_SearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
 
         // Handle pointer pressed
@@ -170,27 +175,28 @@ public partial class LibraryView : UserControl
          e.DragEffects = DragDropEffects.Move;
      }
  
-     private void FlatDrop(object? sender, DragEventArgs e)
+     private async void FlatDrop(object? sender, DragEventArgs e)
      {
-         // Check if the dragged data contains files using "FileNameW" or "FileName"
-         if (e.Data.Contains("FileNameW") || e.Data.Contains("FileName"))
-         {
-             var files = e.Data.GetFileNames();
-             var validExtensions = new[] { ".png", ".jpg", ".gif", ".mp3", ".wav", ".flac" };
-             if (files.Any(file => validExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))))
-             {
-                 bool anyFailures = false; // Track if any file fails to import
-                 foreach (var file in files)
-                 {
-                     bool didWork = _workingCsXFLDoc.ImportFile(file);
-                     if (!didWork) {anyFailures = true;} // Mark failure
-                 }
- 
-                 if (anyFailures) { _genericDialogs.ShowWarning("One or more files could not be imported."); } // Show a warning if any file failed to import
-             }
-             else { _genericDialogs.ShowError("File not in valid format."); }
-         } else {_genericDialogs.ShowError("DragDrop data does not contain FileName or FileNameW"); }
-         _eventAggregator.Publish(new LibraryItemsChangedEvent());
+        if (_workingCsXFLDoc == null) { return; }
+        // Check if the dragged data contains files using "FileNameW" or "FileName"
+        if (e.Data.Contains("FileNameW") || e.Data.Contains("FileName"))
+        {
+            var files = e.Data.GetFileNames();
+            var validExtensions = new[] { ".png", ".jpg", ".gif", ".mp3", ".wav", ".flac" };
+            if (files.Any(file => validExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))))
+            {
+                bool anyFailures = false; // Track if any file fails to import
+                foreach (var file in files)
+                {
+                    bool didWork = _workingCsXFLDoc.ImportFile(file);
+                    if (!didWork) {anyFailures = true;} // Mark failure
+                }
+
+                if (anyFailures) { await _genericDialogs!.ShowWarning("One or more files could not be imported."); } // Show a warning if any file failed to import
+            }
+            else { await _genericDialogs!.ShowError("File not in valid format."); }
+        } else { await _genericDialogs!.ShowError("DragDrop data does not contain FileName or FileNameW"); }
+        _eventAggregator.Publish(new LibraryItemsChangedEvent());
      }
  
      private void FlatDragLeave(object? sender, DragEventArgs e)
@@ -203,7 +209,7 @@ public partial class LibraryView : UserControl
          e.Handled = true;
      }
 
-    private void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
+    private void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
     {
         int localIndex = 0; // Tracks the index at the current level
 
@@ -267,7 +273,7 @@ public partial class LibraryView : UserControl
         
     }
 
-    public void OnLibrary_searchTextChanged(object sender, TextChangedEventArgs e)
+    public void OnLibrary_SearchTextChanged(object sender, TextChangedEventArgs e)
     {
         if (_workingCsXFLDoc == null) { return; }
 
@@ -284,8 +290,6 @@ public partial class LibraryView : UserControl
             flyout.Content = new TextBlock { Text = "Illegal characters '/' or '\\' are not allowed." };
             flyout.ShowAt(textBox);
 
-            // Todo: Don't use Task.Delay
-            // Dismiss the Flyout after 3 seconds
             Task.Delay(3000).ContinueWith(_ => 
             {
                 flyout.Hide();
@@ -300,6 +304,7 @@ public partial class LibraryView : UserControl
     {
         if (string.IsNullOrEmpty(_searchText))
         {
+            _libraryViewModel.ItemCount = _workingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
             _useFlatSource = false;
             HierarchalTreeView.IsVisible = true;
             HierarchalTreeView.RowSelection!.Clear();
@@ -326,6 +331,10 @@ public partial class LibraryView : UserControl
                             && item.Type != "Folder")
                 .ToList();
 
+            _libraryViewModel.ItemCount = filteredItems.Count == 1 
+                ? "1 Result" 
+                : filteredItems.Count + " Results";
+
             // Update FlatSource directly
             _libraryViewModel.FlatSource = new FlatTreeDataGridSource<Blitz.Models.Tools.Library.LibraryItem>(new ObservableCollection<Blitz.Models.Tools.Library.LibraryItem>(filteredItems))
             {
@@ -348,8 +357,6 @@ public partial class LibraryView : UserControl
     }
 
     // MARK: Symbol Preview
-    // Todo: Double check performance here for SKXamlCanvas, we shouldn't have a stuttering issue with such basic vectors
-    // This is almost certainly due to getting the SVG every time the canvas is invalidated.
     /// <summary>
     /// Handles the library preview canvas and renders an SVG image onto it.
     /// </summary>
@@ -372,7 +379,7 @@ public partial class LibraryView : UserControl
             }
 
             // Use the cached picture
-            var boundingBox = _libraryViewModel.BoundingBox;
+            var boundingBox = _libraryViewModel.BoundingBox!;
             var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
             var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
             var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
@@ -387,10 +394,12 @@ public partial class LibraryView : UserControl
 
         if (_libraryViewModel.Sound != null)
         {
+            canvas.ResetMatrix();
+
             if (_cachedWaveformPicture == null)
             {
                 var fileExtension = Path.GetExtension(_libraryViewModel.Sound.Href)?.TrimStart('.').ToLower() ?? string.Empty;
-                var audioData = _documentViewModel.GetAudioData(_libraryViewModel.Sound);
+                var audioData = _documentViewModel!.GetAudioData(_libraryViewModel.Sound);
 
                 if (fileExtension == "wav")
                 {
@@ -431,7 +440,7 @@ public partial class LibraryView : UserControl
         imageControl!.IsVisible = true;
 
         // Retrieve the cached bitmap data
-        var bitmapData = _documentViewModel.GetBitmapData(_libraryViewModel.Bitmap);
+        var bitmapData = _documentViewModel!.GetBitmapData(_libraryViewModel.Bitmap);
 
         // Directly set the cached bitmap data to the Image control
         using (var memoryStream = new MemoryStream(bitmapData))
