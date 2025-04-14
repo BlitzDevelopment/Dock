@@ -3,6 +3,7 @@ using Avalonia.Data.Converters;
 using Blitz.Events;
 using Blitz.Views;
 using CommunityToolkit.Mvvm.Input;
+using CsXFL;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
 using Serilog;
@@ -309,7 +310,7 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private void Play()
+        private async Task Play()
         {
             if (_userLibrarySelection == null) { return; }
             if (_userLibrarySelection[0].ItemType != "sound") { return; }
@@ -320,32 +321,29 @@ namespace Blitz.ViewModels.Tools
 
             if (_libraryViewModel.DocumentViewModel == null) { throw new InvalidOperationException("_documentViewModel is null."); }
             if (soundItem == null) { throw new ArgumentNullException(nameof(soundItem), "soundItem is null."); }
+            
             string fileExtension = "";
             string format = soundItem.Format;
             string[] parts = format.Split(' ');
 
-            string sampleRateString = new string(parts[0].Where(char.IsDigit).ToArray());
-            int sampleRate = int.Parse(sampleRateString);
+            string bitDepthString = new string(parts[1].Where(char.IsDigit).ToArray());
+            int bitDepth = int.Parse(bitDepthString);
+
+            int numChannels = format.Contains("Mono", StringComparison.OrdinalIgnoreCase) ? 1 :
+                            format.Contains("Stereo", StringComparison.OrdinalIgnoreCase) ? 2 : 0;
+
+            int sampleRate = soundItem.SampleRate;
 
             if (soundItem.Href != null) {
                 fileExtension = Path.GetExtension(soundItem.Href)?.TrimStart('.').ToLower() ?? string.Empty;
             }
 
+            var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
             if (fileExtension == "wav" || fileExtension == "flac")
             {
-                var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
-                // Load audio data into OpenAL buffer
                 using (MemoryStream memoryStream = new MemoryStream(audioData))
                 {
-                    // Assuming the audio data is in WAV format
-                    var (badFormat, data, badSampleRate) = _audioService.LoadWave(memoryStream, 1, soundItem.SampleRate, 16);
-
-                    if (parts[0].Contains("kHz", StringComparison.OrdinalIgnoreCase))
-                    {
-                        sampleRate *= 1000; // Convert kHz to Hz
-                    }
-
-                    // Extract the audio format (e.g., "Mono" or "Stereo")
+                    var (newFormat, data, newSampleRate) = _audioService.LoadWave(memoryStream, numChannels, soundItem.SampleRate, bitDepth);
                     string audioFormat = parts[2];
 
                     OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
@@ -355,12 +353,26 @@ namespace Blitz.ViewModels.Tools
                         _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
                     };
 
-                    _audioService.Play(data, alFormat, sampleRate);
+                    _audioService.Play(data, newFormat, newSampleRate);
                 }
             }
             else if (fileExtension == "mp3")
             {
-                Log.Error("[LibraryContextMenu] MP3 format is not supported yet.");
+                byte[] pcmData = await Task.Run(() => _audioService.DecodeMp3ToWav(audioData));
+                using (MemoryStream memoryStream = new MemoryStream(pcmData))
+                {
+                    var (newFormat, data, newSampleRate) = _audioService.LoadWave(memoryStream, numChannels, soundItem.SampleRate, bitDepth);
+                    string audioFormat = parts[2];
+
+                    OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
+                    {
+                        "Mono" => OpenTK.Audio.OpenAL.ALFormat.Mono16,
+                        "Stereo" => OpenTK.Audio.OpenAL.ALFormat.Stereo16,
+                        _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
+                    };
+
+                    _audioService.Play(data, newFormat, newSampleRate);
+                }
             }
             else
             {

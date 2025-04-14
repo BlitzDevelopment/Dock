@@ -190,7 +190,7 @@ public partial class LibraryViewModel : Tool
     {
         _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
         DocumentViewModel = e.Document;
-        Log.Information($"[LibraryViewModel] _workingCsXFLDoc changed to {_workingCsXFLDoc.Filename}");
+        Log.Information($"[LibraryViewModel] Active document changed to {_workingCsXFLDoc.Filename}");
         RebuildLibrary();
     }
 

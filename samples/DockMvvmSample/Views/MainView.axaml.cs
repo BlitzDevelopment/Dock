@@ -40,6 +40,9 @@ public partial class MainView : UserControl
     private void InitializeThemes()
     {
         var dark = false;
+        dark = !dark;
+        App.ThemeManager?.Switch(dark ? 1 : 0);
+
         var theme = this.Find<Button>("ThemeButton");
         if (theme is { })
         {

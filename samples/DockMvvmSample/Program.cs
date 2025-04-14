@@ -24,6 +24,8 @@ internal class Program
         => AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .UseSkia()
+            .With(new SkiaOptions { MaxGpuResourceSizeBytes = 256 * 1024 * 1024 }) // Adjust as needed
             .UsePlatformDetect()
             .LogToTrace();
+            
 }

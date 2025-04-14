@@ -19,10 +19,15 @@ using System.Threading.Tasks;
 using Blitz.ViewModels.Documents;
 using CsXFL;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Formats.Png;
+
 namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
+    private readonly IGenericDialogs _genericDialogs;
     private readonly AudioService _audioService;
     private readonly EventAggregator _eventAggregator;
     private LibraryViewModel _libraryViewModel;
@@ -34,6 +39,9 @@ public partial class LibraryView : UserControl
     private bool _useFlatSource = false;
     private readonly Stopwatch _stopwatch = new Stopwatch();
     private bool _isDragging = false;
+
+    private SKPicture? _cachedSvgPicture;
+    private SKPicture? _cachedWaveformPicture;
     
     public LibraryView()
     {
@@ -146,7 +154,54 @@ public partial class LibraryView : UserControl
             e.Handled = true;
         };
 
+        //MARK: File Explorer D&D
+         var treeView = FlatTreeView;
+         
+         // Enable drag-and-drop events
+         treeView.SetValue(DragDrop.AllowDropProperty, true);
+         treeView.AddHandler(DragDrop.DragOverEvent, FlatDoDrag);
+         treeView.AddHandler(DragDrop.DropEvent, FlatDrop);
+         treeView.AddHandler(DragDrop.DragLeaveEvent, FlatDragLeave);
+         treeView.AddHandler(DragDrop.DragEnterEvent, FlatDragEnter);
     }
+
+    private void FlatDoDrag(object? sender, DragEventArgs e) 
+     {
+         e.DragEffects = DragDropEffects.Move;
+     }
+ 
+     private void FlatDrop(object? sender, DragEventArgs e)
+     {
+         // Check if the dragged data contains files using "FileNameW" or "FileName"
+         if (e.Data.Contains("FileNameW") || e.Data.Contains("FileName"))
+         {
+             var files = e.Data.GetFileNames();
+             var validExtensions = new[] { ".png", ".jpg", ".gif", ".mp3", ".wav", ".flac" };
+             if (files.Any(file => validExtensions.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase))))
+             {
+                 bool anyFailures = false; // Track if any file fails to import
+                 foreach (var file in files)
+                 {
+                     bool didWork = _workingCsXFLDoc.ImportFile(file);
+                     if (!didWork) {anyFailures = true;} // Mark failure
+                 }
+ 
+                 if (anyFailures) { _genericDialogs.ShowWarning("One or more files could not be imported."); } // Show a warning if any file failed to import
+             }
+             else { _genericDialogs.ShowError("File not in valid format."); }
+         } else {_genericDialogs.ShowError("DragDrop data does not contain FileName or FileNameW"); }
+         _eventAggregator.Publish(new LibraryItemsChangedEvent());
+     }
+ 
+     private void FlatDragLeave(object? sender, DragEventArgs e)
+     {
+         e.Handled = true;
+     }
+ 
+     private void FlatDragEnter(object? sender, DragEventArgs e)
+     {
+         e.Handled = true;
+     }
 
     private void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int> currentPath = null)
     {
@@ -182,6 +237,16 @@ public partial class LibraryView : UserControl
         if (e.PropertyName == nameof(LibraryViewModel.Bitmap)) { UpdateBitmapPreview(); }
         if (e.PropertyName == nameof(LibraryViewModel.Sound)) { LibrarySVGPreview.Invalidate(); }
         if (e.PropertyName == nameof(LibraryViewModel.SvgData)) { LibrarySVGPreview.Invalidate(); }
+        if (e.PropertyName == nameof(LibraryViewModel.SvgData))
+        {
+            _cachedSvgPicture = null; // Reset cache
+            LibrarySVGPreview.Invalidate();
+        }
+        if (e.PropertyName == nameof(LibraryViewModel.Sound))
+        {
+            _cachedWaveformPicture = null; // Reset cache
+            LibrarySVGPreview.Invalidate();
+        }
     }
 
     private void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
@@ -296,50 +361,58 @@ public partial class LibraryView : UserControl
 
         if (_libraryViewModel.SvgData != null)
         {
-            using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(_libraryViewModel.SvgData.ToString())))
+            if (_cachedSvgPicture == null)
             {
-                var svg = new SKSvg();
-                svg.Load(stream);
-
-                // Get bounding rectangle for SVG image
-                var boundingBox = _libraryViewModel.BoundingBox; 
-
-                // Calculate the width, height, and center of the bounding box
-                var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
-                var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
-                var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
-                var boundingBoxCenterY = boundingBox.Bottom + boundingBoxHeight / 2;
-
-                // Translate and scale drawing canvas to fit SVG image
-                canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
-                canvas.Scale(0.9f * (float)Math.Min(canvas.LocalClipBounds.Width / boundingBoxWidth, canvas.LocalClipBounds.Height / boundingBoxHeight));
-                canvas.Translate((float)-boundingBoxCenterX, (float)-boundingBoxCenterY);
-
-                // Now finally draw the SVG image
-                canvas.DrawPicture(svg.Picture);
+                using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(_libraryViewModel.SvgData.ToString())))
+                {
+                    var svg = new SKSvg();
+                    svg.Load(stream);
+                    _cachedSvgPicture = svg.Picture;
+                }
             }
+
+            // Use the cached picture
+            var boundingBox = _libraryViewModel.BoundingBox;
+            var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
+            var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
+            var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
+            var boundingBoxCenterY = boundingBox.Bottom + boundingBoxHeight / 2;
+
+            canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
+            canvas.Scale(0.9f * (float)Math.Min(canvas.LocalClipBounds.Width / boundingBoxWidth, canvas.LocalClipBounds.Height / boundingBoxHeight));
+            canvas.Translate((float)-boundingBoxCenterX, (float)-boundingBoxCenterY);
+
+            canvas.DrawPicture(_cachedSvgPicture);
         }
 
         if (_libraryViewModel.Sound != null)
         {
-            var audioData = _documentViewModel.GetAudioData(_libraryViewModel.Sound);
+            if (_cachedWaveformPicture == null)
+            {
+                var fileExtension = Path.GetExtension(_libraryViewModel.Sound.Href)?.TrimStart('.').ToLower() ?? string.Empty;
+                var audioData = _documentViewModel.GetAudioData(_libraryViewModel.Sound);
 
-            Console.WriteLine($"Audio data length: {audioData.Length}");
+                if (fileExtension == "wav")
+                {
+                    var amplitudes = _audioService.GetAudioAmplitudes(audioData, 16, 1);
+                    (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
+                }
+                else if (fileExtension == "mp3")
+                {
+                    var pcmData = _audioService.DecodeMp3ToWav(audioData);
+                    var amplitudes = _audioService.GetAudioAmplitudes(pcmData, 16, 1);
+                    (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
+                }
+            }
 
-            var waveformWidth = 800; // Width of the waveform
-            var waveformHeight = 200; // Height of the waveform
-            var amplitudes = _audioService.GetAudioAmplitudes(audioData, 16, 1);
-            var (waveformPicture, analogousColor, lighterColor) = _audioService.GenerateWaveform(amplitudes, waveformWidth, waveformHeight, _libraryViewModel.CanvasColor!);
             var canvasWidth = e.Info.Width;
             var canvasHeight = e.Info.Height;
-            var centerX = canvasWidth / 2f;
-            var centerY = canvasHeight / 2f;
-            var offsetX = centerX - (waveformWidth / 2f);
-            var offsetY = centerY - (waveformHeight / 2f);
+            var offsetX = (canvasWidth - 800) / 2f;
+            var offsetY = (canvasHeight - 200) / 2f;
 
             canvas.Save();
             canvas.Translate(offsetX, offsetY);
-            canvas.DrawPicture(waveformPicture);
+            canvas.DrawPicture(_cachedWaveformPicture);
             canvas.Restore();
         }
     }
@@ -357,16 +430,13 @@ public partial class LibraryView : UserControl
 
         imageControl!.IsVisible = true;
 
+        // Retrieve the cached bitmap data
         var bitmapData = _documentViewModel.GetBitmapData(_libraryViewModel.Bitmap);
-        var correctImage = CsXFL.ImageUtils.ConvertDatToRawImage(bitmapData);
 
-        // Directly use the bitmap data if it's already in a compatible format
-        using (var memoryStream = new MemoryStream())
+        // Directly set the cached bitmap data to the Image control
+        using (var memoryStream = new MemoryStream(bitmapData))
         {
-            correctImage.Save(memoryStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder()); // Save as PNG
-            memoryStream.Seek(0, SeekOrigin.Begin); // Reset the stream position
-
-            // Set the MemoryStream directly to the Image control
+            memoryStream.Seek(0, SeekOrigin.Begin); // Ensure the stream is at the beginning
             imageControl.Source = new Avalonia.Media.Imaging.Bitmap(memoryStream);
         }
     }

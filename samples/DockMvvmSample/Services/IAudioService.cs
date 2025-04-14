@@ -4,6 +4,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using SkiaSharp;
+using System.Diagnostics;
 
 namespace Blitz;
 
@@ -45,7 +46,6 @@ public class AudioService
         _source = AL.GenSource();
     }
 
-    // Helper method to load headerless WAV data
     public (ALFormat Format, byte[] Data, int SampleRate) LoadWave(Stream stream, int numChannels, int sampleRate, int bitsPerSample)
     {
         using (BinaryReader reader = new BinaryReader(stream))
@@ -173,6 +173,61 @@ public class AudioService
         }
 
         return samples.ToArray();
+    }
+
+    public byte[] DecodeMp3ToWav(byte[] mp3Data)
+    {
+        // Locate ffmpeg executable
+        string baseDirectory = AppContext.BaseDirectory;
+        string threeDirectoriesUp = Path.GetFullPath(Path.Combine(baseDirectory, @"..\..\.."));
+        string ffmpegPath = Path.Combine(threeDirectoriesUp, "dlls", "ffmpeg.exe");
+
+        if (!File.Exists(ffmpegPath))
+        {
+            throw new FileNotFoundException("ffmpeg executable not found at: " + ffmpegPath);
+        }
+
+        // Create temporary files for input and output
+        string tempMp3Path = Path.GetTempFileName();
+        string tempWavPath = Path.ChangeExtension(Path.GetTempFileName(), ".wav");
+
+        try
+        {
+            // Write the MP3 data to the temporary file
+            File.WriteAllBytes(tempMp3Path, mp3Data);
+
+            // Set up the ffmpeg process
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-i \"{tempMp3Path}\" \"{tempWavPath}\" -y",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using (var process = new Process { StartInfo = processStartInfo })
+            {
+                process.Start();
+                process.WaitForExit();
+
+                if (process.ExitCode != 0)
+                {
+                    string error = process.StandardError.ReadToEnd();
+                    throw new Exception($"ffmpeg failed with exit code {process.ExitCode}: {error}");
+                }
+            }
+
+            // Read the WAV file and return it as a byte array
+            return File.ReadAllBytes(tempWavPath);
+        }
+        finally
+        {
+            // Clean up temporary files
+            if (File.Exists(tempMp3Path)) File.Delete(tempMp3Path);
+            if (File.Exists(tempWavPath)) File.Delete(tempWavPath);
+        }
     }
 
     public void Play(byte[] audioData, ALFormat format, int sampleRate)
