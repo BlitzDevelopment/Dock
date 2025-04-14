@@ -119,8 +119,7 @@
       </TreeDataGrid>
 
       <!--Footer-->
-      <StackPanel Grid.Row="4" Margin="5,5,0,5" Orientation="Horizontal" VerticalAlignment="Stretch">
-        
+      <StackPanel x:Name="Footer" Grid.Row="4" Margin="5,5,0,5" Orientation="Horizontal" VerticalAlignment="Stretch">
         <Button ToolTip.Tip="New Symbol" Command="{Binding AddSymbolCommand}">
           <Button.Content>
             <StackPanel Orientation="Vertical">
