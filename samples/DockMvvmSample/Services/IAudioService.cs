@@ -13,7 +13,7 @@ public class AudioService
     private static readonly Lazy<AudioService> _instance = new Lazy<AudioService>(() => new AudioService());
     private ALDevice _device;
     private ALContext _context;
-    private int _source;
+    private int _currentSource = 0; // Store the current source ID
 
     // Private constructor to prevent external instantiation
     public AudioService() { }
@@ -43,7 +43,6 @@ public class AudioService
             throw new Exception("Failed to make the OpenAL context current.");
         }
         
-        _source = AL.GenSource();
     }
 
     public (ALFormat Format, byte[] Data, int SampleRate) LoadWave(Stream stream, int numChannels, int sampleRate, int bitsPerSample)
@@ -251,5 +250,19 @@ public class AudioService
         // Attach buffer to source and play
         AL.Source(source, ALSourcei.Buffer, buffer);
         AL.SourcePlay(source);
+
+        // Store the source ID for stopping later
+        _currentSource = source;
+    }
+
+    public void Stop()
+    {
+        if (_currentSource != 0)
+        {
+            // Stop the source and delete it
+            AL.SourceStop(_currentSource);
+            AL.DeleteSource(_currentSource);
+            _currentSource = 0;
+        }
     }
 }

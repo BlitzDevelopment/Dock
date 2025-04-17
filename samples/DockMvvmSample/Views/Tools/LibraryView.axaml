@@ -64,18 +64,24 @@
             <vm:BooleanToBorderBrushConverter x:Key="BooleanToBorderBrushConverter"/>
             <vm:BooleanToBackgroundConverter x:Key="BooleanToBackgroundConverter"/>
             <vm:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-              <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
+            <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
                 <Border BorderThickness="2" CornerRadius="4" 
                         BorderBrush="{Binding IsDragOver, Converter={StaticResource BooleanToBorderBrushConverter}}" 
                         Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}">
-                  <StackPanel Orientation="Horizontal">
-                    <Button IsEnabled ="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" Background="Transparent" >
-                      <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
-                    </Button>
-                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                  </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button IsEnabled="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" Background="Transparent" Foreground="Transparent">
+                            <Button.Styles>
+                                <Style Selector="Button:disabled">
+                                  <Setter Property="Background" Value="Transparent"/>
+                                  <Setter Property="Foreground" Value="Transparent"/>
+                                </Style>
+                            </Button.Styles>
+                            <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
+                        </Button>
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </Border>
-              </DataTemplate>
+            </DataTemplate>
         </TreeDataGrid.Resources>
         <TreeDataGrid.Styles>
           <Style Selector="TreeDataGrid TreeDataGridRow:nth-child(2n)">

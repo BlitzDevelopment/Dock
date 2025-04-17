@@ -2,6 +2,7 @@
 using Avalonia;
 using Microsoft.Extensions.Options;
 using Serilog;
+using System.IO;
 
 namespace Blitz;
 
@@ -14,7 +15,11 @@ internal class Program
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(appData.GetLogFilePath(), rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
+            .WriteTo.File(
+                Path.Combine(appData.GetLogFilePath(), $"log-{DateTime.Now:yyyyMMdd_HHmmss}.txt"), // Unique log file per session
+                rollingInterval: RollingInterval.Infinite, // No rolling within a session
+                retainedFileCountLimit: 7 // Keep only the last 7 session logs
+            )
             .CreateLogger();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         Log.Information("Application ended gracefully.");

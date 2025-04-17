@@ -22,6 +22,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="DialogHost.Avalonia" Version="0.9.2" />
     <PackageReference Include="DotNetZip" Version="1.16.0" />
+    <PackageReference Include="ICSharpCode.SharpZipLib" Version="0.86.0.518" />
     <PackageReference Include="LibVLCSharp" Version="3.9.2" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="OpenTK" Version="4.9.4" />

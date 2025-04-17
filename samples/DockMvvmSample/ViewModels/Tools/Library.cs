@@ -201,7 +201,8 @@ public partial class LibraryViewModel : Tool
     private CsXFL.BitmapItem? _bitmap;
     [ObservableProperty]
     private CsXFL.SoundItem? _sound;
-    private Dictionary<LibraryItem, bool> expandedState = new Dictionary<LibraryItem, bool>();
+    private readonly List<string> expandedLibraryItems = new List<string>();
+
     #endregion
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
@@ -222,31 +223,42 @@ public partial class LibraryViewModel : Tool
     /// from the current working document. Updates flat and hierarchical views 
     /// and sets the canvas background color.
     /// </summary>
-    public void RebuildLibrary() 
+    public void RebuildLibrary()
     {
-        if (_workingCsXFLDoc != null) 
+        if (_workingCsXFLDoc == null) 
         {
-            Items.Clear();
-            FlatItems.Clear();
-            HierarchicalItems.Clear();
-
-            foreach (var item in _workingCsXFLDoc.Library.Items)
-            {
-                var libraryItem = new LibraryItem
-                {
-                    Name = item.Value.Name,
-                    UseCount = item.Value.ItemType == "folder" ? "" : item.Value.UseCount.ToString(),
-                    Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Value.ItemType.ToLower()),
-                    CsXFLItem = item.Value
-                };
-                Items.Add(libraryItem);
-            }
-
-            InvalidateFlatLibrary(_workingCsXFLDoc);
-            InvalidateHierarchicalLibrary(_workingCsXFLDoc);
-            CanvasColor = _workingCsXFLDoc.BackgroundColor;
+            ItemCount = "-";
+            return;
         }
-        ItemCount = _workingCsXFLDoc?.Library.Items.Count.ToString() + " Items" ?? "-";
+
+        GetExpandedRows();
+
+        // Clear the collections
+        Items.Clear();
+        FlatItems.Clear();
+        HierarchicalItems.Clear();
+
+        // Rebuild the library items directly into the Items collection
+        foreach (var item in _workingCsXFLDoc.Library.Items.Values)
+        {
+            Items.Add(new LibraryItem
+            {
+                Name = item.Name,
+                UseCount = item.ItemType == "folder" ? "" : item.UseCount.ToString(),
+                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.ItemType.ToLower()),
+                CsXFLItem = item
+            });
+        }
+
+        // Rebuild the flat and hierarchical views
+        InvalidateFlatLibrary(_workingCsXFLDoc);
+        InvalidateHierarchicalLibrary(_workingCsXFLDoc);
+
+        // Update the canvas color
+        CanvasColor = _workingCsXFLDoc.BackgroundColor;
+
+        // Update the item count
+        ItemCount = $"{_workingCsXFLDoc.Library.Items.Count} Items";
     }
 
     /// <summary>
@@ -282,54 +294,28 @@ public partial class LibraryViewModel : Tool
     /// </summary>
     public void InvalidateHierarchicalLibrary(CsXFL.Document doc)
     {
-        var itemsByName = new Dictionary<string, LibraryItem>();
-
-        // Pass 1: Transfer items
-        foreach (var item in Items)
-        {
-            var libraryItem = new LibraryItem
+        var itemsByName = Items.ToDictionary(
+            item => item.Name!,
+            item => new LibraryItem
             {
                 Name = item.Name,
                 UseCount = item.Type == "folder" ? "" : item.UseCount!.ToString(),
                 Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Type!.ToLower()),
                 CsXFLItem = item.CsXFLItem
-            };
-            itemsByName[libraryItem.Name] = libraryItem;
-        }
+            });
 
-        // Pass 2: Add items to folders
+        // Pass 1: Organize items into folders or root
         foreach (var item in itemsByName.Values)
         {
-            if (item.Type == "folder") { continue; }
-            var pathParts = item.Name!.Split('/');
-            var parentName = string.Join("/", pathParts.Take(pathParts.Length - 1));
+            if (item.Type == "folder") continue;
 
-            if (itemsByName.TryGetValue(parentName, out var parentItem))
+            var lastSlashIndex = item.Name!.LastIndexOf('/');
+            if (lastSlashIndex >= 0)
             {
-                if (parentItem.Children == null)
-                {
-                    parentItem.Children = new ObservableCollection<LibraryItem>();
-                }
-                parentItem.Children.Add(item);
-            }
-            else
-            {
-                HierarchicalItems.Add(item);
-            }
-        }
-
-        // Pass 3: Add folders to the root
-        foreach (var item in itemsByName.Values)
-        {
-            if (item.Type == "folder" && item.Name!.Contains("/"))
-            {
-                var parentName = string.Join("/", item.Name.Split('/').Take(item.Name.Split('/').Length - 1));
+                var parentName = item.Name.Substring(0, lastSlashIndex);
                 if (itemsByName.TryGetValue(parentName, out var parentItem))
                 {
-                    if (parentItem.Children == null)
-                    {
-                        parentItem.Children = new ObservableCollection<LibraryItem>();
-                    }
+                    parentItem.Children ??= new ObservableCollection<LibraryItem>();
                     parentItem.Children.Add(item);
                 }
                 else
@@ -337,47 +323,122 @@ public partial class LibraryViewModel : Tool
                     HierarchicalItems.Add(item);
                 }
             }
-            else if (item.Type == "folder")
+            else
             {
                 HierarchicalItems.Add(item);
             }
         }
 
-        // Update the Name property of each item to remove the path
+        // Pass 2: Add folders to the root or their parents
         foreach (var item in itemsByName.Values)
         {
-            item.Name = item.Name!.Substring(item.Name.LastIndexOf('/') + 1);
+            if (item.Type != "folder") continue;
+
+            var lastSlashIndex = item.Name!.LastIndexOf('/');
+            if (lastSlashIndex >= 0)
+            {
+                var parentName = item.Name.Substring(0, lastSlashIndex);
+                if (itemsByName.TryGetValue(parentName, out var parentItem))
+                {
+                    parentItem.Children ??= new ObservableCollection<LibraryItem>();
+                    parentItem.Children.Add(item);
+                }
+                else
+                {
+                    HierarchicalItems.Add(item);
+                }
+            }
+            else
+            {
+                HierarchicalItems.Add(item);
+            }
+        }
+
+        // Pass 3: Update item names to remove paths
+        foreach (var item in itemsByName.Values)
+        {
+            var lastSlashIndex = item.Name!.LastIndexOf('/');
+            if (lastSlashIndex >= 0)
+            {
+                item.Name = item.Name.Substring(lastSlashIndex + 1);
+            }
         }
 
         // Restore Folder Expanded State
-        RestoreExpansionState(HierarchicalItems);
+        SetExpandedRows();
     }
 
-    private void RestoreExpansionState(IEnumerable<LibraryItem> items, List<int>? currentPath = null)
+    private void GetExpandedRows()
     {
-        if (items == null) { return; }
+        // Clear the list of expanded rows at the start
+        expandedLibraryItems.Clear();
 
-        int localIndex = 0;
-        foreach (var item in items)
+        if (HierarchicalSource?.Rows == null) return;
+
+        // Use a stack to avoid recursion
+        var stack = new Stack<(IEnumerable<IRow> Rows, List<int> Path)>();
+        stack.Push((HierarchicalSource.Rows, new List<int>()));
+
+        while (stack.Count > 0)
         {
-            // Build the hierarchical path for the current item
-            var hierarchicalPath = currentPath != null ? new List<int>(currentPath) : new List<int>();
-            hierarchicalPath.Add(localIndex);
+            var (rows, currentPath) = stack.Pop();
+            int index = 0;
 
-            // Check if the current item should be expanded
-            if (expandedState.TryGetValue(item, out bool isExpanded) && isExpanded)
+            foreach (var row in rows)
             {
-                // Expand the current item's path
-                HierarchicalSource!.Expand(new IndexPath(hierarchicalPath.ToArray()));
-            }
+                if (row is HierarchicalRow<LibraryItem> hierarchicalRow)
+                {
+                    var path = new List<int>(currentPath) { index };
 
-            // Recursively restore the state for child items
-            if (item.Children != null && item.Children.Any())
+                    if (hierarchicalRow.IsExpanded)
+                    {
+                        expandedLibraryItems.Add(string.Join("/", path));
+                    }
+
+                    // Push children to the stack
+                    if (hierarchicalRow.Children != null)
+                    {
+                        stack.Push((hierarchicalRow.Children, path));
+                    }
+                }
+
+                index++;
+            }
+        }
+    }
+
+    private void SetExpandedRows()
+    {
+        if (HierarchicalSource?.Rows == null) return;
+
+        // Use a stack to avoid recursion
+        var stack = new Stack<(IEnumerable<IRow> Rows, List<int> Path)>();
+        stack.Push((HierarchicalSource.Rows, new List<int>()));
+
+        while (stack.Count > 0)
+        {
+            var (rows, currentPath) = stack.Pop();
+            int index = 0;
+
+            foreach (var row in rows)
             {
-                RestoreExpansionState(item.Children, hierarchicalPath);
-            }
+                if (row is HierarchicalRow<LibraryItem> hierarchicalRow)
+                {
+                    var path = new List<int>(currentPath) { index };
+                    string expandedPath = string.Join("/", path);
 
-            localIndex++;
+                    // Set expansion state if the path is in the list
+                    hierarchicalRow.IsExpanded = expandedLibraryItems.Contains(expandedPath);
+
+                    // Push children to the stack
+                    if (hierarchicalRow.Children != null)
+                    {
+                        stack.Push((hierarchicalRow.Children, path));
+                    }
+                }
+
+                index++;
+            }
         }
     }
 
@@ -598,22 +659,6 @@ public partial class LibraryViewModel : Tool
         {
             var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
-        };
-        
-        HierarchicalSource.RowExpanded += (sender, args) =>
-        {
-            if (args.Row.Model is LibraryItem model)
-            {
-                expandedState[model] = true; // Mark the item as expanded
-            }
-        };
-
-        HierarchicalSource.RowCollapsed += (sender, args) =>
-        {
-            if (args.Row.Model is LibraryItem model)
-            {
-                expandedState[model] = false; // Mark the item as collapsed
-            }
         };
     }
 }

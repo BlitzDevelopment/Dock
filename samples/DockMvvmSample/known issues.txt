@@ -1,17 +1,17 @@
 Do this stuff after everything is fixed:
+	OPTIMIZATION PASS
 	UNIT TESTS
 	USER FEEDBACK
 
 General Issues:
-	[HIGH] Audio playback uses wrong samples
+	[MED] Alt code handling
+	[MEH] Preferences
+	[MEH] Hotkeys & storage & defaults
+	[MEH] Re-design app data folder, make sure it's in the right place and makes sense
+	[HIGH] MP3 playback?
 	[SUPREMELY BAD] No dispatcher/marshal distinction, everything is running on UI thread
-	--[LOW] Theme initializes incorrectly--
-	[HIGH] Use the logger more often, it's very good
-	[HIGH] General variable sloppiness. Variables prefixed with underscores should be private
 	[HIGH] Lots of service singleton initialization in Library/LibraryView/LibraryContextMenus Can we avoid this? It adds a lot of boilerplate
-	[HIGH] Optimize everything
-	--[HIGH] SKXamlCanvas isn't very performant when being invalidated & resized. Identify bottleneck or enable hwaccel--
-	[HIGH] OpenAL for cross platform audio playback only handles PCM data. It is intended for us to use ffmpeg to decode mp3/other to PCM for playback. Current implementation uses temp files for debugging, waveform displays correctly but playback does not work
+	[HIGH] General variable sloppiness. Variables prefixed with underscores should be private
     [HIGH] Document/Canvas tabs should be unique and separated from all other tabs. Right now this causes a crash when user tries to drag a panel into the document tab
 
 Taskbar:
@@ -24,20 +24,15 @@ Taskbar:
 	[MED] Render Canvas Background does nothing, current renderer doesn't add the canvas BG
 
 Library Panel:
-	[HIGH] Sounds should be able to be stopped
+	[HIGH] Play should turn into Stop while sound is playing
 	[MED] SKXamlCanvas appears behind bitmap preview, all previews should be exclusive to each other
-	[MED] UserLibrarySelection should persist through documents
 	[HIGH] LibraryViewModel loads _workingCsXFLDoc between 2 and 4 times. Inconsistency from the docking system's onActiveDockableChanged event. How do we debounce this?
 	[HIGH] Bitmap .dat decoding crashes the program. Unclear on the intended priority for loading bitmaps/audio for preview
-	[HIGH] Click-drag rearranging uses pointer events. Consult my good friend Mr. AI. Should it use Drag&Drop events?
-	[HIGH] Click-drag rearranging should expand the hovered-over folder for the user's benefit
 	[HIGH] File explorer D&D for flatview is correctly implemented, HierchicalTree D&D should have the above behavior
-	--[MED] Waveform preview doesn't scale correctly, gradually gets worse as symbols are previewed--
 	[HIGH] Double tapping name to edit doesn't work
 	[HIGH] No way to duplicate items in the library
 	[HIGH] No clipboard service
 	[HIGH] No memento service
-	[HIGH] LibraryContextMenu functions should all do something
-	[MED] No Sound Properties panel, no Bitmap Properties panel
-	--[LOW] When searching, [x] Items should become [x] Results where x is the length of FlatItems passing the search--
+	[MED] No Bitmap Properties panel
+	[LOW] Make property panels look nice
 	[LOW] Name/Type/UseCount spacing should be synchronized between both TreeViews and name length shouldn't update the spacing

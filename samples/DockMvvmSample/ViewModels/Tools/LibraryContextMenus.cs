@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Blitz.Events;
+using Blitz.ViewModels.Documents;
 using Blitz.Views;
+using Blitz.Views.Documents;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
@@ -305,7 +307,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Play", Command = PlayCommand, CommandParameter = this});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Properties"});
+            contextMenu.Items.Add(new MenuItem { Header = "Properties", Command = SoundPropertiesCommand});
             return contextMenu;
         }
 
@@ -314,6 +316,9 @@ namespace Blitz.ViewModels.Tools
         {
             if (_userLibrarySelection == null) { return; }
             if (_userLibrarySelection[0].ItemType != "sound") { return; }
+
+            // Stop any currently playing sound
+            _audioService.Stop();
 
             var soundItem = _userLibrarySelection[0] as CsXFL.SoundItem;
             var _viewModelRegistry = ViewModelRegistry.Instance;
@@ -338,7 +343,7 @@ namespace Blitz.ViewModels.Tools
                 fileExtension = Path.GetExtension(soundItem.Href)?.TrimStart('.').ToLower() ?? string.Empty;
             }
 
-            var audioData = _libraryViewModel.DocumentViewModel.GetAudioData(soundItem);
+            var audioData = _libraryViewModel.DocumentViewModel.DecryptAudioDat(soundItem);
             if (fileExtension == "wav" || fileExtension == "flac")
             {
                 using (MemoryStream memoryStream = new MemoryStream(audioData))
@@ -377,6 +382,36 @@ namespace Blitz.ViewModels.Tools
             else
             {
                 Log.Error($"[LibraryContextMenu] Unsupported audio format or href not found: {fileExtension}");
+            }
+        }
+
+        [RelayCommand]
+        private async Task SoundProperties()
+        {
+            try {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection[0].ItemType != "sound")
+                { 
+                    throw new Exception("Selected item is not a sound.");
+                }
+
+                var _viewModelRegistry = ViewModelRegistry.Instance;
+                _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
+                var audioData = _libraryViewModel.DocumentViewModel.DecryptAudioDat(_userLibrarySelection[0] as CsXFL.SoundItem);
+                var dialog = new LibrarySoundProperties(_userLibrarySelection[0], audioData);
+                var result = await DialogHost.Show(dialog);
+                var dialogIdentifier = result as string;
+                dialog.DialogIdentifier = dialogIdentifier!;
+
+                var resultObject = result as dynamic;
+                if (resultObject == null) { return; } // User cancelled
+
+                // Do stuff lol
+
+            } catch (Exception e) {
+                await _genericDialogs.ShowError(e.Message);
             }
         }
 

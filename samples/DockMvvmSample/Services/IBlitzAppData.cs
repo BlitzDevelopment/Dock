@@ -25,7 +25,7 @@ public class BlitzAppData : IBlitzAppData
 
     public string GetLogFilePath()
     {
-        string logFilePath = Path.Combine(localAppDataPath, "Blitz", "log.txt");
+        string logFilePath = Path.Combine(localAppDataPath, "Blitz", "logs");
 
         string directoryPath = Path.Combine(localAppDataPath, "Blitz");
         if (!Directory.Exists(directoryPath))

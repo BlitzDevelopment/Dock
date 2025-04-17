@@ -46,39 +46,100 @@
           <MenuItem Header="Image" />
           <MenuItem Header="Video" Command="{Binding RenderVideoDialog}" />
         </MenuItem>
+      </MenuItem>
+      
+      <MenuItem Header="_Edit">
+        <MenuItem Header="_Undo" />
+        <MenuItem Header="_Redo" />
+        <Separator/>
+        <MenuItem Header="Cut" />
+        <MenuItem Header="Copy" />
+        <MenuItem Header="Paste in Center" />
+        <MenuItem Header="Paste in Place" />
+        <Separator/>
+        <MenuItem Header="Duplicate" />
+        <MenuItem Header="Select All" />
+        <MenuItem Header="Deselect All" />
+        <MenuItem Header="Invert Selection" />
+        <Separator/>
+        <MenuItem Header="Timeline" />
+        <Separator/>
+        <MenuItem Header="Preferences" />
+        <MenuItem Header="Keyboard Mapping" />
+        <MenuItem Header="_Show Windows" />
+      </MenuItem>
 
-        <Separator />
-        
-        <MenuItem Header="New Layout" Command="{Binding NewLayout}" />
+      <MenuItem Header="View">
+        <MenuItem Header="Zoom In" />
+        <MenuItem Header="Zoom Out" />
+        <MenuItem Header="Magnification" />
+        <Separator/>
+        <MenuItem Header="Preview Quality" />
+        <Separator/>
+        <MenuItem Header="Rulers" />
+        <MenuItem Header="Grid" />
+        <MenuItem Header="Guide" />
+        <MenuItem Header="Snapping" />
+        <Separator/>
+        <MenuItem Header="Show Shape Hints" />
       </MenuItem>
-      
-      <MenuItem Header="_Window" DataContext="{Binding Layout}">
-        <MenuItem Header="_Exit Windows" Command="{Binding ExitWindows}" />
-        
-        <Separator />
-        
-        <MenuItem Header="_Show Windows" Command="{Binding ShowWindows}" />
+
+      <MenuItem Header="Insert">
+        <MenuItem Header="New Symbol" />
+        <Separator/>
+        <MenuItem Header="Classic Tween" />
+        <MenuItem Header="Motion Tween" />
+        <MenuItem Header="Shape Tween" />
+        <Separator/>
+        <MenuItem Header="Timeline" />
+        <Separator/>
+        <MenuItem Header="Scene" />
       </MenuItem>
-      
-      <MenuItem Header="_Options">
-        <MenuItem x:Name="OptionsIsDragEnabled" Header="Enable Drag">
-          <MenuItem.Icon>
-            <CheckBox IsChecked="{Binding $parent[Window].(ids:DockProperties.IsDragEnabled)}"
-                      BorderThickness="0"
-                      IsHitTestVisible="False" />
-          </MenuItem.Icon>
-        </MenuItem>
-        
-        <Separator />
-        
-        <MenuItem x:Name="OptionsIsDropEnabled" Header="Enable Drop">
-          <MenuItem.Icon>
-            <CheckBox IsChecked="{Binding $parent[Window].(ids:DockProperties.IsDropEnabled)}"
-                      BorderThickness="0"
-                      IsHitTestVisible="False" />
-          </MenuItem.Icon>
-        </MenuItem>
+
+      <MenuItem Header="Modify">
+        <MenuItem Header="Document" />
+        <Separator/>
+        <MenuItem Header="Convert to Symbol" />
+        <MenuItem Header="Convert to Bitmap" />
+        <MenuItem Header="Break Apart" />
+        <MenuItem Header="Break Apart Symbol to Layers" />
+        <Separator/>
+        <MenuItem Header="Bitmap" />
+        <MenuItem Header="Symbol" />
+        <MenuItem Header="Shape" />
+        <MenuItem Header="Combine Objects" />
+        <Separator/>
+        <MenuItem Header="Timeline" />
+        <Separator/>
+        <MenuItem Header="Transform" />
+        <MenuItem Header="Arrange" />
+        <MenuItem Header="Align" />
+        <Separator/>
+        <MenuItem Header="Group" />
+        <MenuItem Header="Ungroup" />
       </MenuItem>
+
+      <MenuItem Header="Text">
+        <MenuItem Header="Size" />
+        <MenuItem Header="Style" />
+        <Separator/>
+        <MenuItem Header="Align" />
+        <MenuItem Header="Letter Spacing" />
+        <Separator/>
+        <MenuItem Header="Scrollable" />
+      </MenuItem>
+
+      <MenuItem Header="Commands">
+        <MenuItem Header="Manage Saved Commands"/>
+        <MenuItem Header="Run Command"/>
+      </MenuItem>
+
+      <MenuItem Header="Debug"/>
+
+      <MenuItem Header="Window"/>
+
+      <MenuItem Header="Help"/>
+
     </Menu>
     
     <Panel x:Name="ToolBar" DataContext="{Binding Layout}" Grid.Row="0" Grid.Column="1">

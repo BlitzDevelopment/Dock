@@ -41,6 +41,7 @@ public partial class LibraryView : UserControl
     private readonly Stopwatch _stopwatch = new Stopwatch();
     private string? _searchText = "";
     private bool _useFlatSource = false;
+    private System.Timers.Timer? _hoverTimer;
     #endregion
 
     #region Cached Data
@@ -65,98 +66,25 @@ public partial class LibraryView : UserControl
         LibrarySearch.TextChanged += OnLibrary_SearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
 
-        // Handle pointer pressed
+        HierarchalTreeView.SetValue(DragDrop.AllowDropProperty, true);
+        HierarchalTreeView.AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        HierarchalTreeView.AddHandler(DragDrop.DropEvent, OnDrop);
+        HierarchalTreeView.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
+        HierarchalTreeView.AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
+
         HierarchalTreeView.PointerPressed += (sender, e) =>
         {
-            _stopwatch.Restart();
-        };
-
-        HierarchalTreeView.PointerMoved += (sender, e) =>
-        {
-            if (_stopwatch.Elapsed.TotalSeconds < 0.5) { return; }
-
             var position = e.GetPosition(HierarchalTreeView);
             var hitTestResult = HierarchalTreeView.InputHitTest(position);
 
-            var pointerPoint = e.GetCurrentPoint(HierarchalTreeView);
-            _isDragging = pointerPoint.Properties.IsLeftButtonPressed;
-
-            Blitz.Models.Tools.Library.LibraryItem targetItem = default!;
-
             if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
             {
-                // Skip highlighting if the target item is in the current selection
-                if (_libraryViewModel.UserLibrarySelection?.Contains(item.CsXFLItem) == true)
-                {
-                    return;
-                }
+                // Start the drag operation
+                var data = new DataObject();
+                data.Set("DraggedItem", item);
 
-                targetItem = item;
-
-                // Highlight the folder if it's a valid target and dragging is active
-                if (_isDragging && targetItem.CsXFLItem!.ItemType == "folder")
-                {
-                    if (_previousItem != null && _previousItem != targetItem)
-                    {
-                        _previousItem.IsDragOver = false;
-                    }
-
-                    targetItem.IsDragOver = true;
-                    _previousItem = targetItem;
-                }
+                DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
             }
-            else
-            {
-                // Reset IsDragOver for the last hovered item if no valid target is hit
-                if (_previousItem != null)
-                {
-                    _previousItem.IsDragOver = false;
-                    _previousItem = null;
-                }
-            }
-        };
-
-        HierarchalTreeView.PointerReleased += (sender, e) =>
-        {
-            _stopwatch.Restart();
-
-            // Reset IsDragOver for the last hovered item
-            if (_previousItem != null)
-            {
-                _previousItem.IsDragOver = false;
-                _previousItem = null;
-            }
-
-            //Console.WriteLine("PointerReleased: Checking for Drop");
-
-            var pointerPosition = e.GetPosition(HierarchalTreeView);
-            var hitTestResult = HierarchalTreeView.InputHitTest(pointerPosition);
-            if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
-            {
-                // Skip dropping if the target item is in the current selection
-                if (_libraryViewModel.UserLibrarySelection?.Contains(targetItem.CsXFLItem) == true)
-                {
-                    //Console.WriteLine("PointerReleased: Cannot drop onto an item in the current selection.");
-                    return;
-                }
-
-                if (targetItem.CsXFLItem!.ItemType != "folder") { return; }
-                var folderName = targetItem.CsXFLItem!.Name;
-                //Console.WriteLine($"PointerReleased: Dropped onto {targetItem.CsXFLItem!.Name}");
-
-                foreach (var selectedItem in _libraryViewModel.UserLibrarySelection!)
-                {
-                    _workingCsXFLDoc!.Library.MoveToFolder(folderName, selectedItem);
-                }
-                ExpandFolderOnDrop(targetItem.CsXFLItem, _libraryViewModel.HierarchicalItems);
-                _eventAggregator.Publish(new LibraryItemsChangedEvent());
-            }
-            else
-            {
-                //Console.WriteLine("PointerReleased: No valid drop target found.");
-            }
-
-            e.Handled = true;
         };
 
         //MARK: File Explorer D&D
@@ -168,6 +96,115 @@ public partial class LibraryView : UserControl
          treeView.AddHandler(DragDrop.DropEvent, FlatDrop);
          treeView.AddHandler(DragDrop.DragLeaveEvent, FlatDragLeave);
          treeView.AddHandler(DragDrop.DragEnterEvent, FlatDragEnter);
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DragDropEffects.None;
+
+        var position = e.GetPosition(HierarchalTreeView);
+        var hitTestResult = HierarchalTreeView.InputHitTest(position);
+
+        if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
+        {
+            // Allow drop only on folders
+            if (targetItem.CsXFLItem?.ItemType == "folder")
+            {
+                e.DragEffects = DragDropEffects.Move;
+
+                // Highlight the target folder
+                if (_previousItem != null && _previousItem != targetItem)
+                {
+                    _previousItem.IsDragOver = false;
+
+                    // Stop the timer if hovering over a new item
+                    _hoverTimer?.Stop();
+                    _hoverTimer = null;
+                }
+
+                targetItem.IsDragOver = true;
+
+                // Start a timer to expand the folder after 0.5 seconds
+                if (_previousItem != targetItem)
+                {
+                    _hoverTimer = new System.Timers.Timer(500);
+                    _hoverTimer.Elapsed += (s, args) =>
+                    {
+                        _hoverTimer?.Stop();
+                        _hoverTimer = null;
+
+                        // Ensure this runs on the UI thread
+                        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            if (_previousItem == targetItem)
+                            {
+                                ExpandFolderOnDrop(targetItem.CsXFLItem, _libraryViewModel.HierarchicalItems);
+                            }
+                        });
+                    };
+                    _hoverTimer.Start();
+                }
+
+                _previousItem = targetItem;
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        if (_previousItem != null)
+        {
+            _previousItem.IsDragOver = false;
+            _previousItem = null;
+        }
+
+        if (e.Data.Contains("DraggedItem") && e.Data.Get("DraggedItem") is Blitz.Models.Tools.Library.LibraryItem draggedItem)
+        {
+            var position = e.GetPosition(HierarchalTreeView);
+            var hitTestResult = HierarchalTreeView.InputHitTest(position);
+
+            if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem targetItem)
+            {
+                // Skip dropping if the target item is in the current selection
+                if (_libraryViewModel.UserLibrarySelection?.Contains(targetItem.CsXFLItem) == true)
+                {
+                    return;
+                }
+
+                if (targetItem.CsXFLItem!.ItemType == "folder")
+                {
+                    var folderName = targetItem.CsXFLItem.Name;
+
+                    foreach (var selectedItem in _libraryViewModel.UserLibrarySelection!)
+                    {
+                        _workingCsXFLDoc!.Library.MoveToFolder(folderName, selectedItem);
+                    }
+
+                    ExpandFolderOnDrop(targetItem.CsXFLItem, _libraryViewModel.HierarchicalItems);
+                    _eventAggregator.Publish(new LibraryItemsChangedEvent());
+                }
+            }
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDragLeave(object? sender, DragEventArgs e)
+    {
+        if (_previousItem != null)
+        {
+            _previousItem.IsDragOver = false;
+            _previousItem = null;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnDragEnter(object? sender, DragEventArgs e)
+    {
+        e.Handled = true;
     }
 
     private void FlatDoDrag(object? sender, DragEventArgs e) 
@@ -215,20 +252,21 @@ public partial class LibraryView : UserControl
 
         foreach (var item in items)
         {
-            string itemPath = item.CsXFLItem!.Name;
-
-            // Build the hierarchical path for the current item
-            var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
-
-            // Check if the current item matches the folder name
+            // Check if the current item's CsXFLItem matches the folder
             if (item.CsXFLItem == folder)
             {
+                // Build the hierarchical path for the current item
+                var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
+
+                // Expand the matching folder
                 _libraryViewModel.HierarchicalSource!.Expand(new Avalonia.Controls.IndexPath(hierarchicalPath.ToArray()));
+                return; // Stop further recursion as the folder is found
             }
 
-            //Recursively check and expand child items
+            // Recursively check and expand child items
             if (item.Children != null && item.Children.Any())
             {
+                var hierarchicalPath = new List<int>(currentPath ?? new List<int>()) { localIndex };
                 ExpandFolderOnDrop(folder, item.Children, hierarchicalPath);
             }
 
@@ -399,9 +437,9 @@ public partial class LibraryView : UserControl
             if (_cachedWaveformPicture == null)
             {
                 var fileExtension = Path.GetExtension(_libraryViewModel.Sound.Href)?.TrimStart('.').ToLower() ?? string.Empty;
-                var audioData = _documentViewModel!.GetAudioData(_libraryViewModel.Sound);
+                var audioData = _documentViewModel!.DecryptAudioDat(_libraryViewModel.Sound);
 
-                if (fileExtension == "wav")
+                if (fileExtension == "wav" || fileExtension == "flac")
                 {
                     var amplitudes = _audioService.GetAudioAmplitudes(audioData, 16, 1);
                     (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
@@ -414,15 +452,22 @@ public partial class LibraryView : UserControl
                 }
             }
 
-            var canvasWidth = e.Info.Width;
-            var canvasHeight = e.Info.Height;
-            var offsetX = (canvasWidth - 800) / 2f;
-            var offsetY = (canvasHeight - 200) / 2f;
+            if (_cachedWaveformPicture != null) // Ensure the picture is not null
+            {
+                var canvasWidth = e.Info.Width;
+                var canvasHeight = e.Info.Height;
+                var offsetX = (canvasWidth - 800) / 2f;
+                var offsetY = (canvasHeight - 200) / 2f;
 
-            canvas.Save();
-            canvas.Translate(offsetX, offsetY);
-            canvas.DrawPicture(_cachedWaveformPicture);
-            canvas.Restore();
+                canvas.Save();
+                canvas.Translate(offsetX, offsetY);
+                canvas.DrawPicture(_cachedWaveformPicture);
+                canvas.Restore();
+            }
+            else
+            {
+                Console.WriteLine("Failed to generate waveform picture.");
+            }
         }
     }
 

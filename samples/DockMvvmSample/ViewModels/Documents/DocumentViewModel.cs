@@ -102,7 +102,7 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
         return data;
     }
 
-    private byte[] DecryptBitmapDat(BitmapItem bitmap)
+    public byte[] DecryptBitmapDat(BitmapItem bitmap)
     {
         string href = bitmap.BitmapDataHRef;
         byte[] data;
@@ -236,7 +236,7 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
         return audioData;
     }
 
-    private byte[] DecryptAudioDat(SoundItem sound)
+    public byte[] DecryptAudioDat(SoundItem sound)
     {
         string href = sound.SoundDataHRef;
         byte[] audioData;
