@@ -660,5 +660,6 @@ public partial class LibraryViewModel : Tool
             var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
         };
+
     }
 }

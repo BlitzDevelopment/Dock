@@ -17,6 +17,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows.Input;
+using System.Threading.Tasks;
 
 namespace Blitz.ViewModels;
 
@@ -88,7 +89,7 @@ public partial class MainWindowViewModel : ObservableObject
         OpenDocumentHelper(filePath);
     }
 
-    private async void OpenDocumentHelper(string filePath)
+    private async Task OpenDocumentHelper(string filePath)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
         {

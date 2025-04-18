@@ -53,7 +53,14 @@
         </Grid.ColumnDefinitions>
         <TextBlock Text="{Binding ItemCount}" VerticalAlignment="Center" HorizontalAlignment="Left" Grid.Column="0" Margin="10,5,0,5"/>
         <Border Grid.Column="1" Background="Transparent" />
-        <TextBox x:Name="LibrarySearch" Watermark="Search" MinWidth="100" Width="250" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,5,10,5"/>
+        <StackPanel Orientation="Horizontal" Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,5,10,5">
+          <TextBox x:Name="LibrarySearch" Watermark="Search" MinWidth="100" Width="250" CornerRadius="9,0,0,9">
+            <TextBox.InnerLeftContent>
+              <PathIcon Data="{StaticResource ico_search}" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="6,0,0,0"/>
+            </TextBox.InnerLeftContent>
+          </TextBox>
+          <Button Content="CLEAR" VerticalAlignment="Center" Command="{Binding ClearSearchCommand}" CornerRadius="0,9,9,0" />
+        </StackPanel>
       </Grid>
 
       <!--Library-->
@@ -69,15 +76,11 @@
                         BorderBrush="{Binding IsDragOver, Converter={StaticResource BooleanToBorderBrushConverter}}" 
                         Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}">
                     <StackPanel Orientation="Horizontal">
-                        <Button IsEnabled="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" Background="Transparent" Foreground="Transparent">
-                            <Button.Styles>
-                                <Style Selector="Button:disabled">
-                                  <Setter Property="Background" Value="Transparent"/>
-                                  <Setter Property="Foreground" Value="Transparent"/>
-                                </Style>
-                            </Button.Styles>
-                            <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
-                        </Button>
+                          <Button IsHitTestVisible="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" 
+                                  Background="Transparent" 
+                                  Foreground="Transparent">
+                              <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
+                          </Button>
                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Border>

@@ -61,16 +61,20 @@ namespace Blitz.Views
                     var amplitudes = _audioService.GetAudioAmplitudes(pcmData, 16, 1);
                     (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
                 }
-
                 if (_cachedWaveformPicture != null) // Ensure the picture is not null
                 {
                     var canvasWidth = e.Info.Width;
                     var canvasHeight = e.Info.Height;
-                    var offsetX = (canvasWidth - 800) / 2f;
-                    var offsetY = (canvasHeight - 200) / 2f;
+
+                    // Calculate the horizontal scaling factor
+                    var scaleX = canvasWidth / 800f;
+
+                    // Center vertically
+                    var offsetY = (canvasHeight - (200 * scaleX)) / 2f;
 
                     canvas.Save();
-                    canvas.Translate(offsetX, offsetY);
+                    canvas.Scale(scaleX, scaleX); // Apply horizontal scaling
+                    canvas.Translate(0, offsetY / scaleX); // Adjust vertical offset after scaling
                     canvas.DrawPicture(_cachedWaveformPicture);
                     canvas.Restore();
                 }

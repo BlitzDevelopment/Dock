@@ -74,16 +74,43 @@ public partial class LibraryView : UserControl
 
         HierarchalTreeView.PointerPressed += (sender, e) =>
         {
-            var position = e.GetPosition(HierarchalTreeView);
-            var hitTestResult = HierarchalTreeView.InputHitTest(position);
+            // Ensure the event is handled even if the item is not selected
+            e.Handled = true;
 
-            if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
+            Console.WriteLine("Hi");
+
+            // Check if the right mouse button was pressed
+            if (e.GetCurrentPoint(HierarchalTreeView).Properties.IsRightButtonPressed)
             {
-                // Start the drag operation
-                var data = new DataObject();
-                data.Set("DraggedItem", item);
+                // Allow the context menu to appear
+                return;
+            }
 
-                DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+            // Handle left mouse button for drag-and-drop
+            if (e.GetCurrentPoint(HierarchalTreeView).Properties.IsLeftButtonPressed)
+            {
+                var position = e.GetPosition(HierarchalTreeView);
+                var hitTestResult = HierarchalTreeView.InputHitTest(position);
+
+                if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
+                {
+                    try
+                    {
+                        // Start the drag operation
+                        var data = new DataObject();
+                        data.Set("DraggedItem", item);
+
+                        // Ensure the DataObject is valid before starting the drag operation
+                        if (data.Contains("DraggedItem"))
+                        {
+                            DragDrop.DoDragDrop(e, data, DragDropEffects.Move);
+                        }
+                    }
+                    catch (System.Runtime.InteropServices.COMException ex)
+                    {
+                        Debug.WriteLine($"Drag-and-drop operation failed: {ex.Message}");
+                    }
+                }
             }
         };
 
@@ -153,7 +180,7 @@ public partial class LibraryView : UserControl
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
-    {
+    {        
         if (_previousItem != null)
         {
             _previousItem.IsDragOver = false;
@@ -278,18 +305,22 @@ public partial class LibraryView : UserControl
     // MARK: Event Handlers
     private void OnLibraryViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(LibraryViewModel.Bitmap)) { UpdateBitmapPreview(); }
-        if (e.PropertyName == nameof(LibraryViewModel.Sound)) { LibrarySVGPreview.Invalidate(); }
-        if (e.PropertyName == nameof(LibraryViewModel.SvgData)) { LibrarySVGPreview.Invalidate(); }
         if (e.PropertyName == nameof(LibraryViewModel.SvgData))
         {
-            _cachedSvgPicture = null; // Reset cache
+            LibrarySVGPreview.IsVisible = true;
+            _cachedSvgPicture = null;
             LibrarySVGPreview.Invalidate();
         }
         if (e.PropertyName == nameof(LibraryViewModel.Sound))
         {
-            _cachedWaveformPicture = null; // Reset cache
+            LibrarySVGPreview.IsVisible = true;
+            _cachedWaveformPicture = null;
             LibrarySVGPreview.Invalidate();
+        }
+        if (e.PropertyName == nameof(LibraryViewModel.Bitmap))
+        {
+            LibrarySVGPreview.IsVisible = false;
+            UpdateBitmapPreview();
         }
     }
 
@@ -456,11 +487,16 @@ public partial class LibraryView : UserControl
             {
                 var canvasWidth = e.Info.Width;
                 var canvasHeight = e.Info.Height;
-                var offsetX = (canvasWidth - 800) / 2f;
-                var offsetY = (canvasHeight - 200) / 2f;
+
+                // Calculate the horizontal scaling factor
+                var scaleX = canvasWidth / 800f;
+
+                // Center vertically
+                var offsetY = (canvasHeight - (200 * scaleX)) / 2f;
 
                 canvas.Save();
-                canvas.Translate(offsetX, offsetY);
+                canvas.Scale(scaleX, scaleX); // Apply horizontal scaling
+                canvas.Translate(0, offsetY / scaleX); // Adjust vertical offset after scaling
                 canvas.DrawPicture(_cachedWaveformPicture);
                 canvas.Restore();
             }
