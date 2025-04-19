@@ -1,5 +1,6 @@
 using System.IO;
 using System;
+using System.Text.Json;
 
 public interface IBlitzAppData
 {
@@ -10,6 +11,7 @@ public interface IBlitzAppData
 public class BlitzAppData : IBlitzAppData
 {
     string localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    string roamingAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
 
     public string GetTmpFolder()
     {
@@ -53,5 +55,26 @@ public class BlitzAppData : IBlitzAppData
         }
 
         return recentFilesPath;
+    }
+
+    public string GetPreferencesPath()
+    {
+        string preferencesFilePath = Path.Combine(roamingAppDataPath, "Blitz", "preferences.json");
+
+        // Ensure the directory exists
+        string directoryPath = Path.Combine(roamingAppDataPath, "Blitz");
+        if (!Directory.Exists(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        // Ensure the file exists
+        if (!File.Exists(preferencesFilePath))
+        {
+            // Create an empty JSON file
+            File.WriteAllText(preferencesFilePath, "{}");
+        }
+
+        return preferencesFilePath;
     }
 }

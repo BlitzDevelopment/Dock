@@ -6,9 +6,10 @@ Do this stuff after everything is fixed:
 General Issues:
 	[HIGH] library invalidation lag
 	[MED] Alt code handling
+
 	[MEH] Preferences
+
 	[MEH] Hotkeys & storage & defaults
-	**[MEH] Re-design app data folder, make sure it's in the right place and makes sense
 	[HIGH] MP3 playback?
 	[SUPREMELY BAD] No dispatcher/marshal distinction, everything is running on UI thread
 	**[HIGH] Lots of service singleton initialization in Library/LibraryView/LibraryContextMenus Can we avoid this? It adds a lot of boilerplate
@@ -25,12 +26,13 @@ Taskbar:
 	[MED] Render Canvas Background does nothing, current renderer doesn't add the canvas BG
 
 Library Panel:
-	[low] Clear button functionality
+	[low] variable to disable hit testing for non-editable items (other than folders)
+
 	[HIGH] Play should turn into Stop while sound is playing
 	[MED] first click drag fails-- not part of userlibraryselection
-	[HIGH] Bitmap .dat decoding crashes the program. Unclear on the intended priority for loading bitmaps/audio for preview
+	[HIGH] Bitmap .dat decoding crashes the program
 
-	**[HIGH] File explorer D&D for flatview is correctly implemented, HierchicalTree D&D should have the above behavior
+	[HIGH] File explorer D&D for flatview is correctly implemented, HierchicalTree D&D should have the above behavior
 	[HIGH] Double tapping name to edit doesn't work
 
 	[HIGH] No way to duplicate items in the library
@@ -38,6 +40,6 @@ Library Panel:
 	[HIGH] No memento service
 	[HIGH] LibraryViewModel loads _workingCsXFLDoc between 2 and 4 times. Inconsistency from the docking system's onActiveDockableCha
 
-	**[MED] No Bitmap Properties panel
-	SHANNON - [LOW] Make property panels look nice
+	!! Make Bitmap/Sound/Symbol properties look nice & add functionality !!
+
 	[LOW] Name/Type/UseCount spacing should be synchronized between both TreeViews and name length shouldn't update the spacing

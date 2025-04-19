@@ -431,9 +431,39 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Properties"});
+            contextMenu.Items.Add(new MenuItem { Header = "Properties", Command = BitmapPropertiesCommand});
             return contextMenu;
         }
+
+        [RelayCommand]
+        private async Task BitmapProperties()
+        {
+            try {
+                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
+                if (_userLibrarySelection[0].ItemType != "bitmap")
+                { 
+                    throw new Exception("Selected item is not a bitmap.");
+                }
+
+                var _viewModelRegistry = ViewModelRegistry.Instance;
+                _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+
+                var dialog = new LibraryBitmapProperties(_userLibrarySelection[0]);
+                var result = await DialogHost.Show(dialog);
+                var dialogIdentifier = result as string;
+                dialog.DialogIdentifier = dialogIdentifier!;
+
+                var resultObject = result as dynamic;
+                if (resultObject == null) { return; } // User cancelled
+
+                // Do stuff lol
+
+            } catch (Exception e) {
+                await _genericDialogs.ShowError(e.Message);
+            }
+        }
+
         #endregion
 
         // MARK: Generic Cmnds

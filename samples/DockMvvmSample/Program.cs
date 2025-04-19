@@ -1,8 +1,12 @@
 ﻿using System;
 using Avalonia;
 using Microsoft.Extensions.Options;
+using Avalonia.Threading;
+using Avalonia.Rendering;
 using Serilog;
 using System.IO;
+using System.Linq;
+using Avalonia.Controls.ApplicationLifetimes;
 
 namespace Blitz;
 
@@ -12,17 +16,30 @@ internal class Program
     private static void Main(string[] args)
     {
         BlitzAppData appData = new BlitzAppData();
+        string logDirectory = appData.GetLogFilePath();
+        string logFileName = $"log-{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+        string logFilePath = Path.Combine(logDirectory, logFileName);
+
+        // Configure Serilog
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Debug()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(
-                Path.Combine(appData.GetLogFilePath(), $"log-{DateTime.Now:yyyyMMdd_HHmmss}.txt"), // Unique log file per session
-                rollingInterval: RollingInterval.Infinite, // No rolling within a session
-                retainedFileCountLimit: 7 // Keep only the last 7 session logs
-            )
+            .WriteTo.File(logFilePath)
             .CreateLogger();
+
+        // Retain only the last 7 log files
+        var logFiles = Directory.GetFiles(logDirectory, "log-*.txt")
+            .OrderByDescending(File.GetCreationTime)
+            .Skip(7);
+
+        foreach (var file in logFiles)
+        {
+            File.Delete(file);
+        }
+
+        Log.Information("Starting Blitz...");
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-        Log.Information("Application ended gracefully.");
+        Log.Information("Application lifetime ended.");
     }
 
     public static AppBuilder BuildAvaloniaApp()
