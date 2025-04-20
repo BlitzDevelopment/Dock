@@ -1,9 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
 using Blitz.Events;
-using Blitz.ViewModels.Documents;
 using Blitz.Views;
-using Blitz.Views.Documents;
 using CommunityToolkit.Mvvm.Input;
 using DialogHostAvalonia;
 using Dock.Model.Mvvm.Controls;
@@ -17,7 +15,6 @@ using System.Threading.Tasks;
 
 using static Blitz.Models.Tools.Library;
 
-// MARK: Library Contxt Menus
 namespace Blitz.ViewModels.Tools
 {
     public class ItemTypeToContextMenuConverter : IValueConverter
@@ -52,7 +49,7 @@ namespace Blitz.ViewModels.Tools
             _eventAggregator.Subscribe<UserLibrarySelectionChangedEvent>(OnUserLibrarySelectionChanged);
         }
 
-        private void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
+        void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
         {
             _userLibrarySelection = e.UserLibrarySelection;
         }
@@ -79,7 +76,7 @@ namespace Blitz.ViewModels.Tools
         }
 
         #region Graphic/MC
-        private ContextMenu CreateGraphicContextMenu()
+        ContextMenu CreateGraphicContextMenu()
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
@@ -95,7 +92,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task SymbolProperties()
+        /// <summary>
+        /// Displays the LibrarySymbolProperties dialog for the selected symbol in the library.
+        /// </summary>
+        async Task SymbolProperties()
         {
             try {
                 _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
@@ -136,7 +136,7 @@ namespace Blitz.ViewModels.Tools
         #endregion
 
         #region Folder
-        private ContextMenu CreateFolderContextMenu()
+        ContextMenu CreateFolderContextMenu()
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
@@ -146,7 +146,6 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
             contextMenu.Items.Add(new Separator());
-            // TODO: This should be easy to implement
             contextMenu.Items.Add(new MenuItem { Header = "Expand Folder", Command = ExpandFolderCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Collapse Folder", Command = CollapseFolderCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Expand All Folders", Command = ExpandAllFoldersCommand});
@@ -154,7 +153,10 @@ namespace Blitz.ViewModels.Tools
             return contextMenu;
         }
 
-        private void ExpandMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
+        /// <summary>
+        /// Helper function to recursively expand folders in "Expand Folders" command.
+        /// </summary>
+        void ExpandMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
         {
             int localIndex = 0; // Tracks the index at the current level
 
@@ -182,7 +184,10 @@ namespace Blitz.ViewModels.Tools
             }
         }
 
-        private void CollapseMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
+        /// <summary>
+        /// Helper function to recursively collapse folders in "Collapse Folders" command.
+        /// </summary>
+        void CollapseMatchingItems(IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
         {
             int localIndex = 0; // Tracks the index at the current level
 
@@ -211,7 +216,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task ExpandFolder()
+        /// <summary>
+        /// Expands the selected folder in the library.
+        /// </summary>
+        async Task ExpandFolder()
         {
             try
             {
@@ -231,7 +239,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task CollapseFolder()
+        /// <summary>
+        /// Collapses the selected folder in the library.
+        /// </summary>
+        async Task CollapseFolder()
         {
             try
             {
@@ -251,7 +262,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task ExpandAllFolders()
+        /// <summary>
+        /// Expands all folders in the library.
+        /// </summary>
+        async Task ExpandAllFolders()
         {
             try
             {
@@ -272,7 +286,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task CollapseAllFolders()
+        /// <summary>
+        /// Collapses all folders in the library.
+        /// </summary>
+        async Task CollapseAllFolders()
         {
             try
             {
@@ -294,7 +311,7 @@ namespace Blitz.ViewModels.Tools
         #endregion
 
         #region Sound
-        private ContextMenu CreateSoundContextMenu()
+        ContextMenu CreateSoundContextMenu()
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
@@ -312,7 +329,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task Play()
+        /// <summary>
+        /// Play a given soundItem from the library. Uses OpenAL to play PCM data, use ffmpeg to decode to PCM for other formats.
+        /// </summary>
+        async Task Play()
         {
             if (_userLibrarySelection == null) { return; }
             if (_userLibrarySelection[0].ItemType != "sound") { return; }
@@ -386,7 +406,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task SoundProperties()
+        /// <summary>
+        /// Displays the LibrarySoundProperties dialog for the selected sound in the library.
+        /// </summary>
+        async Task SoundProperties()
         {
             try {
                 _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
@@ -418,7 +441,7 @@ namespace Blitz.ViewModels.Tools
         #endregion
 
         #region Bitmap
-        private ContextMenu CreateBitmapContextMenu()
+        ContextMenu CreateBitmapContextMenu()
         {
             var contextMenu = new ContextMenu();
             contextMenu.Items.Add(new MenuItem { Header = "Cut", Command = DeleteCommand});
@@ -436,7 +459,10 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task BitmapProperties()
+        /// <summary>
+        /// Displays the LibraryBitmapProperties dialog for the selected bitmap in the library.
+        /// </summary>
+        async Task BitmapProperties()
         {
             try {
                 _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
@@ -466,9 +492,12 @@ namespace Blitz.ViewModels.Tools
 
         #endregion
 
-        // MARK: Generic Cmnds
+        #region Generic Cmds
         [RelayCommand]
-        private async Task Rename()
+        /// <summary>
+        /// Displays the LibrarySingleRename dialog for the selected item in the library.
+        /// </summary>
+        async Task Rename() // TODO: This should have a Find&Replace dialog for USR SEL > 1
         {
             try {
                 var dialog = new LibrarySingleRename();
@@ -480,47 +509,30 @@ namespace Blitz.ViewModels.Tools
         }
 
         [RelayCommand]
-        private async Task Delete()
+        /// <summary>
+        /// Deletes the selected item from the library. References the LibraryViewModel to perform the delete operation.
+        /// </summary>
+        async Task Delete()
         {
-            try {
-                _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
-                if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
-                if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
-                if (_userLibrarySelection.Length >= 5) // Show warning if 5 or more items are selected
-                {
-                    bool userAccepted = await _genericDialogs.ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
-                    if (!userAccepted) { return; } // User cancelled
-                }
-
-                foreach (var item in _userLibrarySelection)
-                {
-                    if (item?.Name == null)
-                    {
-                        continue;
-                    }
-                    _workingCsXFLDoc.Library.RemoveItem(item.Name);
-                }
-
-                _eventAggregator.Publish(new LibraryItemsChangedEvent());
-            } catch (Exception e) {
-                await _genericDialogs.ShowError(e.Message);
-            }
+            var _viewModelRegistry = ViewModelRegistry.Instance;
+            _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
+            _libraryViewModel.Delete();
         }
 
         [RelayCommand]
-        private async Task Copy()
+        async Task Copy()
         {
 
         }
 
         [RelayCommand]
-        private async Task Paste()
+        async Task Paste()
         {
 
         }
 
         [RelayCommand]
-        private async Task Duplicate()
+        async Task Duplicate()
         {
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
@@ -533,8 +545,7 @@ namespace Blitz.ViewModels.Tools
 
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
         }
-
-        // Todo: Edit will be generic when Canvas is implemented
+        #endregion
     }
 
     public partial class LibraryViewModel : Tool

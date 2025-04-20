@@ -49,6 +49,7 @@ public partial class LibraryView : UserControl
     private SKPicture? _cachedWaveformPicture;
     #endregion
     
+    #region Constructor
     public LibraryView()
     {
         InitializeComponent();
@@ -66,6 +67,7 @@ public partial class LibraryView : UserControl
         LibrarySearch.TextChanged += OnLibrary_SearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
 
+        // Allow drag-and-drop into HierarchalTreeView
         HierarchalTreeView.SetValue(DragDrop.AllowDropProperty, true);
         HierarchalTreeView.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         HierarchalTreeView.AddHandler(DragDrop.DropEvent, OnDrop);
@@ -80,8 +82,7 @@ public partial class LibraryView : UserControl
             // Check if the right mouse button was pressed
             if (e.GetCurrentPoint(HierarchalTreeView).Properties.IsRightButtonPressed)
             {
-                // Allow the context menu to appear
-                return;
+                return; // Allow the context menu to appear
             }
 
             // Handle left mouse button for drag-and-drop
@@ -111,18 +112,18 @@ public partial class LibraryView : UserControl
                 }
             }
         };
-
-        //MARK: File Explorer D&D
          
-         // Enable drag-and-drop events
-         FlatTreeView.SetValue(DragDrop.AllowDropProperty, true);
-         FlatTreeView.AddHandler(DragDrop.DragOverEvent, FlatDoDrag);
-         FlatTreeView.AddHandler(DragDrop.DropEvent, FlatDrop);
-         FlatTreeView.AddHandler(DragDrop.DragLeaveEvent, FlatDragLeave);
-         FlatTreeView.AddHandler(DragDrop.DragEnterEvent, FlatDragEnter);
+        // Drag-and-drop into FlatTreeView
+        FlatTreeView.SetValue(DragDrop.AllowDropProperty, true);
+        FlatTreeView.AddHandler(DragDrop.DragOverEvent, FlatDoDrag);
+        FlatTreeView.AddHandler(DragDrop.DropEvent, FlatDrop);
+        FlatTreeView.AddHandler(DragDrop.DragLeaveEvent, FlatDragLeave);
+        FlatTreeView.AddHandler(DragDrop.DragEnterEvent, FlatDragEnter);
     }
+    #endregion
 
-    private void OnDragOver(object? sender, DragEventArgs e)
+    #region Drag-and-Drop
+    void OnDragOver(object? sender, DragEventArgs e)
     {
         e.DragEffects = DragDropEffects.None;
 
@@ -179,7 +180,7 @@ public partial class LibraryView : UserControl
         e.Handled = true;
     }
 
-    private async void OnDrop(object? sender, DragEventArgs e)
+    async void OnDrop(object? sender, DragEventArgs e)
     {
         if (_previousItem != null)
         {
@@ -250,8 +251,7 @@ public partial class LibraryView : UserControl
         e.Handled = true;
     }
 
-
-    private void OnDragLeave(object? sender, DragEventArgs e)
+    void OnDragLeave(object? sender, DragEventArgs e)
     {
         if (_previousItem != null)
         {
@@ -262,17 +262,17 @@ public partial class LibraryView : UserControl
         e.Handled = true;
     }
 
-    private void OnDragEnter(object? sender, DragEventArgs e)
+    void OnDragEnter(object? sender, DragEventArgs e)
     {
         e.Handled = true;
     }
 
-    private void FlatDoDrag(object? sender, DragEventArgs e) 
+    void FlatDoDrag(object? sender, DragEventArgs e) 
      {
          e.DragEffects = DragDropEffects.Move;
      }
  
-     private async void FlatDrop(object? sender, DragEventArgs e)
+     async void FlatDrop(object? sender, DragEventArgs e)
      {
         if (_workingCsXFLDoc == null) { return; }
         // Check if the dragged data contains files using "FileNameW" or "FileName"
@@ -296,17 +296,17 @@ public partial class LibraryView : UserControl
         _eventAggregator.Publish(new LibraryItemsChangedEvent());
      }
  
-     private void FlatDragLeave(object? sender, DragEventArgs e)
+     void FlatDragLeave(object? sender, DragEventArgs e)
      {
          e.Handled = true;
      }
  
-     private void FlatDragEnter(object? sender, DragEventArgs e)
+     void FlatDragEnter(object? sender, DragEventArgs e)
      {
          e.Handled = true;
      }
 
-    private void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
+    void ExpandFolderOnDrop(CsXFL.Item folder, IEnumerable<Blitz.Models.Tools.Library.LibraryItem> items, List<int>? currentPath = null)
     {
         int localIndex = 0; // Tracks the index at the current level
 
@@ -334,9 +334,10 @@ public partial class LibraryView : UserControl
             localIndex++;
         }
     }
+    #endregion
 
-    // MARK: Event Handlers
-    private void OnLibraryViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    #region Event Handlers
+    void OnLibraryViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(LibraryViewModel.SvgData))
         {
@@ -357,12 +358,12 @@ public partial class LibraryView : UserControl
         }
     }
 
-    private void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
+    void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
     {
         FilterAndUpdateFlatLibrary(_searchText!);
     }
 
-    private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
+    void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         _documentViewModel = e.Document;
         _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
@@ -375,7 +376,7 @@ public partial class LibraryView : UserControl
         
     }
 
-    public void OnLibrary_SearchTextChanged(object sender, TextChangedEventArgs e)
+    void OnLibrary_SearchTextChanged(object sender, TextChangedEventArgs e)
     {
         if (_workingCsXFLDoc == null) { return; }
 
@@ -401,13 +402,15 @@ public partial class LibraryView : UserControl
         FilterAndUpdateFlatLibrary(_searchText);
     }
 
-    private void OnClearButtonClick(object? sender, RoutedEventArgs e)
+    void OnClearButtonClick(object? sender, RoutedEventArgs e)
     {
         LibrarySearch.Text = string.Empty;
         FilterAndUpdateFlatLibrary(string.Empty);
     }
+    #endregion
 
-    private void FilterAndUpdateFlatLibrary(string _searchText)
+    #region UI Logic
+    void FilterAndUpdateFlatLibrary(string _searchText)
     {
         if (string.IsNullOrEmpty(_searchText))
         {
@@ -463,11 +466,8 @@ public partial class LibraryView : UserControl
         }
     }
 
-    // MARK: Symbol Preview
-    /// <summary>
-    /// Handles the library preview canvas and renders an SVG image onto it.
-    /// </summary>
-    private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
+    // MARK: SVG & Sound Preview
+    void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
     {
         if (_libraryViewModel == null || _workingCsXFLDoc == null) { return; }
         
@@ -546,7 +546,7 @@ public partial class LibraryView : UserControl
     }
 
     // MARK: Bitmap Preview
-    private void UpdateBitmapPreview()
+    void UpdateBitmapPreview()
     {
         var imageControl = this.FindControl<Avalonia.Controls.Image>("LibraryBitmapPreview");
 
@@ -568,6 +568,7 @@ public partial class LibraryView : UserControl
             imageControl.Source = new Avalonia.Media.Imaging.Bitmap(memoryStream);
         }
     }
+    #endregion
 
     private void InitializeComponent()
     {

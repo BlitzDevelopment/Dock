@@ -77,7 +77,7 @@ public class DockFactory : Factory
 
     public override IRootDock CreateLayout()
     {
-        var Library = new LibraryViewModel(_mainWindowViewModel) {Id = "Library", Title = "Library"};
+        var Library = new LibraryViewModel() {Id = "Library", Title = "Library"};
         ViewModelRegistry.Instance.RegisterViewModel(nameof(LibraryViewModel), Library);
         var tool2 = new Tool2ViewModel {Id = "Tool2", Title = "Tool2"};
         var tool3 = new Tool3ViewModel {Id = "Tool3", Title = "Tool3"};

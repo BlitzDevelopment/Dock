@@ -21,7 +21,7 @@ public partial class MainView : UserControl
         InitializeComponent();
         InitializeThemes();
         InitializeMenu();
-        DataContext = new MainWindowViewModel();
+        DataContext = App.MainWindowViewModelInstance;
     }
 
     private void OpenRecentMenuItem_Loaded(object sender, RoutedEventArgs e)

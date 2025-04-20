@@ -13,6 +13,7 @@ public class App : Application
 {
     public static IThemeManager? ThemeManager;
     public static AudioService? AudioService;
+    public static MainWindowViewModel MainWindowViewModelInstance { get; } = new MainWindowViewModel();
 
     public override void Initialize()
     {
@@ -29,36 +30,34 @@ public class App : Application
     {
         // DockManager.s_enableSplitToWindow = true;
 
-        var mainWindowViewModel = new MainWindowViewModel();
-
         switch (ApplicationLifetime)
         {
             case IClassicDesktopStyleApplicationLifetime desktopLifetime:
             {
                 var mainWindow = new MainWindow
                 {
-                    DataContext = mainWindowViewModel
+                    DataContext = MainWindowViewModelInstance // Use the shared instance
                 };
 
                 mainWindow.Closing += (_, _) =>
                 {
-                    mainWindowViewModel.CloseLayout();
+                    MainWindowViewModelInstance.CloseLayout(); // Use the shared instance
                 };
 
                 desktopLifetime.MainWindow = mainWindow;
 
                 desktopLifetime.Exit += (_, _) =>
                 {
-                    mainWindowViewModel.CloseLayout();
+                    MainWindowViewModelInstance.CloseLayout(); // Use the shared instance
                 };
-                    
+
                 break;
             }
             case ISingleViewApplicationLifetime singleViewLifetime:
             {
                 var mainView = new MainView()
                 {
-                    DataContext = mainWindowViewModel
+                    DataContext = MainWindowViewModelInstance // Use the shared instance
                 };
 
                 singleViewLifetime.MainView = mainView;

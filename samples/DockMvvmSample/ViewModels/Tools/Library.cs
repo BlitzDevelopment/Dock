@@ -20,10 +20,11 @@ using System.Xml.Linq;
 using Blitz.ViewModels.Documents;
 using static Blitz.Models.Tools.Library;
 using Serilog;
+using ExCSS;
 
 namespace Blitz.ViewModels.Tools;
 
-// MARK: LibItem Icons
+#region AXAML Converters
 /// <summary>
 /// Converts an item type string to a corresponding icon represented as a StreamGeometry object.
 /// </summary>
@@ -97,7 +98,7 @@ public class BooleanToBackgroundConverter : IValueConverter
         if (value is bool isDragOver)
         {
             return isDragOver 
-                ? new SolidColorBrush(Color.FromArgb(64, 255, 255, 0)) // 64 is 0.25 opacity (255 * 0.25)
+                ? new SolidColorBrush(Avalonia.Media.Color.FromArgb(64, 255, 255, 0)) // 64 is 0.25 opacity (255 * 0.25)
                 : Brushes.Transparent;
         }
         return Brushes.Transparent;
@@ -128,35 +129,71 @@ public class InverseBooleanConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+#endregion
 
-// MARK: Library Partial VM
+#region Constructor
 /// <summary>
 /// Represents the view model for the library, providing properties and methods
 /// to manage and interact with the library's data.
 /// </summary>
 public partial class LibraryViewModel : Tool
 {
-    #region Dependencies
     private readonly IGenericDialogs _genericDialogs;
     private readonly EventAggregator _eventAggregator;
     private readonly BlitzAppData _blitzAppData;
-    private readonly MainWindowViewModel _mainWindowViewModel;
     public DocumentViewModel DocumentViewModel;
 
-    public LibraryViewModel(
-        IGenericDialogs genericDialogs,
-        EventAggregator eventAggregator,
-        BlitzAppData blitzAppData,
-        MainWindowViewModel mainWindowViewModel)
+    public LibraryViewModel()
     {
-        _genericDialogs = genericDialogs ?? throw new ArgumentNullException(nameof(genericDialogs));
-        _eventAggregator = eventAggregator ?? throw new ArgumentNullException(nameof(eventAggregator));
-        _blitzAppData = blitzAppData ?? throw new ArgumentNullException(nameof(blitzAppData));
-        _mainWindowViewModel = mainWindowViewModel ?? throw new ArgumentNullException(nameof(mainWindowViewModel));
+        Log.Information("[LibraryViewModel] Initializing...");
+
+        // Initialize dependencies
+        _genericDialogs = new IGenericDialogs();
+        _eventAggregator = EventAggregator.Instance;
+        _blitzAppData = new BlitzAppData();
+
+        // Subscribe to events
+        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
+
+        // Initialize the working document
+        try
+        {
+            _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
+        }
+        catch
+        {
+            _workingCsXFLDoc = null;
+        }
+
+        // Update the flat source
+        UpdateFlatSource();
+        FlatItems.CollectionChanged += (sender, e) => UpdateFlatSource();
+
+        // Build HierarchicalTreeDataGridSource, which is the default
+        HierarchicalSource = new HierarchicalTreeDataGridSource<LibraryItem>(HierarchicalItems)
+        {
+            Columns =
+            {
+                new HierarchicalExpanderColumn<LibraryItem>(
+                    new TemplateColumn<LibraryItem>("Name", "NameColumn"),
+                    x => x.Children),
+                new TextColumn<LibraryItem, string>("Type", x => x.Type),
+                new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
+            },
+        };
+        HierarchicalSource.Columns.SetColumnWidth(0, new GridLength(250));
+        HierarchicalSource.RowSelection!.SingleSelect = false;
+
+        HierarchicalSource.RowSelection.SelectionChanged += (sender, e) =>
+        {
+            var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
+            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
+        };
     }
     #endregion
 
-    #region Document and Selection State
+    #region Document State
     private CsXFL.Document? _workingCsXFLDoc;
     private CsXFL.Item[]? _userLibrarySelection;
     public CsXFL.Item[]? UserLibrarySelection
@@ -177,7 +214,9 @@ public partial class LibraryViewModel : Tool
     public FlatTreeDataGridSource<LibraryItem>? FlatSource { get; set; }
     #endregion
 
-    #region Observable Collections
+    #region Obs. Collections
+    private HashSet<string> _itemNames = new HashSet<string>();
+
     [ObservableProperty]
     private ObservableCollection<LibraryItem> _items = new ObservableCollection<LibraryItem>();
 
@@ -202,20 +241,76 @@ public partial class LibraryViewModel : Tool
     [ObservableProperty]
     private CsXFL.SoundItem? _sound;
     private readonly List<string> expandedLibraryItems = new List<string>();
-
     #endregion
 
-    private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
+    #region Event Handlers
+    void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
         DocumentViewModel = e.Document;
         Log.Information($"[LibraryViewModel] Active document changed to {_workingCsXFLDoc.Filename}");
+
+        InitializeLibraryItems();
         RebuildLibrary();
     }
 
-    public void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
+    void OnLibraryItemsChanged(LibraryItemsChangedEvent e)
     {
         RebuildLibrary();
+    }
+
+    void HandleUserLibrarySelectionChange()
+    {
+        SvgData = null;
+        Bitmap = null;
+        Sound = null;
+        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; } // No selection or folder selected
+
+        // Associated logic in LibraryView.axaml.cs for previewing datatypes
+        if (UserLibrarySelection![0].ItemType == "movie clip" || UserLibrarySelection[0].ItemType == "graphic" || UserLibrarySelection[0].ItemType == "button")
+        {
+            string appDataFolder = _blitzAppData.GetTmpFolder();
+            SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
+
+            try
+            {
+                var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
+                (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
+                SvgData = renderedSVG;
+                BoundingBox = bbox;
+            }
+            catch (Exception ex)
+            {
+                SvgData = null;
+                BoundingBox = null;
+                Log.Error(ex, "Failed to render symbol: {ErrorMessage}", ex.Message);
+            }
+        }
+
+        if (UserLibrarySelection[0].ItemType == "bitmap") { Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem; }
+        if (UserLibrarySelection[0].ItemType == "sound") { Sound = UserLibrarySelection[0] as CsXFL.SoundItem; }
+    }
+    #endregion
+
+    #region Building Library UI
+    void InitializeLibraryItems()
+    {
+        Items.Clear();
+        _itemNames.Clear();
+        foreach (var item in _workingCsXFLDoc.Library.Items.Values)
+        {
+            if (!_itemNames.Contains(item.Name))
+            {
+                Items.Add(new LibraryItem
+                {
+                    Name = item.Name,
+                    UseCount = item.ItemType == "folder" ? "" : item.UseCount.ToString(),
+                    Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.ItemType.ToLower()),
+                    CsXFLItem = item
+                });
+                _itemNames.Add(item.Name);
+            }
+        }
     }
 
     /// <summary>
@@ -223,7 +318,7 @@ public partial class LibraryViewModel : Tool
     /// from the current working document. Updates flat and hierarchical views 
     /// and sets the canvas background color.
     /// </summary>
-    public void RebuildLibrary()
+    void RebuildLibrary()
     {
         if (_workingCsXFLDoc == null) 
         {
@@ -233,24 +328,7 @@ public partial class LibraryViewModel : Tool
 
         GetExpandedRows();
 
-        // Clear the collections
-        Items.Clear();
-        FlatItems.Clear();
-        HierarchicalItems.Clear();
-
-        // Rebuild the library items directly into the Items collection
-        foreach (var item in _workingCsXFLDoc.Library.Items.Values)
-        {
-            Items.Add(new LibraryItem
-            {
-                Name = item.Name,
-                UseCount = item.ItemType == "folder" ? "" : item.UseCount.ToString(),
-                Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.ItemType.ToLower()),
-                CsXFLItem = item
-            });
-        }
-
-        // Rebuild the flat and hierarchical views
+        InitializeLibraryItems();
         InvalidateFlatLibrary(_workingCsXFLDoc);
         InvalidateHierarchicalLibrary(_workingCsXFLDoc);
 
@@ -264,36 +342,30 @@ public partial class LibraryViewModel : Tool
     /// <summary>
     /// Invalidates the flat library cache and rebuilds the flat library view.
     /// </summary>
-    public void InvalidateFlatLibrary(CsXFL.Document doc) {
-        // Create a dictionary to store the items by name
-        var itemsByName = new Dictionary<string, LibraryItem>();
-
-        // Pass 1: Transfer items
+    void InvalidateFlatLibrary(CsXFL.Document doc) {
+        FlatItems.Clear();
+        var newFlatItems = new List<LibraryItem>();
         foreach (var item in Items)
         {
-            var libraryItem = new LibraryItem
+            if (item.Type == "folder") continue;
+            newFlatItems.Add(new LibraryItem
             {
                 Name = item.Name,
                 UseCount = item.Type == "folder" ? "" : item.UseCount!.ToString(),
                 Type = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(item.Type!.ToLower()),
                 CsXFLItem = item.CsXFLItem
-            };
-            itemsByName[libraryItem.Name] = libraryItem;
+            });
         }
-
-        // Pass 2: Add items
-        foreach (var item in itemsByName.Values)
-        {
-            if (item.Type == "Folder") { continue; }
-            FlatItems.Add(item);
-        }
+        FlatItems = new ObservableCollection<LibraryItem>(newFlatItems);
     }
 
     /// <summary>
     /// Invalidates the hierarchical library cache and rebuilds the hierarchical library view.
     /// </summary>
-    public void InvalidateHierarchicalLibrary(CsXFL.Document doc)
+    void InvalidateHierarchicalLibrary(CsXFL.Document doc)
     {
+        HierarchicalItems.Clear();
+
         var itemsByName = Items.ToDictionary(
             item => item.Name!,
             item => new LibraryItem
@@ -368,7 +440,13 @@ public partial class LibraryViewModel : Tool
         SetExpandedRows();
     }
 
-    private void GetExpandedRows()
+    /// <summary>
+    /// Captures the current expansion state of rows in the hierarchical data grid.
+    /// Iterates through the rows using a stack-based approach to avoid recursion.
+    /// For each expanded row, its hierarchical path (a sequence of indices) is recorded
+    /// in the `expandedLibraryItems` list for later restoration.
+    /// </summary>
+    void GetExpandedRows()
     {
         // Clear the list of expanded rows at the start
         expandedLibraryItems.Clear();
@@ -407,13 +485,22 @@ public partial class LibraryViewModel : Tool
         }
     }
 
-    private void SetExpandedRows()
+    /// <summary>
+    /// Restores the expansion state of rows in the hierarchical data grid.
+    /// Iterates through the rows using a stack-based approach to avoid recursion.
+    /// For each row, checks if its hierarchical path matches any in the `expandedLibraryItems` list
+    /// and sets its `IsExpanded` property accordingly.
+    /// </summary>
+    void SetExpandedRows()
     {
         if (HierarchicalSource?.Rows == null) return;
 
+        // Create a copy of the rows to avoid modifying the collection while iterating
+        var rowsCopy = HierarchicalSource.Rows.ToList();
+
         // Use a stack to avoid recursion
         var stack = new Stack<(IEnumerable<IRow> Rows, List<int> Path)>();
-        stack.Push((HierarchicalSource.Rows, new List<int>()));
+        stack.Push((rowsCopy, new List<int>()));
 
         while (stack.Count > 0)
         {
@@ -433,7 +520,7 @@ public partial class LibraryViewModel : Tool
                     // Push children to the stack
                     if (hierarchicalRow.Children != null)
                     {
-                        stack.Push((hierarchicalRow.Children, path));
+                        stack.Push((hierarchicalRow.Children.ToList(), path)); // Copy children to avoid modification issues
                     }
                 }
 
@@ -442,38 +529,7 @@ public partial class LibraryViewModel : Tool
         }
     }
 
-    private void HandleUserLibrarySelectionChange()
-    {
-        Bitmap = null;
-        Sound = null;
-        if (UserLibrarySelection == null || UserLibrarySelection.Length == 0 || UserLibrarySelection[0].ItemType == "folder") { return; } // No selection or folder selected
-
-        // Associated logic in LibraryView.axaml.cs for previewing datatypes
-        if (UserLibrarySelection![0].ItemType == "movie clip" || UserLibrarySelection[0].ItemType == "graphic" || UserLibrarySelection[0].ItemType == "button")
-        {
-            string appDataFolder = _blitzAppData.GetTmpFolder();
-            SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
-
-            try
-            {
-                var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
-                (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
-                SvgData = renderedSVG;
-                BoundingBox = bbox;
-            }
-            catch (Exception ex)
-            {
-                SvgData = null;
-                BoundingBox = null;
-                Log.Error(ex, "Failed to render symbol: {ErrorMessage}", ex.Message);
-            }
-        }
-
-        if (UserLibrarySelection[0].ItemType == "bitmap") { Bitmap = UserLibrarySelection[0] as CsXFL.BitmapItem; }
-        if (UserLibrarySelection[0].ItemType == "sound") { Sound = UserLibrarySelection[0] as CsXFL.SoundItem; }
-    }
-
-    public void UpdateFlatSource()
+    void UpdateFlatSource()
     {
         FlatSource = new FlatTreeDataGridSource<LibraryItem>(FlatItems)
         {
@@ -492,13 +548,14 @@ public partial class LibraryViewModel : Tool
             UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
         };
     }
+    #endregion
 
-    // MARK: Buttons
+    #region Buttons
     /// <summary>
     /// Adds a folder to the library.
     /// </summary>
     [RelayCommand]
-    private async Task AddFolder()
+    public async Task AddFolder()
     {
         try
         {
@@ -548,7 +605,7 @@ public partial class LibraryViewModel : Tool
     /// Adds a graphic symbol to the library.
     /// </summary>
     [RelayCommand]
-    private async Task AddSymbol()
+    public async Task AddSymbol()
     {
         try {
             if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
@@ -591,19 +648,23 @@ public partial class LibraryViewModel : Tool
     }
 
     /// <summary>
-    /// Deletes the selected items from the library. Shows a warning if 5 or more items are selected.
+    /// Deletes the selected items from the library. Shows a warning if 5 or more items, including descendants, are selected.
     /// </summary>
     [RelayCommand]
-    private async Task Delete()
+    public async Task Delete()
     {
-        try {
+        try
+        {
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             if (_workingCsXFLDoc == null) { throw new Exception("No document is open."); }
             if (_userLibrarySelection == null) { throw new Exception("No items are selected."); }
 
-            if (_userLibrarySelection.Length >= 5) // Show warning if 5 or more items are selected
+            // Calculate the total number of items, including descendants
+            int totalItemsToDelete = _userLibrarySelection.Sum(item => CountItems(item));
+
+            if (totalItemsToDelete >= 5) // Show warning if 5 or more items are selected
             {
-                bool userAccepted = await _genericDialogs.ShowWarning($"Are you sure you want to delete {_userLibrarySelection.Length} items?");
+                bool userAccepted = await _genericDialogs.ShowWarning($"Are you sure you want to delete {totalItemsToDelete} items?");
                 if (!userAccepted) { return; } // User Cancelled
             }
 
@@ -616,50 +677,47 @@ public partial class LibraryViewModel : Tool
                 _workingCsXFLDoc.Library.RemoveItem(item.Name);
             }
             _eventAggregator.Publish(new LibraryItemsChangedEvent());
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
             await _genericDialogs.ShowError(e.Message);
         }
     }
+    #endregion
 
-    // MARK: Library Public VM
-    public LibraryViewModel(MainWindowViewModel mainWindowViewModel) : this(new IGenericDialogs(), EventAggregator.Instance, new BlitzAppData(), mainWindowViewModel)
+    #region Helper Methods
+    /// <summary>
+    /// Recursively counts the number of items, including all descendants, for a given item.
+    /// </summary>
+    int CountItems(CsXFL.Item item)
     {
-        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
-        _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
-
-        try
+        if (item.ItemType != "folder")
         {
-            _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
-        }
-        catch
-        {
-            _workingCsXFLDoc = null;
+            return 1; // Single item
         }
 
-        UpdateFlatSource();
-        FlatItems.CollectionChanged += (sender, e) => UpdateFlatSource();
-
-        // Build HierarchicalTreeDataGridSource, which is the default
-        HierarchicalSource = new HierarchicalTreeDataGridSource<LibraryItem>(HierarchicalItems)
+        // If it's a folder, count all its descendants recursively
+        var folder = HierarchicalItems.FirstOrDefault(i => i.Name == item.Name);
+        if (folder?.Children == null || !folder.Children.Any())
         {
-            Columns =
-            {
-                new HierarchicalExpanderColumn<LibraryItem>(
-                    new TemplateColumn<LibraryItem>("Name", "NameColumn"),
-                    x => x.Children),
-                new TextColumn<LibraryItem, string>("Type", x => x.Type),
-                new TextColumn<LibraryItem, string>("Use Count", x => x.UseCount),
-            },
-        };
-        HierarchicalSource.Columns.SetColumnWidth(0, new GridLength(250));
-        HierarchicalSource.RowSelection!.SingleSelect = false;
-        
-        HierarchicalSource.RowSelection.SelectionChanged += (sender, e) =>
-        {
-            var selectedItems = HierarchicalSource.RowSelection.SelectedItems.OfType<LibraryItem>();
-            UserLibrarySelection = selectedItems.Select(item => item.CsXFLItem!).ToArray();
-        };
+            return 1; // Empty folder
+        }
 
+        return 1 + folder.Children.Sum(child => CountItemsRecursive(child));
     }
+
+    /// <summary>
+    /// Helper method to recursively count all descendants of a LibraryItem.
+    /// </summary>
+    int CountItemsRecursive(LibraryItem libraryItem)
+    {
+        if (libraryItem.Children == null || !libraryItem.Children.Any())
+        {
+            return 1; // No children
+        }
+
+        return 1 + libraryItem.Children.Sum(child => CountItemsRecursive(child));
+    }
+    #endregion
 }

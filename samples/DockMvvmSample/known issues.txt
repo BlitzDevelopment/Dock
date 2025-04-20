@@ -4,9 +4,7 @@ Do this stuff after everything is fixed:
 	USER FEEDBACK
 
 General Issues:
-	[HIGH] library invalidation lag
 	[MED] Alt code handling
-
 	[MEH] Preferences
 
 	[MEH] Hotkeys & storage & defaults
