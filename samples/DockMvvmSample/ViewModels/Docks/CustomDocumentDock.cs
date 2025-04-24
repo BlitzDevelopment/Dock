@@ -28,6 +28,7 @@ public class CustomDocumentDock : DocumentDock
 
         var index = VisibleDockables?.Count + 1;
         var document = new DocumentViewModel(false, "Untitled Document") { Id = $"Document{index}", Title = $"Document{index}"};
+        ViewModelRegistry.Instance.RegisterViewModel(nameof(DocumentViewModel), document);
 
         Factory?.AddDockable(this, document);
         Factory?.SetActiveDockable(document);

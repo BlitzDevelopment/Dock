@@ -1,0 +1,66 @@
+<Window x:Class="Blitz.Views.MainPreferences"
+        xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Width="626"
+        Height="500">
+  <Grid Margin="0">
+    <Border Height="3" Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
+    <Grid Margin="6">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Margin="8 5" FontSize="12" FontWeight="Bold">Preferences</TextBlock>
+
+      <!-- Left ScrollViewer with large tab-like buttons -->
+      <Border Grid.Row="1" Grid.Column="0" BorderBrush="Gray" BorderThickness="1">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Visible" Width="100">
+          <StackPanel x:Name="PreferencesTabs">
+            <!-- Dynamically add preference tabs -->
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Right content area -->
+      <Border Grid.Row="1" Grid.Column="1" BorderBrush="Gray" BorderThickness="1">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Top portion with TextBox and CheckBox -->
+          <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1">
+            <StackPanel Orientation="Horizontal">
+              <TextBox x:Name="Search" Text="" Margin="5" Width="200">
+                <TextBox.InnerLeftContent>
+                  <PathIcon Data="{StaticResource ico_search}" Width="16" Height="16" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="6,0,0,0"/>
+                </TextBox.InnerLeftContent>
+              </TextBox>
+              <CheckBox x:Name="DevOps" Content="Developer Options" Margin="5"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Bottom ScrollViewer -->
+          <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Visible">
+            <StackPanel x:Name="PreferencesContent">
+              <!-- Dynamically add content -->
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <!-- OK Button -->
+      <Button Grid.Row="2" Grid.Column="1" HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click" IsDefault="True">
+        <TextBlock HorizontalAlignment="Center" FontWeight="Bold" Text="OK"/>
+      </Button>
+    </Grid>
+  </Grid>
+</Window>

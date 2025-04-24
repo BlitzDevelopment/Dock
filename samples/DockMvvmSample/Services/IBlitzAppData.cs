@@ -68,13 +68,6 @@ public class BlitzAppData : IBlitzAppData
             Directory.CreateDirectory(directoryPath);
         }
 
-        // Ensure the file exists
-        if (!File.Exists(preferencesFilePath))
-        {
-            // Create an empty JSON file
-            File.WriteAllText(preferencesFilePath, "{}");
-        }
-
         return preferencesFilePath;
     }
 }

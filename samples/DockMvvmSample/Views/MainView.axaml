@@ -64,7 +64,7 @@
         <Separator/>
         <MenuItem Header="Timeline" />
         <Separator/>
-        <MenuItem Header="Preferences" />
+        <MenuItem Header="Preferences" Command="{Binding PreferencesCommand}"/>
         <MenuItem Header="Keyboard Mapping" />
         <MenuItem Header="_Show Windows" />
       </MenuItem>

@@ -37,7 +37,15 @@ namespace Blitz.Views
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             _audioData = audioData;
             _soundItem = item as CsXFL.SoundItem;
-            SoundInfoDisplay.Text = _soundItem.Format + " " + Math.Round(_soundItem.Duration, 2) + "s ";
+
+            var size = audioData.Length >= 1024 * 1024
+                ? $"{audioData.Length / (1024.0 * 1024.0):F2} MB"
+                : audioData.Length >= 1024
+                    ? $"{audioData.Length / 1024.0:F2} KB"
+                    : $"{audioData.Length} bytes";
+
+            SoundInfoDisplay.Text = _soundItem.Format + " " + Math.Round(_soundItem.Duration, 2) + "s " + size;
+            SetTextBoxText();
         }
 
         private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
@@ -85,9 +93,21 @@ namespace Blitz.Views
             }
         }
 
+        private void SetTextBoxText()
+        {
+            string path = _libraryViewModel.UserLibrarySelection!.FirstOrDefault()?.Name!;
+            int lastIndex = path.LastIndexOf('/');
+            string fileName = lastIndex != -1 ? path.Substring(lastIndex + 1) : path;
+            InputRename.Text = fileName;
+        }
+
         private void OkayButton_Click(object sender, RoutedEventArgs e)
         {
-            DialogHost.Close(DialogIdentifier);
+            var result = new
+            {
+                Name = InputRename.Text
+            };
+            DialogHost.Close(DialogIdentifier, result);
         }
     }
 }

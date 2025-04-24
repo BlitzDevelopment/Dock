@@ -8,60 +8,64 @@
     <Border Height="3" Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
     <StackPanel Margin="6">
         <TextBlock Margin="8 5" FontSize="12" FontWeight="Bold">Sound Properties</TextBlock>
-          <Border Padding="12">
-              <Grid>
-                  <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="100"/> <!-- Adjusted width for the canvas -->
-                      <ColumnDefinition Width="*"/>   <!-- Remaining space for the StackPanel -->
-                  </Grid.ColumnDefinitions>
-
-                  <!-- SKXamlCanvas overlaid on a white rectangle -->
-                  <Grid Grid.Column="0" Width="100" Height="100">
-                      <!-- White Rectangle -->
-                      <Rectangle Fill="White" />
-                      
-                      <!-- SKXamlCanvas -->
-                      <skia:SKXamlCanvas x:Name="SymbolPreview" 
-                                          PaintSurface="OnCanvasPaint" />
-                  </Grid>
-
-                <Grid Grid.Column="1" Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Name Row -->
-                    <TextBlock Grid.Row="0" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Name:" />
-                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="Name" Margin="5" VerticalAlignment="Center" />
-
-                    <!-- Compression Row -->
-                    <TextBlock Grid.Row="1" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Compression:" />
-                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="Compression" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
-                        <ComboBoxItem Content="Default" />
-                        <ComboBoxItem Content="ADPCM" />
-                        <ComboBoxItem Content="MP3" />
-                        <ComboBoxItem Content="Raw" />
-                        <ComboBoxItem Content="Speech" />
-                    </ComboBox>
-
-                    <!-- Sample Rate Row -->
-                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Sample Rate:" />
-                    <ComboBox Grid.Row="2" Grid.Column="1" x:Name="SampleRate" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
-                        <ComboBoxItem Content="5 kHz" />
-                        <ComboBoxItem Content="11 kHz" />
-                        <ComboBoxItem Content="22 kHz" />
-                        <ComboBoxItem Content="44 kHz" />
-                    </ComboBox>
+        <Border Padding="12">
+            <StackPanel>
+                <!-- Top Section: SKXamlCanvas -->
+                <Grid Width="600" Height="100" Margin="0 0 0 10">
+                    <!-- White Rectangle -->
+                    <Rectangle Fill="White" />
+                    
+                    <!-- SKXamlCanvas -->
+                    <skia:SKXamlCanvas x:Name="SymbolPreview" PaintSurface="OnCanvasPaint" />
                 </Grid>
-              </Grid>
-          </Border>
-        <TextBlock x:Name="SoundInfoDisplay" Text="UnsetText" />
+
+                <!-- Bottom Section: Horizontal StackPanel -->
+                <StackPanel Orientation="Horizontal" Margin="0">
+                    <!-- Left Side -->
+                    <StackPanel Margin="10" Width="180">
+                        <TextBlock x:Name="SoundInfoDisplay" Text="UnsetText" Margin="5" />
+                        <Button Content="Play" Margin="5" Width="100" CornerRadius="20" />
+                        <Button Content="Update" Margin="5" Width="100" CornerRadius="20" />
+                    </StackPanel>
+
+                    <!-- Right Side -->
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                      <!-- Name Row -->
+                      <TextBlock Grid.Row="0" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Name:" />
+                      <TextBox Grid.Row="0" Grid.Column="1" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Stretch" x:Name="InputRename"/>
+
+                      <!-- Compression Row -->
+                      <TextBlock Grid.Row="1" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Compression:" />
+                      <ComboBox Grid.Row="1" Grid.Column="1" x:Name="Compression" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Left" Width="150" SelectedIndex="0">
+                          <ComboBoxItem Content="Default" />
+                          <ComboBoxItem Content="ADPCM" />
+                          <ComboBoxItem Content="MP3" />
+                          <ComboBoxItem Content="Raw" />
+                          <ComboBoxItem Content="Speech" />
+                      </ComboBox>
+
+                      <!-- Sample Rate Row -->
+                      <TextBlock Grid.Row="2" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Sample Rate:" />
+                      <ComboBox Grid.Row="2" Grid.Column="1" x:Name="SampleRate" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Left" Width="150" SelectedIndex="0">
+                          <ComboBoxItem Content="5 kHz" />
+                          <ComboBoxItem Content="11 kHz" />
+                          <ComboBoxItem Content="22 kHz" />
+                          <ComboBoxItem Content="44 kHz" />
+                      </ComboBox>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Border>
       <Button HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click" IsDefault="True">
         <TextBlock HorizontalAlignment="Center" FontWeight="Bold" Text="OK"/>
       </Button>

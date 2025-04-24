@@ -72,6 +72,39 @@ public class ItemTypeToIconConverter : IValueConverter
     }
 }
 
+public class MultiTypeToHitTestConverter : IValueConverter
+{
+    private static readonly HashSet<string> NonHitTestableTypes = new()
+    {
+        "Undefined",
+        "Component",
+        "Puppet",
+        "Puppetbase",
+        "IK Container",
+        "Folder",
+        "Font",
+        "Compiled Clip",
+        "Screen",
+        "Video"
+    };
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        // Example logic: Disable hit testing for folders and specific types
+        if (value is string type)
+        {
+            return !NonHitTestableTypes.Contains(type);
+        }
+
+        return true; // Default to hit testable
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
 /// <summary>
 /// Converts a boolean to a border brush used for highlighting a row in the Library TreeDataGrid.
 /// </summary>

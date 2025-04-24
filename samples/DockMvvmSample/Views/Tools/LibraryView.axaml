@@ -74,13 +74,13 @@
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
             <vm:BooleanToBorderBrushConverter x:Key="BooleanToBorderBrushConverter"/>
             <vm:BooleanToBackgroundConverter x:Key="BooleanToBackgroundConverter"/>
-            <vm:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+            <vm:MultiTypeToHitTestConverter x:Key="MultiTypeToHitTestConverter"/>
             <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
                 <Border BorderThickness="2" CornerRadius="4" 
                         BorderBrush="{Binding IsDragOver, Converter={StaticResource BooleanToBorderBrushConverter}}" 
                         Background="{Binding IsDragOver, Converter={StaticResource BooleanToBackgroundConverter}}">
                     <StackPanel Orientation="Horizontal">
-                          <Button IsHitTestVisible="{Binding IsFolder, Converter={StaticResource InverseBooleanConverter}}" 
+                          <Button IsHitTestVisible="{Binding Type, Converter={StaticResource MultiTypeToHitTestConverter}}"
                                   Background="Transparent" 
                                   Foreground="Transparent">
                               <PathIcon Data="{Binding Type, Converter={StaticResource ItemTypeToIconConverter}}"/>
@@ -108,8 +108,6 @@
         <TreeDataGrid.Resources>
             <vm:ItemTypeToContextMenuConverter x:Key="ItemTypeToContextMenuConverter"/>
             <vm:ItemTypeToIconConverter x:Key="ItemTypeToIconConverter"/>
-            <vm:BooleanToBorderBrushConverter x:Key="BooleanToBorderBrushConverter"/>
-            <vm:BooleanToBackgroundConverter x:Key="BooleanToBackgroundConverter"/>
             <vm:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
               <DataTemplate x:Key="NameColumn" DataType="m:Library+LibraryItem">
                 <StackPanel Orientation="Horizontal">

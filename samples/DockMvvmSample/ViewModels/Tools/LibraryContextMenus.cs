@@ -396,7 +396,7 @@ namespace Blitz.ViewModels.Tools
                         _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
                     };
 
-                    _audioService.Play(data, newFormat, newSampleRate);
+                    _audioService.Play(_audioService.StripWavHeader(data), newFormat, newSampleRate);
                 }
             }
             else
@@ -430,11 +430,23 @@ namespace Blitz.ViewModels.Tools
 
                 var resultObject = result as dynamic;
                 if (resultObject == null) { return; } // User cancelled
+                if (resultObject.Name is not string Name)
+                {
+                    throw new Exception("LibrarySymbolProperties dialog error, returned object is missing properties.");
+                }
 
-                // Do stuff lol
+                // TODO: Fix, causes crash
+                var processingSymbol = _userLibrarySelection[0] as CsXFL.SoundItem;
+                string currentPath = processingSymbol!.Name;
 
+                string originalPath = processingSymbol.Name.Contains("/") ? processingSymbol.Name.Substring(0, processingSymbol.Name.LastIndexOf('/') + 1) : "";
+                string newPath = originalPath + resultObject.Name;
+
+                _workingCsXFLDoc.Library.RenameItem(processingSymbol.Name, newPath);
+                _eventAggregator.Publish(new LibraryItemsChangedEvent());                
             } catch (Exception e) {
                 await _genericDialogs.ShowError(e.Message);
+                Log.Warning(e, $"[LibraryContextMenu] Error in SoundProperties: {e.Message}");
             }
         }
 
@@ -475,18 +487,14 @@ namespace Blitz.ViewModels.Tools
                 var _viewModelRegistry = ViewModelRegistry.Instance;
                 _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
 
-                var dialog = new LibraryBitmapProperties(_userLibrarySelection[0]);
+                var dialog = new LibraryBitmapProperties(_userLibrarySelection[0] as CsXFL.BitmapItem);
                 var result = await DialogHost.Show(dialog);
                 var dialogIdentifier = result as string;
                 dialog.DialogIdentifier = dialogIdentifier!;
 
-                var resultObject = result as dynamic;
-                if (resultObject == null) { return; } // User cancelled
-
-                // Do stuff lol
-
             } catch (Exception e) {
                 await _genericDialogs.ShowError(e.Message);
+                Log.Warning(e, $"[LibraryContextMenu] Error in BitmapProperties: {e.Message}");
             }
         }
 

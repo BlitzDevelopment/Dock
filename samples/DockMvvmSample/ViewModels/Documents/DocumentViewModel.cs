@@ -7,10 +7,10 @@ using Dock.Model.Mvvm.Controls;
 using CsXFL;
 using Serilog;
 using System.Drawing;
-
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
+using Blitz.Events;
 
 namespace Blitz.ViewModels.Documents;
 
@@ -19,6 +19,7 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
     public int? DocumentIndex { get; set; }
 
     private ZipArchive? _zipArchive;
+    private readonly EventAggregator _eventAggregator;
     private Dictionary<string, byte[]> _bitmapCache;
     private Dictionary<string, byte[]> _soundCache;
     private bool _isXFL;

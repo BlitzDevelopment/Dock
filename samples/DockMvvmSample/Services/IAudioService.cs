@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using SkiaSharp;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace Blitz;
 
@@ -174,6 +175,48 @@ public class AudioService
         return samples.ToArray();
     }
 
+    public byte[] StripWavHeader(byte[] wavData)
+    {
+        using (var stream = new MemoryStream(wavData))
+        using (var reader = new BinaryReader(stream))
+        {
+            // Read the RIFF header
+            string chunkId = new string(reader.ReadChars(4));
+            if (chunkId != "RIFF")
+            {
+                throw new ArgumentException("Invalid WAV file: Missing RIFF header.");
+            }
+
+            // Skip chunk size and WAVE identifier
+            reader.ReadInt32(); // Chunk size
+            string format = new string(reader.ReadChars(4));
+            if (format != "WAVE")
+            {
+                throw new ArgumentException("Invalid WAV file: Missing WAVE format.");
+            }
+
+            // Read chunks until we find the "data" chunk
+            while (reader.BaseStream.Position < reader.BaseStream.Length)
+            {
+                string subChunkId = new string(reader.ReadChars(4));
+                int subChunkSize = reader.ReadInt32();
+
+                if (subChunkId == "data")
+                {
+                    // Found the "data" chunk, return its contents
+                    return reader.ReadBytes(subChunkSize);
+                }
+                else
+                {
+                    // Skip this chunk
+                    reader.BaseStream.Seek(subChunkSize, SeekOrigin.Current);
+                }
+            }
+
+            throw new ArgumentException("Invalid WAV file: No 'data' chunk found.");
+        }
+    }
+
     public byte[] DecodeMp3ToWav(byte[] mp3Data)
     {
         // Locate ffmpeg executable
@@ -225,7 +268,8 @@ public class AudioService
         {
             // Clean up temporary files
             if (File.Exists(tempMp3Path)) File.Delete(tempMp3Path);
-            if (File.Exists(tempWavPath)) File.Delete(tempWavPath);
+            Console.WriteLine(tempWavPath);
+            //if (File.Exists(tempWavPath)) File.Delete(tempWavPath);
         }
     }
 

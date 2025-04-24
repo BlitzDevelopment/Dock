@@ -138,7 +138,7 @@ public class DockFactory : Factory
         var documentDock = new CustomDocumentDock(_mainWindowViewModel)
         {
             IsCollapsable = false,
-            CanCreateDocument = true
+            CanCreateDocument = false
         };
 
         var mainLayout = new ProportionalDock

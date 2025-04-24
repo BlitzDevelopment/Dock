@@ -41,12 +41,13 @@ public partial class MainWindowViewModel : ObservableObject
     public ICommand NewDocumentCommand => _newDocumentCommand;
     private ICommand _openDocumentCommand;
     public ICommand OpenDocumentCommand => _openDocumentCommand;
-
     private ICommand _saveDocumentCommand;
     public ICommand SaveDocumentCommand => _saveDocumentCommand;
 
     private ICommand _renderVideoDialogCommand;
     public ICommand RenderVideoDialogCommand => _renderVideoDialogCommand;
+    private ICommand _preferencesCommand;
+    public ICommand PreferencesCommand => _preferencesCommand;
 
     private ICommand _importToLibraryCommand;
     public ICommand ImportToLibraryCommand => _importToLibraryCommand;
@@ -185,6 +186,13 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     // MARK: Dialogs
+    public async void Preferences()
+    {
+        var dialog = new MainPreferences();
+        var dialogIdentifier = await DialogHost.Show(dialog) as string;
+        dialog.DialogIdentifier = dialogIdentifier!;
+    }
+
     public async void RenderVideoDialog()
     {
         var dialog = new MainVideoRender();
@@ -213,6 +221,7 @@ public partial class MainWindowViewModel : ObservableObject
         _saveDocumentCommand = new RelayCommand(SaveDocument);
         _renderVideoDialogCommand = new RelayCommand(RenderVideoDialog);
         _importToLibraryCommand = new RelayCommand(ImportToLibrary);
+        _preferencesCommand = new RelayCommand(Preferences);
 
         recentFilesPath = _blitzAppData.GetRecentFilesPath();
         OpenRecentCommand = new RelayCommand<string>(OpenRecent!);

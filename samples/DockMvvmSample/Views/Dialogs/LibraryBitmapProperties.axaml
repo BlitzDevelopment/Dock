@@ -7,61 +7,67 @@
   <Grid Margin="0">
     <Border Height="3" Background="{DynamicResource SystemAccentColor}" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
     <StackPanel Margin="6">
-        <TextBlock Margin="8 5" FontSize="12" FontWeight="Bold">Bitmap Properties</TextBlock>
-          <Border Padding="12">
-              <Grid>
-                  <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="100"/> <!-- Adjusted width for the canvas -->
-                      <ColumnDefinition Width="*"/>   <!-- Remaining space for the StackPanel -->
-                  </Grid.ColumnDefinitions>
+      <TextBlock Margin="8 5" FontSize="12" FontWeight="Bold">Bitmap Properties</TextBlock>
+        <Border Padding="12">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="323" /> <!-- Left panel width -->
+              <ColumnDefinition Width="10" />  <!-- Spacer -->
+              <ColumnDefinition Width="*" />   <!-- Right panel takes remaining space -->
+            </Grid.ColumnDefinitions>
 
-                  <!-- SKXamlCanvas overlaid on a white rectangle -->
-                  <Grid Grid.Column="0" Width="100" Height="100">
-                    <!-- White Rectangle -->
-                    <Rectangle Fill="White" />
-                      <!-- SKXamlCanvas -->
-                    <Image x:Name="LibraryBitmapPreview" 
-                        Source="{Binding BitmapImageSource}" 
-                        Stretch="Uniform"/>
-                  </Grid>
-
-                <Grid Grid.Column="1" Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Name Row -->
-                    <TextBlock Grid.Row="0" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Name:" />
-                    <TextBox Grid.Row="0" Grid.Column="1" x:Name="Name" Margin="5" VerticalAlignment="Center" />
-
-                    <!-- Compression Row -->
-                    <TextBlock Grid.Row="1" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Compression:" />
-                    <ComboBox Grid.Row="1" Grid.Column="1" x:Name="Compression" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
-                        <ComboBoxItem Content="Default" />
-                        <ComboBoxItem Content="ADPCM" />
-                        <ComboBoxItem Content="MP3" />
-                        <ComboBoxItem Content="Raw" />
-                        <ComboBoxItem Content="Speech" />
-                    </ComboBox>
-
-                    <!-- Sample Rate Row -->
-                    <TextBlock Grid.Row="2" Grid.Column="0" Margin="5" VerticalAlignment="Center" Text="Sample Rate:" />
-                    <ComboBox Grid.Row="2" Grid.Column="1" x:Name="SampleRate" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
-                        <ComboBoxItem Content="5 kHz" />
-                        <ComboBoxItem Content="11 kHz" />
-                        <ComboBoxItem Content="22 kHz" />
-                        <ComboBoxItem Content="44 kHz" />
-                    </ComboBox>
-                </Grid>
+            <!-- Left Panel -->
+            <StackPanel Orientation="Vertical" Margin="0,0,10,0" Grid.Column="0">
+              <!-- LibraryBitmapPreview -->
+              <Grid Width="323" Height="400">
+                  <Rectangle Fill="White" />
+                  <Canvas ClipToBounds="True">
+                      <Canvas.Clip>
+                          <RectangleGeometry Rect="0,0,323,400" />
+                      </Canvas.Clip>
+                      <Image x:Name="LibraryBitmapPreview" 
+                            Source="{Binding BitmapImageSource}" 
+                            Stretch="Uniform" 
+                            RenderTransformOrigin="0.5,0.5">
+                          <Image.RenderTransform>
+                              <TransformGroup>
+                                  <ScaleTransform />
+                                  <TranslateTransform />
+                              </TransformGroup>
+                          </Image.RenderTransform>
+                      </Image>
+                  </Canvas>
               </Grid>
-          </Border>
-        <TextBlock x:Name="SoundInfoDisplay" Text="UnsetText" />
+              <!-- SoundInfoDisplay and Import Button -->
+              <Grid HorizontalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="BitmapInfoDisplay" Text="UnsetText" VerticalAlignment="Center" Margin="0,0,10,0" Grid.Column="0"/>
+                <Button Width="100" CornerRadius="20" HorizontalAlignment="Right" Grid.Column="1" Margin="0,5,0,0">
+                  <TextBlock HorizontalAlignment="Center" Text="Replace"/>
+                </Button>
+              </Grid>
+            </StackPanel>
+
+            <!-- Right Panel -->
+            <StackPanel Orientation="Vertical" Margin="0" Grid.Column="2">
+              <!-- Name Row -->
+              <TextBox x:Name="InputRename" Margin="5" VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+
+              <!-- Compression Row -->
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Compression:" VerticalAlignment="Center" Margin="5"/>
+                <ComboBox x:Name="Compression" Margin="5" VerticalAlignment="Center" SelectedIndex="0">
+                  <ComboBoxItem Content="PNG" />
+                  <ComboBoxItem Content="JPG" />
+                </ComboBox>
+              </StackPanel>
+            </StackPanel>
+          </Grid>
+        </Border>
       <Button HorizontalAlignment="Right" Margin="5" Width="100" CornerRadius="20" Click="OkayButton_Click" IsDefault="True">
         <TextBlock HorizontalAlignment="Center" FontWeight="Bold" Text="OK"/>
       </Button>
