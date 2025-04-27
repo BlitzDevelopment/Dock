@@ -8,6 +8,7 @@ using System.Diagnostics;
 public interface IFileService
 {
     Task<string> OpenFileAsync(Window mainWindow, FilePickerFileType fileType, string title);
+    Task<string> ExportFileAsync(Window mainWindow, string defaultExt);
 }
 
 public class FileService : IFileService

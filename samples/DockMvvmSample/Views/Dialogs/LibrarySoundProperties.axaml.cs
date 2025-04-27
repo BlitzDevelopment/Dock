@@ -11,13 +11,12 @@ using CsXFL;
 using System;
 using SkiaSharp;
 using System.IO;
+using Serilog;
 
 namespace Blitz.Views
 {
     public partial class LibrarySoundProperties : UserControl
     {
-        private EventAggregator _eventAggregator;
-        private AudioService _audioService;
         private LibraryViewModel _libraryViewModel;
         private MainWindowViewModel _mainWindowViewModel;
         private CsXFL.Document _workingCsXFLDoc;
@@ -30,10 +29,9 @@ namespace Blitz.Views
             AvaloniaXamlLoader.Load(this);
             DataContext = this;
             var _libraryViewModelRegistry = ViewModelRegistry.Instance;
-            _audioService = AudioService.Instance;
+
             _libraryViewModel = (LibraryViewModel)_libraryViewModelRegistry.GetViewModel(nameof(LibraryViewModel));
             _mainWindowViewModel = (MainWindowViewModel)_libraryViewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
-            _eventAggregator = EventAggregator.Instance;
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             _audioData = audioData;
             _soundItem = item as CsXFL.SoundItem;
@@ -60,14 +58,14 @@ namespace Blitz.Views
 
                 if (fileExtension == "wav" || fileExtension == "flac")
                 {
-                    var amplitudes = _audioService.GetAudioAmplitudes(_audioData, 16, 1);
-                    (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
+                    var amplitudes = App.AudioService.GetAudioAmplitudes(_audioData, 16, 1);
+                    (_cachedWaveformPicture, _, _) = App.AudioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
                 }
                 else if (fileExtension == "mp3")
                 {
-                    var pcmData = _audioService.DecodeMp3ToWav(_audioData);
-                    var amplitudes = _audioService.GetAudioAmplitudes(pcmData, 16, 1);
-                    (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
+                    var pcmData = App.AudioService.DecodeMp3ToWav(_audioData);
+                    var amplitudes = App.AudioService.GetAudioAmplitudes(pcmData, 16, 1);
+                    (_cachedWaveformPicture, _, _) = App.AudioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
                 }
                 if (_cachedWaveformPicture != null) // Ensure the picture is not null
                 {
@@ -88,7 +86,7 @@ namespace Blitz.Views
                 }
                 else
                 {
-                    Console.WriteLine("Failed to generate waveform picture.");
+                    Log.Error("Failed to generate waveform picture.");
                 }
             }
         }

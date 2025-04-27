@@ -171,23 +171,15 @@ public class InverseBooleanConverter : IValueConverter
 /// </summary>
 public partial class LibraryViewModel : Tool
 {
-    private readonly IGenericDialogs _genericDialogs;
-    private readonly EventAggregator _eventAggregator;
-    private readonly BlitzAppData _blitzAppData;
     public DocumentViewModel DocumentViewModel;
 
     public LibraryViewModel()
     {
         Log.Information("[LibraryViewModel] Initializing...");
 
-        // Initialize dependencies
-        _genericDialogs = new IGenericDialogs();
-        _eventAggregator = EventAggregator.Instance;
-        _blitzAppData = new BlitzAppData();
-
         // Subscribe to events
-        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
-        _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
+        App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        App.EventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
         // Initialize the working document
         try
@@ -237,7 +229,7 @@ public partial class LibraryViewModel : Tool
             _userLibrarySelection = value;
             OnPropertyChanged(nameof(UserLibrarySelection));
             HandleUserLibrarySelectionChange();
-            _eventAggregator.Publish(new UserLibrarySelectionChangedEvent(_userLibrarySelection!));
+            App.EventAggregator.Publish(new UserLibrarySelectionChangedEvent(_userLibrarySelection!));
         }
     }
     #endregion
@@ -302,7 +294,7 @@ public partial class LibraryViewModel : Tool
         // Associated logic in LibraryView.axaml.cs for previewing datatypes
         if (UserLibrarySelection![0].ItemType == "movie clip" || UserLibrarySelection[0].ItemType == "graphic" || UserLibrarySelection[0].ItemType == "button")
         {
-            string appDataFolder = _blitzAppData.GetTmpFolder();
+            string appDataFolder = App.GenericDialogs.GetTmpFolder();
             SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
             try
@@ -625,12 +617,12 @@ public partial class LibraryViewModel : Tool
             Items.Add(newLibraryItem);
 
             // Notify other components
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
         }
         catch (Exception e)
         {
             Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
-            await _genericDialogs.ShowError(e.Message);
+            await App.GenericDialogs.ShowError(e.Message);
         }
     }
 
@@ -673,10 +665,10 @@ public partial class LibraryViewModel : Tool
             };
 
             Items.Add(newLibraryItem);
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
         } catch (Exception e) {
             Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
-            await _genericDialogs.ShowError(e.Message);
+            await App.GenericDialogs.ShowError(e.Message);
         }
     }
 
@@ -697,7 +689,7 @@ public partial class LibraryViewModel : Tool
 
             if (totalItemsToDelete >= 5) // Show warning if 5 or more items are selected
             {
-                bool userAccepted = await _genericDialogs.ShowWarning($"Are you sure you want to delete {totalItemsToDelete} items?");
+                bool userAccepted = await App.GenericDialogs.ShowWarning($"Are you sure you want to delete {totalItemsToDelete} items?");
                 if (!userAccepted) { return; } // User Cancelled
             }
 
@@ -709,12 +701,12 @@ public partial class LibraryViewModel : Tool
                 }
                 _workingCsXFLDoc.Library.RemoveItem(item.Name);
             }
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
         }
         catch (Exception e)
         {
             Log.Error(e, "An error occurred: {ErrorMessage}", e.Message);
-            await _genericDialogs.ShowError(e.Message);
+            await App.GenericDialogs.ShowError(e.Message);
         }
     }
     #endregion

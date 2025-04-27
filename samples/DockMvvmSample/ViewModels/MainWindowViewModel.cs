@@ -23,12 +23,6 @@ namespace Blitz.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
-    #region Dependencies
-    private readonly EventAggregator _eventAggregator;
-    private readonly BlitzAppData _blitzAppData = new();
-    private readonly IFileService _fileService;
-    #endregion
-
     #region Recent Files
     public MenuItem OpenRecentMenuItem { get; set; }
     private string recentFilesPath;
@@ -80,13 +74,13 @@ public partial class MainWindowViewModel : ObservableObject
     // MARK: Document Commands
     private void NewDocument()
     {
-        WorkingCsXFLDoc = An.CreateDocument(Path.Combine(_blitzAppData.GetTmpFolder(), "Untitled.xfl"));
+        WorkingCsXFLDoc = An.CreateDocument(Path.Combine(App.BlitzAppData.GetTmpFolder(), "Untitled.xfl"));
     }
 
     private async void OpenDocument()
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
-        var filePath = await _fileService.OpenFileAsync(mainWindow, FileService.BlitzCompatible, "Open Document");
+        var filePath = await App.FileService.OpenFileAsync(mainWindow, FileService.BlitzCompatible, "Open Document");
         OpenDocumentHelper(filePath);
     }
 
@@ -180,9 +174,9 @@ public partial class MainWindowViewModel : ObservableObject
     {
         if (WorkingCsXFLDoc is null) { return; }
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
-        var filePath = await _fileService.OpenFileAsync(mainWindow, FileService.BitmapCompatible, "Import to Library");
+        var filePath = await App.FileService.OpenFileAsync(mainWindow, FileService.BitmapCompatible, "Import to Library");
         WorkingCsXFLDoc.ImportFile(filePath);
-        _eventAggregator.Publish(new LibraryItemsChangedEvent());
+        App.EventAggregator.Publish(new LibraryItemsChangedEvent());
     }
 
     // MARK: Dialogs
@@ -210,11 +204,9 @@ public partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel()
     {
         OpenRecentMenuItem = new MenuItem();
-        _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
         _factory = new DockFactory(this, new DemoData());
-        _eventAggregator = EventAggregator.Instance;
 
-        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
         _newDocumentCommand = new RelayCommand(NewDocument);
         _openDocumentCommand = new RelayCommand(OpenDocument);
@@ -223,7 +215,7 @@ public partial class MainWindowViewModel : ObservableObject
         _importToLibraryCommand = new RelayCommand(ImportToLibrary);
         _preferencesCommand = new RelayCommand(Preferences);
 
-        recentFilesPath = _blitzAppData.GetRecentFilesPath();
+        recentFilesPath = App.BlitzAppData.GetRecentFilesPath();
         OpenRecentCommand = new RelayCommand<string>(OpenRecent!);
 
         DebugFactoryEvents(_factory);

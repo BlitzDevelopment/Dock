@@ -7,6 +7,7 @@ using Blitz.Events;
 using Blitz.ViewModels;
 using Blitz.ViewModels.Documents;
 using Blitz.ViewModels.Tools;
+using Serilog;
 using SixLabors.ImageSharp;
 using SkiaSharp;
 using Svg.Skia;
@@ -23,12 +24,6 @@ namespace Blitz.Views.Tools;
 
 public partial class LibraryView : UserControl
 {
-    #region Dependencies
-    private readonly AudioService _audioService;
-    private readonly EventAggregator _eventAggregator;
-    private readonly IGenericDialogs? _genericDialogs;
-    #endregion
-
     #region ViewModels
     private DocumentViewModel? _documentViewModel;
     private LibraryViewModel _libraryViewModel;
@@ -59,10 +54,8 @@ public partial class LibraryView : UserControl
         _libraryViewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
         _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
 
-        _audioService = AudioService.Instance;
-        _eventAggregator = EventAggregator.Instance;
-        _eventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
-        _eventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
+        App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+        App.EventAggregator.Subscribe<LibraryItemsChangedEvent>(OnLibraryItemsChanged);
 
         LibrarySearch.TextChanged += OnLibrary_SearchTextChanged!;
         _libraryViewModel.PropertyChanged += OnLibraryViewModelPropertyChanged;
@@ -207,15 +200,15 @@ public partial class LibraryView : UserControl
 
                 if (anyFailures)
                 {
-                    await _genericDialogs!.ShowWarning("One or more files could not be imported.");
+                    await App.GenericDialogs.ShowWarning("One or more files could not be imported.");
                 }
             }
             else
             {
-                await _genericDialogs!.ShowError("File not in valid format.");
+                await App.GenericDialogs.ShowError("File not in valid format.");
             }
 
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
         }
         else
         {
@@ -242,7 +235,7 @@ public partial class LibraryView : UserControl
                         }
 
                         ExpandFolderOnDrop(targetItem.CsXFLItem, _libraryViewModel.HierarchicalItems);
-                        _eventAggregator.Publish(new LibraryItemsChangedEvent());
+                        App.EventAggregator.Publish(new LibraryItemsChangedEvent());
                     }
                 }
             }
@@ -289,11 +282,11 @@ public partial class LibraryView : UserControl
                     if (!didWork) {anyFailures = true;} // Mark failure
                 }
 
-                if (anyFailures) { await _genericDialogs!.ShowWarning("One or more files could not be imported."); } // Show a warning if any file failed to import
+                if (anyFailures) { await App.GenericDialogs.ShowWarning("One or more files could not be imported."); } // Show a warning if any file failed to import
             }
-            else { await _genericDialogs!.ShowError("File not in valid format."); }
-        } else { await _genericDialogs!.ShowError("DragDrop data does not contain FileName or FileNameW"); }
-        _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            else { await App.GenericDialogs.ShowError("File not in valid format."); }
+        } else { await App.GenericDialogs.ShowError("DragDrop data does not contain FileName or FileNameW"); }
+        App.EventAggregator.Publish(new LibraryItemsChangedEvent());
      }
  
      void FlatDragLeave(object? sender, DragEventArgs e)
@@ -510,14 +503,14 @@ public partial class LibraryView : UserControl
 
                 if (fileExtension == "wav" || fileExtension == "flac")
                 {
-                    var amplitudes = _audioService.GetAudioAmplitudes(audioData, 16, 1);
-                    (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
+                    var amplitudes = App.AudioService.GetAudioAmplitudes(audioData, 16, 1);
+                    (_cachedWaveformPicture, _, _) = App.AudioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
                 }
                 else if (fileExtension == "mp3")
                 {
-                    var pcmData = _audioService.DecodeMp3ToWav(audioData);
-                    var amplitudes = _audioService.GetAudioAmplitudes(pcmData, 16, 1);
-                    (_cachedWaveformPicture, _, _) = _audioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
+                    var pcmData = App.AudioService.DecodeMp3ToWav(audioData);
+                    var amplitudes = App.AudioService.GetAudioAmplitudes(pcmData, 16, 1);
+                    (_cachedWaveformPicture, _, _) = App.AudioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
                 }
             }
 
@@ -540,7 +533,7 @@ public partial class LibraryView : UserControl
             }
             else
             {
-                Console.WriteLine("Failed to generate waveform picture.");
+                Log.Error("Failed to generate waveform picture.");
             }
         }
     }

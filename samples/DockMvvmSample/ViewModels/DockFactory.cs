@@ -22,7 +22,6 @@ public class DockFactory : Factory
 {
     private readonly object _context;
     private readonly List<DocumentViewModel> OpenDocuments = new();
-    private readonly EventAggregator _eventAggregator;
     private MainWindowViewModel _mainWindowViewModel;
     private IRootDock? _rootDock;
     private IDocumentDock? _documentDock;
@@ -34,7 +33,6 @@ public class DockFactory : Factory
         ViewModelRegistry.Instance.RegisterViewModel(nameof(MainWindowViewModel), _mainWindowViewModel);
         ActiveDockableChanged += OnActiveDockableChanged;
         DockableClosed += OnDockableClosed;
-        _eventAggregator = EventAggregator.Instance;
     }
 
     private void OnActiveDockableChanged(object? sender, ActiveDockableChangedEventArgs e)
@@ -50,7 +48,7 @@ public class DockFactory : Factory
             }
 
             CsXFL.An.SetActiveDocument(CsXFL.An.GetDocument(document.DocumentIndex!.Value));
-            _eventAggregator.Publish(new ActiveDocumentChangedEvent(document));
+            App.EventAggregator.Publish(new ActiveDocumentChangedEvent(document));
         }
     }
 

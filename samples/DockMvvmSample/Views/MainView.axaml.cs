@@ -42,16 +42,6 @@ public partial class MainView : UserControl
         var dark = false;
         dark = !dark;
         App.ThemeManager?.Switch(dark ? 1 : 0);
-
-        var theme = this.Find<Button>("ThemeButton");
-        if (theme is { })
-        {
-            theme.Click += (_, _) =>
-            {
-                dark = !dark;
-                App.ThemeManager?.Switch(dark ? 1 : 0);
-            };
-        }
     }
 
     public static MementoCaretaker MementoCaretaker => ApplicationServices.MementoCaretaker;

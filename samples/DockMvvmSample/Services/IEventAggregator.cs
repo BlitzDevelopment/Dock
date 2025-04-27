@@ -10,7 +10,7 @@ public class EventAggregator
     private readonly Dictionary<Type, List<Delegate>> _subscriptions = new();
 
     // Private constructor to prevent instantiation from outside
-    private EventAggregator() { }
+    public EventAggregator() { }
 
     public void Subscribe<TEvent>(Action<TEvent> action)
     {

@@ -11,7 +11,6 @@ namespace Blitz.Views
 {
     public partial class LibrarySingleRename : UserControl
     {
-        private EventAggregator _eventAggregator;
         private LibraryViewModel _viewModel;
         private MainWindowViewModel _mainWindowViewModel;
         private CsXFL.Document _workingCsXFLDoc;
@@ -23,7 +22,6 @@ namespace Blitz.Views
             var _viewModelRegistry = ViewModelRegistry.Instance;
             _viewModel = (LibraryViewModel)_viewModelRegistry.GetViewModel(nameof(LibraryViewModel));
             _mainWindowViewModel = (MainWindowViewModel)_viewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
-            _eventAggregator = EventAggregator.Instance;
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             SetTextBoxText();
         }
@@ -46,8 +44,7 @@ namespace Blitz.Views
             string newPath = originalPath + ReName;
 
             _workingCsXFLDoc.Library.RenameItem(ItemToRename.Name, newPath);
-            _eventAggregator = EventAggregator.Instance;
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
 
             DialogHost.Close(DialogIdentifier);
         }

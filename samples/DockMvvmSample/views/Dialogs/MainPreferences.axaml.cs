@@ -4,65 +4,40 @@ using DialogHostAvalonia;
 using Avalonia.Markup.Xaml;
 using Avalonia;
 using Avalonia.Layout;
-using System.IO;
 using System.Text.Json;
 using System;
 using System.Collections.Generic;
 using Serilog;
 using System.Linq;
-using Microsoft.Extensions.Options;
 using Blitz.Events;
 
 namespace Blitz.Views
 {
     public partial class MainPreferences : UserControl
     {
-        private readonly EventAggregator _eventAggregator;
-        private readonly BlitzAppData _blitzAppData = new();
-        private Dictionary<string, object> _preferences = new();
         private string _searchText = string.Empty;
         public string? DialogIdentifier { get; set; }
 
         public MainPreferences()
         {
             AvaloniaXamlLoader.Load(this);
-            _eventAggregator = EventAggregator.Instance;
-            
-            string prefPath = _blitzAppData.GetPreferencesPath();
 
-            if (File.Exists(prefPath))
-            {
-                try
-                {
-                    string jsonContent = File.ReadAllText(prefPath);
-
-                    if (string.IsNullOrWhiteSpace(jsonContent))
-                    {
-                        Log.Warning("Preferences file is empty. Restoring factory preferences.");
-                        RestoreFactoryPreferences(prefPath);
-                    }
-                    else
-                    {
-                        _preferences = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonContent);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Error loading preferences: {ex.Message}");
-                }
-            }
-            else
-            {
-                Log.Warning("Preferences file not found. Restoring factory preferences.");
-                RestoreFactoryPreferences(prefPath);
-            }
-
-            RestoreFactoryPreferences(prefPath);
+            App.BlitzAppData.LoadPreferences();
             BuildTabs();
             BuildContent();
 
             DevOps.PropertyChanged += DevOps_PropertyChanged;
             Search.PropertyChanged += Search_PropertyChanged;
+
+            App.EventAggregator.Subscribe<ApplicationPreferencesChangedEvent>(OnPreferencesChanged);
+        }
+
+        // Logic for changing the application theme based on user preferences
+        private void OnPreferencesChanged(ApplicationPreferencesChangedEvent obj)
+        {
+            App.BlitzAppData.TryGetNestedPreference<string>("General", "Theme", "Value", out var themeValue);
+            var isDarkTheme = themeValue?.Equals("Dark", StringComparison.OrdinalIgnoreCase) ?? false;
+            App.ThemeManager?.Switch(isDarkTheme ? 1 : 0);
         }
 
         private void DevOps_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -82,136 +57,9 @@ namespace Blitz.Views
             }
         }
 
-        private void PrintPreferences()
-        {
-            foreach (var panel in _preferences)
-            {
-                string panelName = panel.Key;
-                Console.WriteLine($"Panel: {panelName}");
-
-                if (panel.Value is JsonElement panelJsonElement && 
-                    panelJsonElement.ValueKind == JsonValueKind.Object)
-                {
-                    var panelPreferences = JsonSerializer.Deserialize<Dictionary<string, object>>(panelJsonElement.GetRawText());
-                    if (panelPreferences != null)
-                    {
-                        Log.Information($"PreferenceGroup: {panelName}");
-                        foreach (var kvp in panelPreferences)
-                        {
-                            string key = kvp.Key;
-                            var valueObject = kvp.Value;
-
-                            // Extract Value and Tags dynamically
-                            if (valueObject is JsonElement valueJsonElement && 
-                                valueJsonElement.ValueKind == JsonValueKind.Object)
-                            {
-                                var valueProperty = valueJsonElement.GetProperty("Value").ToString();
-                                var tagsProperty = valueJsonElement.TryGetProperty("Tags", out var tagsJsonElement) && 
-                                                tagsJsonElement.ValueKind == JsonValueKind.Array
-                                    ? JsonSerializer.Deserialize<string[]>(tagsJsonElement.GetRawText())
-                                    : Array.Empty<string>();
-
-                                Log.Information($"  Key: {key}");
-                                Log.Information($"    Value: {valueProperty}");
-                                Log.Information($"    Tags: {string.Join(", ", tagsProperty)}");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        private void RestoreFactoryPreferences(string prefPath)
-        {
-            try
-            {
-                // Factory preferences with hierarchical structure
-                var factoryPreferences = new Dictionary<string, object>
-                {
-                    { "General", new Dictionary<string, object>
-                        {
-                            {
-                                "Debug Overlays", new 
-                                {
-                                    Value = "None",
-                                    Tags = new[] { "developer", "debugging", "fps", "render" },
-                                    UIType = "ComboBox",
-                                    Options = new[] { "None", "Fps", "DirtyRects", "LayoutTimeGraph", "RenderTimeGraph" },
-                                    Tooltip = "Display various information about application render performance."
-                                }
-                            },
-                            {
-                                "Skia GPU Resource Bytes", new 
-                                {
-                                    Value = (256 * 1024 * 1024).ToString(),
-                                    Tags = new[] { "developer", "debugging" },
-                                    UIType = "TextBox",
-                                    Tooltip = "Requires application restart! How many bytes of GPU resources Skia should use. Default is 256MB."
-                                }
-                            },
-                            {
-                                "Notification Sounds", new 
-                                {
-                                    Value = true,
-                                    Tags = new[] { "sound" },
-                                    UIType = "CheckBox",
-                                    Tooltip = "Enable or disable system notification sounds when an error or information modal appears."
-                                }
-                            },
-                            {
-                                "Theme", new 
-                                {
-                                    Value = "Dark",
-                                    Tags = new[] { "appearance", "ui", "visual" },
-                                    UIType = "ComboBox",
-                                    Options = new[] { "Dark", "Light" },
-                                    Tooltip = "Choose the application theme."
-                                }
-                            },
-                        }
-                    },
-                    { "Library", new Dictionary<string, object>
-                        {
-                            {
-                                "exampleKey", new 
-                                {
-                                    Value = true,
-                                    Tags = new[] { "tag1", "tag2" },
-                                    UIType = "CheckBox"
-                                }
-                            },
-                        }
-                    },
-                    { "Document", new Dictionary<string, object>
-                        {
-                            {
-                                "Show Progress Ring", new 
-                                {
-                                    Value = true,
-                                    Tags = new[] { "appearance", "ui", "visual" },
-                                    UIType = "CheckBox",
-                                    Tooltip = "Show a progress ring during expensive operations."
-                                }
-                            },
-                        }
-                    }
-                };
-
-                string jsonContent = JsonSerializer.Serialize(factoryPreferences, new JsonSerializerOptions { WriteIndented = true });
-
-                File.WriteAllText(prefPath, jsonContent);
-
-                Log.Information("Factory preferences restored.");
-            }
-            catch (Exception ex)
-            {
-                Log.Information($"Error restoring factory preferences: {ex.Message} {ex.StackTrace}");
-            }
-        }
-
         private void BuildTabs()
         {
-            foreach (var panel in _preferences)
+            foreach (var panel in App.BlitzAppData.Preferences)
             {
                 var button = new Button
                 {
@@ -250,7 +98,7 @@ namespace Blitz.Views
             string lowerSearch = search.ToLower();
             bool isDevOpsChecked = DevOps.IsChecked == true;
 
-            foreach (var panel in _preferences)
+            foreach (var panel in App.BlitzAppData.Preferences)
             {
                 if (panel.Value is not JsonElement outerPanelJsonElement || outerPanelJsonElement.ValueKind != JsonValueKind.Object) continue;
 
@@ -278,8 +126,8 @@ namespace Blitz.Views
         private void BuildContentForPanel(string? panelKey)
         {
             // Use the first key in _preferences if no panelKey is provided
-            panelKey ??= _preferences.Keys.FirstOrDefault();
-            if (panelKey == null || !_preferences.TryGetValue(panelKey, out var panelValue)) return;
+            panelKey ??= App.BlitzAppData.Preferences.Keys.FirstOrDefault();
+            if (panelKey == null || App.BlitzAppData.Preferences.TryGetValue(panelKey, out var panelValue)) return;
 
             if (panelValue is not JsonElement outerPanelJsonElementForKey || outerPanelJsonElementForKey.ValueKind != JsonValueKind.Object) return;
 
@@ -407,7 +255,7 @@ namespace Blitz.Views
 
         private void UpdatePreference(string key, object value)
         {
-            foreach (var panel in _preferences)
+            foreach (var panel in App.BlitzAppData.Preferences)
             {
                 if (panel.Value is JsonElement panelJsonElement && panelJsonElement.ValueKind == JsonValueKind.Object)
                 {
@@ -423,11 +271,10 @@ namespace Blitz.Views
                                 panelPreferences[key] = JsonSerializer.SerializeToElement(updatedPreference);
 
                                 // Update the parent panel in _preferences
-                                _preferences[panel.Key] = JsonSerializer.SerializeToElement(panelPreferences);
+                                App.BlitzAppData.Preferences[panel.Key] = JsonSerializer.SerializeToElement(panelPreferences);
 
-                                Console.WriteLine($"Updated preference: {key} = {value}");
-                                _eventAggregator.Publish(new ApplicationPreferencesChangedEvent(_preferences));
-                                SavePreferencesToDisk();
+                                App.EventAggregator.Publish(new ApplicationPreferencesChangedEvent(App.BlitzAppData.Preferences));
+                                App.BlitzAppData.SavePreferencesToDisk();
                                 return;
                             }
                         }
@@ -440,21 +287,6 @@ namespace Blitz.Views
             }
 
             Log.Error($"Preference '{key}' not found in any panel.");
-        }
-
-        private void SavePreferencesToDisk()
-        {
-            try
-            {
-                string prefPath = _blitzAppData.GetPreferencesPath();
-                string jsonContent = JsonSerializer.Serialize(_preferences, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(prefPath, jsonContent);
-                Log.Information("Preferences saved to disk.");
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Error saving preferences to disk: {ex.Message}");
-            }
         }
 
         private void OkayButton_Click(object sender, RoutedEventArgs e)

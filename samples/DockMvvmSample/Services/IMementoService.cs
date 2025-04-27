@@ -40,7 +40,6 @@ public class MementoCaretaker : IMementoCaretaker
             }
             Console.WriteLine($"Undo stack size: {totalSize} bytes");
 
-
             return previousMementoItem.Memento;
         }
         else

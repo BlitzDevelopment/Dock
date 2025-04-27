@@ -4,18 +4,23 @@ Do this stuff after everything is fixed:
 	USER FEEDBACK
 
 General Issues:
-	[MED] Cross platform alt code handling
-	[MEH] User preferences
 	[MEH] Hotkeys storage & defaults
 	[SUPREMELY BAD] No dispatcher/marshal distinction, everything is running on UI thread
-	**[HIGH] Lots of service singleton initialization in Library/LibraryView/LibraryContextMenus Can we avoid this? It adds a lot of boilerplate
-	[HIGH] General variable sloppiness. Variables prefixed with underscores should be private
+
+	** [HIGH] General variable sloppiness. Variables prefixed with underscores should be private
     [HIGH] Document/Canvas tabs should be unique and separated from all other tabs. Right now this causes a crash when user tries to drag a panel into the document tab
 
+	Store a workspace .xml to save & restore workspaces
+
+	Want my TL BR rounded rect for modals -- DialogOverlayPopupHost >> Border PART_ContentBackground
+	Pointer position zoom in Bitmap Preferences is funky
+	<Button Content="Dashboard" Command="{Binding Navigate}" CommandParameter="Dashboard" Grid.Column="2" />
+
 Taskbar:
-	--//[LOW] No New Document command//--
-	[LOW] Import to Library command only contains bitmap files-- What are all of our importable files?
+	[LOW] No New Document command
 	[LOW] No revert functionality
+
+	[LOW] Import to Library command only contains bitmap files-- What are all of our importable files?
 	[MED] Export Image no functionality
 	[MED] Export Video specified frame range should enable new controls for specifying a frame range to render
 
@@ -23,26 +28,16 @@ Library Panel:
 	Need Connor Help:
 
 	Render Canvas Background does nothing, current renderer doesn't add the canvas BG
+
+	Me problems:
+
 	Export Video In-Mem rendering locks up on my system
-	No way to duplicate items in the library
 	Bitmap .dat decoding crashes the program
-	Renaming bitmaps causes a crash
-	Renaming sound causes a crash
-		Renaming 1511891__safe_screencap_twilight+sparkle_alicorn_pony_fame+and+misfortune_g4_my+little+pony-colon-+friendship+is+magic_angry_discovery+fami.png to oloooo
-			Unhandled exception. System.Reflection.TargetInvocationException: Exception has been thrown by the target of an invocation.
-			---> System.Reflection.TargetInvocationException: Exception has been thrown by the target of an invocation.
-			---> System.ArgumentOutOfRangeException: length ('-1') must be a non-negative value. (Parameter 'length')
-			Actual value was -1.
-			at System.ArgumentOutOfRangeException.ThrowNegative[T](T value, String paramName)
-			at System.ArgumentOutOfRangeException.ThrowIfNegative[T](T value, String paramName)
-			at System.String.ThrowSubstringArgumentOutOfRange(Int32 startIndex, Int32 length)
-			at System.String.Substring(Int32 startIndex, Int32 length)
-			at CsXFL.Library.RenameItem(String oldName, String newName)
 
 	Do this yourself:
 
-	Hierchical Source & Flat Source PER DocumentViewModel
-	Items delete warning only works in root, name getPath issue
+	** Hierchical Source & Flat Source PER DocumentViewModel
+	** Items delete warning only works in root, name getPath issue
 
 	** Play should turn into Stop while sound is playing
 	first click drag fails-- not part of userlibraryselection
@@ -52,8 +47,14 @@ Library Panel:
 
 	[HIGH] No clipboard service
 	[HIGH] No memento service
-	[HIGH] LibraryViewModel loads _workingCsXFLDoc between 2 and 4 times. Inconsistency from the docking system's onActiveDockableCha
 
-	** !! Make Bitmap/Sound/Symbol properties look nice & add functionality !!
-
+	[LOW] Make Bitmap/Sound/Symbol properties look nice & add functionality
 	[LOW] Name/Type/UseCount spacing should be synchronized between both TreeViews and name length shouldn't update the spacing
+	
+
+	// // //
+	Theme doesn't initialize
+	RenderDebugOverlay doesn't initialize
+	Pig Latin resx
+	Click drag window panning
+	Blitz icon on Window top left

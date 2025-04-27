@@ -18,7 +18,6 @@ namespace Blitz.Views
 {
     public partial class LibrarySymbolProperties : UserControl
     {
-        private readonly BlitzAppData _blitzAppData;
         private LibraryViewModel _libraryViewModel;
         private MainWindowViewModel _mainWindowViewModel;
         public string? DialogIdentifier { get; set; }
@@ -29,7 +28,6 @@ namespace Blitz.Views
         public LibrarySymbolProperties(CsXFL.Item item)
         {
             AvaloniaXamlLoader.Load(this);
-            _blitzAppData = new BlitzAppData();
             TypeComboBox = this.FindControl<ComboBox>("Type");
             var _libraryViewModelRegistry = ViewModelRegistry.Instance;
             _libraryViewModel = (LibraryViewModel)_libraryViewModelRegistry.GetViewModel(nameof(LibraryViewModel));
@@ -66,7 +64,7 @@ namespace Blitz.Views
 
         private void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e)
         {
-            string appDataFolder = _blitzAppData.GetTmpFolder();
+            string appDataFolder = App.BlitzAppData.GetTmpFolder();
             SVGRenderer renderer = new SVGRenderer(An.GetActiveDocument(), appDataFolder, true);
             var canvas = e.Surface.Canvas;
 

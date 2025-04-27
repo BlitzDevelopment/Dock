@@ -23,8 +23,6 @@ namespace Blitz.Views
         #endregion
 
         #region Dependencies
-        private FileService _fileService;
-        private BlitzAppData _blitzAppData;
         private MainWindowViewModel _mainWindowViewModel;
         #endregion
 
@@ -51,9 +49,6 @@ namespace Blitz.Views
 
         public MainVideoRender()
         {
-            _blitzAppData = new BlitzAppData();
-            _fileService = new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
-
             AvaloniaXamlLoader.Load(this);
             FormatCombobox.ItemsSource = formats;
             FormatCombobox.SelectedIndex = 0;
@@ -165,7 +160,7 @@ namespace Blitz.Views
         private async void OpenSavePicker_Click(object sender, RoutedEventArgs e)
         {
             var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
-            var filePath = await _fileService.ExportFileAsync(mainWindow, SelectedFormat!);
+            var filePath = await App.FileService.ExportFileAsync(mainWindow, SelectedFormat!);
             if (filePath == null) {return;}
             filePath = filePath.Replace("/", "\\");
             filePath = Regex.Replace(filePath, @"\.\w+$", $".{SelectedFormat}");
@@ -241,7 +236,7 @@ namespace Blitz.Views
             string ffmpegPath = Path.Combine(threeDirectoriesUp, "dlls", "ffmpeg.exe");
             string directoryPath = Path.GetDirectoryName(OutputPath.Text!)! + "\\";
             string fileName = Path.GetFileName(OutputPath.Text!)!;
-            string appDataFolder = _blitzAppData.GetTmpFolder();
+            string appDataFolder = App.BlitzAppData.GetTmpFolder();
 
             int totalFrames = 0;
             foreach (var timeline in _workingCsXFLDoc.Timelines) { totalFrames += timeline.GetFrameCount(); }

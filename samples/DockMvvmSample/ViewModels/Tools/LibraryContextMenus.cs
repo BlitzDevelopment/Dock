@@ -35,18 +35,13 @@ namespace Blitz.ViewModels.Tools
 
     public partial class ContextMenuFactory
     {
-        private readonly AudioService _audioService;
-        private readonly EventAggregator _eventAggregator;
-        private readonly IGenericDialogs _genericDialogs = new IGenericDialogs();
         private LibraryViewModel _libraryViewModel;
         private CsXFL.Item[]? _userLibrarySelection;
         private CsXFL.Document? _workingCsXFLDoc;
 
         public ContextMenuFactory()
         {
-            _audioService = AudioService.Instance;
-            _eventAggregator = EventAggregator.Instance;
-            _eventAggregator.Subscribe<UserLibrarySelectionChangedEvent>(OnUserLibrarySelectionChanged);
+            App.EventAggregator.Subscribe<UserLibrarySelectionChangedEvent>(OnUserLibrarySelectionChanged);
         }
 
         void OnUserLibrarySelectionChanged(UserLibrarySelectionChangedEvent e)
@@ -84,7 +79,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
+            contextMenu.Items.Add(new MenuItem { Header = "Duplicate", Command = DuplicateCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Properties", Command = SymbolPropertiesCommand});
@@ -128,9 +123,9 @@ namespace Blitz.ViewModels.Tools
                 _workingCsXFLDoc.Library.RenameItem(processingSymbol.Name, newPath);
 
                 processingSymbol.SymbolType = resultObject.Type.ToLower();
-                _eventAggregator.Publish(new LibraryItemsChangedEvent());
+                App.EventAggregator.Publish(new LibraryItemsChangedEvent());
             } catch (Exception e) {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
             }
         }
         #endregion
@@ -144,7 +139,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
+            contextMenu.Items.Add(new MenuItem { Header = "Duplicate", Command = DuplicateCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Expand Folder", Command = ExpandFolderCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Collapse Folder", Command = CollapseFolderCommand});
@@ -234,7 +229,7 @@ namespace Blitz.ViewModels.Tools
             }
             catch (Exception e)
             {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
             }
         }
 
@@ -257,7 +252,7 @@ namespace Blitz.ViewModels.Tools
             }
             catch (Exception e)
             {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
             }
         }
 
@@ -281,7 +276,7 @@ namespace Blitz.ViewModels.Tools
             }
             catch (Exception e)
             {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
             }
         }
 
@@ -305,7 +300,7 @@ namespace Blitz.ViewModels.Tools
             }
             catch (Exception e)
             {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
             }
         }
         #endregion
@@ -319,7 +314,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
+            contextMenu.Items.Add(new MenuItem { Header = "Duplicate", Command = DuplicateCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Play", Command = PlayCommand, CommandParameter = this});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
@@ -338,7 +333,7 @@ namespace Blitz.ViewModels.Tools
             if (_userLibrarySelection[0].ItemType != "sound") { return; }
 
             // Stop any currently playing sound
-            _audioService.Stop();
+            App.AudioService.Stop();
 
             var soundItem = _userLibrarySelection[0] as CsXFL.SoundItem;
             var _viewModelRegistry = ViewModelRegistry.Instance;
@@ -368,7 +363,7 @@ namespace Blitz.ViewModels.Tools
             {
                 using (MemoryStream memoryStream = new MemoryStream(audioData))
                 {
-                    var (newFormat, data, newSampleRate) = _audioService.LoadWave(memoryStream, numChannels, soundItem.SampleRate, bitDepth);
+                    var (newFormat, data, newSampleRate) = App.AudioService.LoadWave(memoryStream, numChannels, soundItem.SampleRate, bitDepth);
                     string audioFormat = parts[2];
 
                     OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
@@ -378,15 +373,15 @@ namespace Blitz.ViewModels.Tools
                         _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
                     };
 
-                    _audioService.Play(data, newFormat, newSampleRate);
+                    App.AudioService.Play(data, newFormat, newSampleRate);
                 }
             }
             else if (fileExtension == "mp3")
             {
-                byte[] pcmData = await Task.Run(() => _audioService.DecodeMp3ToWav(audioData));
+                byte[] pcmData = await Task.Run(() => App.AudioService.DecodeMp3ToWav(audioData));
                 using (MemoryStream memoryStream = new MemoryStream(pcmData))
                 {
-                    var (newFormat, data, newSampleRate) = _audioService.LoadWave(memoryStream, numChannels, soundItem.SampleRate, bitDepth);
+                    var (newFormat, data, newSampleRate) = App.AudioService.LoadWave(memoryStream, numChannels, soundItem.SampleRate, bitDepth);
                     string audioFormat = parts[2];
 
                     OpenTK.Audio.OpenAL.ALFormat alFormat = audioFormat switch
@@ -396,7 +391,7 @@ namespace Blitz.ViewModels.Tools
                         _ => throw new NotSupportedException($"Unsupported audio format: {audioFormat}")
                     };
 
-                    _audioService.Play(_audioService.StripWavHeader(data), newFormat, newSampleRate);
+                    App.AudioService.Play(App.AudioService.StripWavHeader(data), newFormat, newSampleRate);
                 }
             }
             else
@@ -443,9 +438,9 @@ namespace Blitz.ViewModels.Tools
                 string newPath = originalPath + resultObject.Name;
 
                 _workingCsXFLDoc.Library.RenameItem(processingSymbol.Name, newPath);
-                _eventAggregator.Publish(new LibraryItemsChangedEvent());                
+                App.EventAggregator.Publish(new LibraryItemsChangedEvent());                
             } catch (Exception e) {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
                 Log.Warning(e, $"[LibraryContextMenu] Error in SoundProperties: {e.Message}");
             }
         }
@@ -461,7 +456,7 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Paste", Command = PasteCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
-            contextMenu.Items.Add(new MenuItem { Header = "Duplicate"});
+            contextMenu.Items.Add(new MenuItem { Header = "Duplicate", Command = DuplicateCommand});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Edit"});
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
@@ -493,7 +488,7 @@ namespace Blitz.ViewModels.Tools
                 dialog.DialogIdentifier = dialogIdentifier!;
 
             } catch (Exception e) {
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
                 Log.Warning(e, $"[LibraryContextMenu] Error in BitmapProperties: {e.Message}");
             }
         }
@@ -512,7 +507,7 @@ namespace Blitz.ViewModels.Tools
                 var dialogIdentifier = await DialogHost.Show(dialog) as string;
                 dialog.DialogIdentifier = dialogIdentifier!;
             } catch (Exception e){
-                await _genericDialogs.ShowError(e.Message);
+                await App.GenericDialogs.ShowError(e.Message);
             }
         }
 
@@ -548,10 +543,17 @@ namespace Blitz.ViewModels.Tools
 
             foreach (var item in _userLibrarySelection)
             {
-
+                try
+                {
+                    _workingCsXFLDoc.Library.DuplicateItem(item.Name);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, $"Failed to duplicate item: {item.Name}");
+                }
             }
 
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
         }
         #endregion
     }

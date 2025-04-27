@@ -268,8 +268,7 @@ public class AudioService
         {
             // Clean up temporary files
             if (File.Exists(tempMp3Path)) File.Delete(tempMp3Path);
-            Console.WriteLine(tempWavPath);
-            //if (File.Exists(tempWavPath)) File.Delete(tempWavPath);
+            if (File.Exists(tempWavPath)) File.Delete(tempWavPath);
         }
     }
 

@@ -11,16 +11,29 @@ namespace Blitz;
 
 public class App : Application
 {
-    public static IThemeManager? ThemeManager;
-    public static AudioService? AudioService;
+    public static IThemeManager ThemeManager;
+
+    private static AudioService? _audioService;
+    public static AudioService AudioService => _audioService ??= new AudioService();
+
+    private static EventAggregator? _eventAggregator;
+    public static EventAggregator EventAggregator => _eventAggregator ??= new EventAggregator();
+
+    private static IFileService? _fileService;
+    public static IFileService FileService => _fileService ??= new FileService(((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!);
+
+    private static IGenericDialogs? _genericDialogs;
+    public static IGenericDialogs GenericDialogs => _genericDialogs ??= new IGenericDialogs();
+
+    private static IBlitzAppData? _blitzAppData;
+    public static IBlitzAppData BlitzAppData => _blitzAppData ??= new BlitzAppData();
+
     public static MainWindowViewModel MainWindowViewModelInstance { get; } = new MainWindowViewModel();
 
     public override void Initialize()
     {
         ThemeManager = new FluentThemeManager();
         ThemeManager.Initialize(this);
-
-        AudioService = new AudioService();
         AudioService.InitializeOpenAL();
 
         AvaloniaXamlLoader.Load(this);

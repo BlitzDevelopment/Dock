@@ -36,26 +36,22 @@
   </Design.DataContext>
   <Panel>
     <ExperimentalAcrylicBorder IsHitTestVisible="False" Material="{StaticResource AcrylicMaterial}" />
-    <Panel Margin="{Binding #MainWindowView.OffScreenMargin}">
-      <Panel Margin="{Binding #MainWindowView.WindowDecorationMargin}">
-        <dialogHostAvalonia:DialogHost x:Name="DialogHost" CloseOnClickAway="True" DisableOpeningAnimation="True" BlurBackground="False" BlurBackgroundRadius="5" DialogMargin="0" CornerRadius="0 20 0 20">
-        <views:MainView>
-          <views:MainView.Styles>
-            <Style Selector="GridSplitter">
-              <Setter Property="Template">
-                <Setter.Value>
-                  <ControlTemplate>
-                    <Border Background="Transparent">
-                      <ExperimentalAcrylicBorder Material="{StaticResource AcrylicMaterial}" />
-                    </Border>
-                  </ControlTemplate>
-                </Setter.Value>
-              </Setter>
-            </Style>
-          </views:MainView.Styles>
-        </views:MainView>
-        </dialogHostAvalonia:DialogHost>
-      </Panel>
-    </Panel>
+    <dialogHostAvalonia:DialogHost x:Name="DialogHost" CloseOnClickAway="True" DisableOpeningAnimation="True" BlurBackground="False" BlurBackgroundRadius="5" DialogMargin="0" CornerRadius="0 20 0 20">
+    <views:MainView>
+      <views:MainView.Styles>
+        <Style Selector="GridSplitter">
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate>
+                <Border Background="Transparent">
+                  <ExperimentalAcrylicBorder Material="{StaticResource AcrylicMaterial}" />
+                </Border>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </views:MainView.Styles>
+    </views:MainView>
+    </dialogHostAvalonia:DialogHost>
   </Panel>
 </Window>

@@ -36,8 +36,10 @@ internal class Program
         {
             File.Delete(file);
         }
-
+        
         Log.Information("Starting Blitz...");
+        appData.LoadPreferences();
+        Log.Information("Preferences loaded.");
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         Log.Information("Application lifetime ended.");
     }

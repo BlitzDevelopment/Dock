@@ -9,12 +9,12 @@ using Blitz.ViewModels;
 using System.IO;
 using CsXFL;
 using Blitz.Events;
+using System;
 
 namespace Blitz.Views
 {
     public partial class LibraryBitmapProperties : UserControl
     {
-        private EventAggregator _eventAggregator;
         private LibraryViewModel _libraryViewModel;
         private MainWindowViewModel _mainWindowViewModel;
         private CsXFL.Document _workingCsXFLDoc;
@@ -23,6 +23,10 @@ namespace Blitz.Views
         private ScaleTransform _scaleTransform;
         private TranslateTransform _translateTransform;
         private bool _isPanning;
+        private const double MinZoom = 0.5;
+        private const double MaxZoom = 4.0;
+        private const double ZoomInFactor = 1.1;
+        private const double ZoomOutFactor = 0.9;
 
         public LibraryBitmapProperties(CsXFL.BitmapItem item)
         {
@@ -31,7 +35,6 @@ namespace Blitz.Views
             var _libraryViewModelRegistry = ViewModelRegistry.Instance;
             _libraryViewModel = (LibraryViewModel)_libraryViewModelRegistry.GetViewModel(nameof(LibraryViewModel));
             _mainWindowViewModel = (MainWindowViewModel)_libraryViewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
-            _eventAggregator = EventAggregator.Instance;
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
 
             // Todo-- bitdepth?
@@ -67,28 +70,37 @@ namespace Blitz.Views
         private void OnMouseWheelZoom(object? sender, PointerWheelEventArgs e)
         {
             var pointerPosition = e.GetPosition(LibraryBitmapPreview);
+            double zoomFactor = e.Delta.Y > 0 ? ZoomInFactor : ZoomOutFactor;
 
-            var delta = e.Delta.Y > 0 ? 1.1 : 0.9; // Smaller zoom increments for smoother zoom
-            var newScaleX = _scaleTransform.ScaleX * delta;
-            var newScaleY = _scaleTransform.ScaleY * delta;
-
-            // Limit zoom to 4x zoom in and 0.5x zoom out
-            if (newScaleX >= 0.5 && newScaleX <= 4.0 && newScaleY >= 0.5 && newScaleY <= 4.0)
-            {
-                // Calculate the offset of the pointer position relative to the image
-                var relativeX = (pointerPosition.X - _translateTransform.X) / _scaleTransform.ScaleX;
-                var relativeY = (pointerPosition.Y - _translateTransform.Y) / _scaleTransform.ScaleY;
-
-                // Apply the new scale
-                _scaleTransform.ScaleX = newScaleX;
-                _scaleTransform.ScaleY = newScaleY;
-
-                // Adjust the translation to keep the pointer position fixed
-                _translateTransform.X = pointerPosition.X - relativeX * newScaleX;
-                _translateTransform.Y = pointerPosition.Y - relativeY * newScaleY;
-            }
-
+            ApplyZoom(zoomFactor);
             e.Handled = true;
+        }
+
+        private void ApplyZoom(double zoomFactor)
+        {
+            // Calculate the new scale values
+            var newScaleX = _scaleTransform.ScaleX * zoomFactor;
+            var newScaleY = _scaleTransform.ScaleY * zoomFactor;
+
+            // Clamp the zoom to min/max values
+            newScaleX = Math.Max(MinZoom, Math.Min(MaxZoom, newScaleX));
+            newScaleY = Math.Max(MinZoom, Math.Min(MaxZoom, newScaleY));
+
+            // Calculate the center of the image in control coordinates
+            var centerX = LibraryBitmapPreview.Bounds.Width / 2;
+            var centerY = LibraryBitmapPreview.Bounds.Height / 2;
+
+            // Calculate the current center position in image coordinates (before zoom)
+            var imagePointX = (centerX - _translateTransform.X) / _scaleTransform.ScaleX;
+            var imagePointY = (centerY - _translateTransform.Y) / _scaleTransform.ScaleY;
+
+            // Apply the new scale
+            _scaleTransform.ScaleX = newScaleX;
+            _scaleTransform.ScaleY = newScaleY;
+
+            // Adjust the translation to keep the center position fixed in image space
+            _translateTransform.X = centerX - imagePointX * newScaleX;
+            _translateTransform.Y = centerY - imagePointY * newScaleY;
         }
 
         private void OnMousePressed(object? sender, PointerPressedEventArgs e)
@@ -138,8 +150,7 @@ namespace Blitz.Views
             string newPath = originalPath + InputRename.Text!;
 
             _workingCsXFLDoc.Library.RenameItem(ItemToRename.Name, newPath);
-            _eventAggregator = EventAggregator.Instance;
-            _eventAggregator.Publish(new LibraryItemsChangedEvent());
+            App.EventAggregator.Publish(new LibraryItemsChangedEvent());
 
             DialogHost.Close(DialogIdentifier);
         }
