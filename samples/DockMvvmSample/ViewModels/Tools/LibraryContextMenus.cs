@@ -35,7 +35,7 @@ namespace Blitz.ViewModels.Tools
 
     public partial class ContextMenuFactory
     {
-        private LibraryViewModel _libraryViewModel;
+        private LibraryViewModel? _libraryViewModel;
         private CsXFL.Item[]? _userLibrarySelection;
         private CsXFL.Document? _workingCsXFLDoc;
 
@@ -306,6 +306,7 @@ namespace Blitz.ViewModels.Tools
         #endregion
 
         #region Sound
+        private bool _isPlaying = false;
         ContextMenu CreateSoundContextMenu()
         {
             var contextMenu = new ContextMenu();
@@ -316,11 +317,50 @@ namespace Blitz.ViewModels.Tools
             contextMenu.Items.Add(new MenuItem { Header = "Rename", Command = RenameCommand});
             contextMenu.Items.Add(new MenuItem { Header = "Duplicate", Command = DuplicateCommand});
             contextMenu.Items.Add(new Separator());
-            contextMenu.Items.Add(new MenuItem { Header = "Play", Command = PlayCommand, CommandParameter = this});
+            var playStopMenuItem = new MenuItem();
+            playStopMenuItem.Header = _isPlaying ? "Stop" : "Play";
+            playStopMenuItem.Command = new RelayCommand(() => TogglePlayStop(playStopMenuItem));
+            playStopMenuItem.CommandParameter = this;
+            contextMenu.Items.Add(playStopMenuItem);
             contextMenu.Items.Add(new MenuItem { Header = "Update"});
             contextMenu.Items.Add(new Separator());
             contextMenu.Items.Add(new MenuItem { Header = "Properties", Command = SoundPropertiesCommand});
             return contextMenu;
+        }
+
+        private async void TogglePlayStop(MenuItem playStopMenuItem)
+        {
+            if (_isPlaying)
+            {
+                // Stop the audio
+                App.AudioService.Stop();
+                _isPlaying = false;
+                playStopMenuItem.Header = "Play";
+            }
+            else
+            {
+                // Play the audio
+                PlayCommand.Execute(null);
+                _isPlaying = true;
+                playStopMenuItem.Header = "Stop";
+
+                // Get the duration of the sound and round it to 2 decimal places
+                if (_userLibrarySelection != null && _userLibrarySelection[0] is CsXFL.SoundItem soundItem)
+                {
+                    double roundedDuration = soundItem.Duration;
+
+                    // Wait for the duration of the sound
+                    await Task.Delay(TimeSpan.FromSeconds(roundedDuration));
+
+                    // Check if the user didn't stop the sound manually
+                    if (_isPlaying)
+                    {
+                        App.AudioService.Stop();
+                        _isPlaying = false;
+                        playStopMenuItem.Header = "Play";
+                    }
+                }
+            }
         }
 
         [RelayCommand]

@@ -18,26 +18,24 @@
 
             <!-- Left Panel -->
             <StackPanel Orientation="Vertical" Margin="0,0,10,0" Grid.Column="0">
-              <!-- LibraryBitmapPreview -->
-              <Grid Width="323" Height="400">
-                  <Rectangle Fill="White" />
-                  <Canvas ClipToBounds="True">
-                      <Canvas.Clip>
-                          <RectangleGeometry Rect="0,0,323,400" />
-                      </Canvas.Clip>
-                      <Image x:Name="LibraryBitmapPreview" 
-                            Source="{Binding BitmapImageSource}" 
-                            Stretch="Uniform" 
-                            RenderTransformOrigin="0.5,0.5">
-                          <Image.RenderTransform>
-                              <TransformGroup>
-                                  <ScaleTransform />
-                                  <TranslateTransform />
-                              </TransformGroup>
-                          </Image.RenderTransform>
-                      </Image>
-                  </Canvas>
-              </Grid>
+            <!-- LibraryBitmapPreview -->
+            <Grid Width="323" Height="400">
+                <Rectangle Fill="White" />
+                <Grid ClipToBounds="True">
+                    <Image x:Name="LibraryBitmapPreview" 
+                          Source="{Binding BitmapImageSource}"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          Stretch="Uniform">
+                        <Image.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform />
+                                <TranslateTransform />
+                            </TransformGroup>
+                        </Image.RenderTransform>
+                    </Image>
+                </Grid>
+            </Grid>
               <!-- SoundInfoDisplay and Import Button -->
               <Grid HorizontalAlignment="Stretch">
                 <Grid.ColumnDefinitions>

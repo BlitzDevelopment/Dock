@@ -6,6 +6,8 @@ using Dock.Settings;
 using Blitz.ViewModels;
 using System;
 using Avalonia.Interactivity;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 
 namespace Blitz.Views;
 
@@ -19,8 +21,8 @@ public partial class MainView : UserControl
     public MainView()
     {
         InitializeComponent();
-        InitializeThemes();
         InitializeMenu();
+        InitializeThemes();
         DataContext = App.MainWindowViewModelInstance;
     }
 
@@ -37,14 +39,14 @@ public partial class MainView : UserControl
         AvaloniaXamlLoader.Load(this);
     }
 
+    public static MementoCaretaker MementoCaretaker => ApplicationServices.MementoCaretaker;
+
     private void InitializeThemes()
     {
         var dark = false;
         dark = !dark;
         App.ThemeManager?.Switch(dark ? 1 : 0);
     }
-
-    public static MementoCaretaker MementoCaretaker => ApplicationServices.MementoCaretaker;
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -92,4 +94,28 @@ public partial class MainView : UserControl
             };
         }
     }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            // Check if the source or its parent is a MenuItem or other interactive control
+            var source = e.Source as Control;
+            while (source != null)
+            {
+                if (source is MenuItem || source is Button || source is TextBox)
+                {
+                    return; // Do nothing if the click is on a MenuItem, Button, or TextBox
+                }
+                source = source.Parent as Control;
+            }
+
+            // Get the parent window of the UserControl
+            if (VisualRoot is Window window)
+            {
+                window.BeginMoveDrag(e); // Call BeginMoveDrag on the parent window
+            }
+        }
+    }
+
 }

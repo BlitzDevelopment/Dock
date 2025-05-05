@@ -4,7 +4,6 @@ using Avalonia.Controls.Models.TreeDataGrid;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using Blitz.Events;
-using Blitz.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dock.Model.Mvvm.Controls;
@@ -171,7 +170,7 @@ public class InverseBooleanConverter : IValueConverter
 /// </summary>
 public partial class LibraryViewModel : Tool
 {
-    public DocumentViewModel DocumentViewModel;
+    public DocumentViewModel? DocumentViewModel;
 
     public LibraryViewModel()
     {
@@ -271,7 +270,7 @@ public partial class LibraryViewModel : Tool
     #region Event Handlers
     void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
+        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex);
         DocumentViewModel = e.Document;
         Log.Information($"[LibraryViewModel] Active document changed to {_workingCsXFLDoc.Filename}");
 
@@ -294,7 +293,7 @@ public partial class LibraryViewModel : Tool
         // Associated logic in LibraryView.axaml.cs for previewing datatypes
         if (UserLibrarySelection![0].ItemType == "movie clip" || UserLibrarySelection[0].ItemType == "graphic" || UserLibrarySelection[0].ItemType == "button")
         {
-            string appDataFolder = App.GenericDialogs.GetTmpFolder();
+            string appDataFolder = App.BlitzAppData.GetTmpFolder();
             SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
             try
@@ -320,6 +319,7 @@ public partial class LibraryViewModel : Tool
     #region Building Library UI
     void InitializeLibraryItems()
     {
+        if (_workingCsXFLDoc == null) { return; }
         Items.Clear();
         _itemNames.Clear();
         foreach (var item in _workingCsXFLDoc.Library.Items.Values)
@@ -712,37 +712,66 @@ public partial class LibraryViewModel : Tool
     #endregion
 
     #region Helper Methods
-    /// <summary>
-    /// Recursively counts the number of items, including all descendants, for a given item.
-    /// </summary>
-    int CountItems(CsXFL.Item item)
+    private int CountItems(CsXFL.Item item)
     {
-        if (item.ItemType != "folder")
+        if (item == null || string.IsNullOrEmpty(item.Name))
         {
-            return 1; // Single item
+            return 0;
         }
 
-        // If it's a folder, count all its descendants recursively
-        var folder = HierarchicalItems.FirstOrDefault(i => i.Name == item.Name);
-        if (folder?.Children == null || !folder.Children.Any())
+        // Split the path into components
+        var pathSegments = item.Name.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+
+        // Find the corresponding LibraryItem in HierarchicalItems using the path
+        var libraryItem = FindLibraryItemByPath(HierarchicalItems, pathSegments, 0);
+        if (libraryItem == null)
         {
-            return 1; // Empty folder
+            return 0;
         }
 
-        return 1 + folder.Children.Sum(child => CountItemsRecursive(child));
+        // Count the item itself and all its descendants
+        return CountLibraryItemAndDescendants(libraryItem);
     }
 
-    /// <summary>
-    /// Helper method to recursively count all descendants of a LibraryItem.
-    /// </summary>
-    int CountItemsRecursive(LibraryItem libraryItem)
+    private LibraryItem? FindLibraryItemByPath(ObservableCollection<LibraryItem> items, string[] pathSegments, int depth)
     {
-        if (libraryItem.Children == null || !libraryItem.Children.Any())
+        if (depth >= pathSegments.Length)
         {
-            return 1; // No children
+            return null;
         }
 
-        return 1 + libraryItem.Children.Sum(child => CountItemsRecursive(child));
+        foreach (var libraryItem in items)
+        {
+            if (libraryItem.Name == pathSegments[depth])
+            {
+                // If this is the last segment in the path, return the item
+                if (depth == pathSegments.Length - 1)
+                {
+                    return libraryItem;
+                }
+
+                // Otherwise, continue searching in the children
+                if (libraryItem.Children != null && libraryItem.Children.Count > 0)
+                {
+                    return FindLibraryItemByPath(libraryItem.Children, pathSegments, depth + 1);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private int CountLibraryItemAndDescendants(LibraryItem libraryItem)
+    {
+        int count = 1; // Count the current item
+        if (libraryItem.Children != null && libraryItem.Children.Count > 0)
+        {
+            foreach (var child in libraryItem.Children)
+            {
+                count += CountLibraryItemAndDescendants(child);
+            }
+        }
+        return count;
     }
     #endregion
 }

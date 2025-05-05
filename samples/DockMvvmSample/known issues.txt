@@ -3,23 +3,21 @@ Do this stuff after everything is fixed:
 	UNIT TESTS
 	USER FEEDBACK
 
-General Issues:
+Do it later:
 	[MEH] Hotkeys storage & defaults
-	[SUPREMELY BAD] No dispatcher/marshal distinction, everything is running on UI thread
-
-	** [HIGH] General variable sloppiness. Variables prefixed with underscores should be private
     [HIGH] Document/Canvas tabs should be unique and separated from all other tabs. Right now this causes a crash when user tries to drag a panel into the document tab
-
 	Store a workspace .xml to save & restore workspaces
+		This will require Windows toolbar to summon/dismiss panels	
+	Do we want a Dashboard?
+		<Button Content="Dashboard" Command="{Binding Navigate}" CommandParameter="Dashboard" Grid.Column="2" />
 
+General Issues:
 	Want my TL BR rounded rect for modals -- DialogOverlayPopupHost >> Border PART_ContentBackground
 	Pointer position zoom in Bitmap Preferences is funky
-	<Button Content="Dashboard" Command="{Binding Navigate}" CommandParameter="Dashboard" Grid.Column="2" />
 
 Taskbar:
 	[LOW] No New Document command
 	[LOW] No revert functionality
-
 	[LOW] Import to Library command only contains bitmap files-- What are all of our importable files?
 	[MED] Export Image no functionality
 	[MED] Export Video specified frame range should enable new controls for specifying a frame range to render
@@ -36,25 +34,30 @@ Library Panel:
 
 	Do this yourself:
 
-	** Hierchical Source & Flat Source PER DocumentViewModel
-	** Items delete warning only works in root, name getPath issue
+	** Downsample mp3 audio waveform, too much data
 
-	** Play should turn into Stop while sound is playing
-	first click drag fails-- not part of userlibraryselection
+	**Hierchical Source & Flat Source PER DocumentViewModel
+		* Otherwise, folder expansion states persist between open documents
 
-	File explorer D&D for flatview is correctly implemented, HierchicalTree D&D should have the above behavior
+	** first click drag fails-- not part of userlibraryselection
+
+	File explorer D&D for flatview is correctly implemented, HierchicalTree D&D should hover & folder autoexpand before dropping
 	Double tapping name to edit doesn't work
 
 	[HIGH] No clipboard service
 	[HIGH] No memento service
 
 	[LOW] Make Bitmap/Sound/Symbol properties look nice & add functionality
+		How to handle replacing data?
+
 	[LOW] Name/Type/UseCount spacing should be synchronized between both TreeViews and name length shouldn't update the spacing
 	
-
 	// // //
-	Theme doesn't initialize
-	RenderDebugOverlay doesn't initialize
-	Pig Latin resx
-	Click drag window panning
-	Blitz icon on Window top left
+	Preferences are fucked
+
+Canvas:
+
+	DocumentViewModel enqueue warning + animation
+	Fade in/out animation for loading
+
+	Everything

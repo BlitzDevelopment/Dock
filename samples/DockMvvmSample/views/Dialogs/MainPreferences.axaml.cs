@@ -125,9 +125,9 @@ namespace Blitz.Views
 
         private void BuildContentForPanel(string? panelKey)
         {
-            // Use the first key in _preferences if no panelKey is provided
+            // Use the first key in Preferences if no panelKey is provided
             panelKey ??= App.BlitzAppData.Preferences.Keys.FirstOrDefault();
-            if (panelKey == null || App.BlitzAppData.Preferences.TryGetValue(panelKey, out var panelValue)) return;
+            if (panelKey == null || !App.BlitzAppData.Preferences.TryGetValue(panelKey, out var panelValue)) return;
 
             if (panelValue is not JsonElement outerPanelJsonElementForKey || outerPanelJsonElementForKey.ValueKind != JsonValueKind.Object) return;
 

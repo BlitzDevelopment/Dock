@@ -4,6 +4,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Avalonia.Rendering;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Blitz.Events;
 using System.Collections.Generic;
 using System.Text.Json;
@@ -19,11 +21,6 @@ public partial class MainWindow : Window
         App.EventAggregator.Subscribe<ApplicationPreferencesChangedEvent>(OnPreferencesChanged);
 
         InitializeComponent();
-
-        // Set the loaded theme for the application, no need for logic to update theme here, that's in MainPreferences panel
-        App.BlitzAppData.TryGetNestedPreference<string>("General", "Theme", "Value", out var themeValue);
-        var isDarkTheme = themeValue?.Equals("Dark", StringComparison.OrdinalIgnoreCase) ?? false;
-        App.ThemeManager?.Switch(!isDarkTheme ? 1 : 0);
     }
 
     public enum DebugOverlays
@@ -65,6 +62,14 @@ public partial class MainWindow : Window
                     Log.Error("Failed to parse Debug Overlays enum.");
                 }
             }
+        }
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            BeginMoveDrag(e);
         }
     }
 

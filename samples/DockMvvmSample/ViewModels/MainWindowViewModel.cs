@@ -81,7 +81,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         var mainWindow = ((IClassicDesktopStyleApplicationLifetime)App.Current!.ApplicationLifetime!).MainWindow!;
         var filePath = await App.FileService.OpenFileAsync(mainWindow, FileService.BlitzCompatible, "Open Document");
-        OpenDocumentHelper(filePath);
+        await OpenDocumentHelper(filePath);
     }
 
     private async Task OpenDocumentHelper(string filePath)
@@ -115,9 +115,9 @@ public partial class MainWindowViewModel : ObservableObject
         _workingCsXFLDocViewModel.InitializeZipArchive();
     }
 
-    private void OpenRecent(string filePath)
+    private async void OpenRecent(string filePath)
     {
-        OpenDocumentHelper(filePath!);
+        await OpenDocumentHelper(filePath!);
     }
 
     public void LoadRecentFiles()
@@ -197,7 +197,7 @@ public partial class MainWindowViewModel : ObservableObject
     // MARK: Events
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent activeDocumentChangedEvent)
     {
-        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Document.DocumentIndex!.Value);
+        WorkingCsXFLDoc = CsXFL.An.GetDocument(activeDocumentChangedEvent.Document.DocumentIndex);
         _workingCsXFLDocViewModel = activeDocumentChangedEvent.Document;
     }
 

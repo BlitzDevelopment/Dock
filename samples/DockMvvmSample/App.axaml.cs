@@ -6,12 +6,26 @@ using Blitz.Themes;
 using Blitz.ViewModels;
 using Blitz.Views;
 using System;
+using System.Globalization;
+using System.Resources;
 
 namespace Blitz;
 
+public static class Lang
+{
+    private static readonly ResourceManager ResourceManager = new ResourceManager("Blitz.Resources", typeof(Lang).Assembly);
+
+    public static CultureInfo Culture { get; set; } = CultureInfo.CurrentCulture;
+
+    public static string GetString(string key)
+    {
+        return ResourceManager.GetString(key, Culture) ?? string.Empty;
+    }
+}
+
 public class App : Application
 {
-    public static IThemeManager ThemeManager;
+    public static IThemeManager? ThemeManager;
 
     private static AudioService? _audioService;
     public static AudioService AudioService => _audioService ??= new AudioService();
@@ -42,6 +56,8 @@ public class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         // DockManager.s_enableSplitToWindow = true;
+
+        // Lang.Culture = new CultureInfo("EN");
 
         switch (ApplicationLifetime)
         {

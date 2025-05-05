@@ -19,14 +19,12 @@ namespace Blitz.Views
         private MainWindowViewModel _mainWindowViewModel;
         private CsXFL.Document _workingCsXFLDoc;
         public string? DialogIdentifier { get; set; }
-        private Avalonia.Point _lastMousePosition;
-        private ScaleTransform _scaleTransform;
-        private TranslateTransform _translateTransform;
         private bool _isPanning;
         private const double MinZoom = 0.5;
         private const double MaxZoom = 4.0;
         private const double ZoomInFactor = 1.1;
         private const double ZoomOutFactor = 0.9;
+        private double _currentZoom = 1.0;
 
         public LibraryBitmapProperties(CsXFL.BitmapItem item)
         {
@@ -38,102 +36,82 @@ namespace Blitz.Views
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
 
             // Todo-- bitdepth?
-            var bitmapData = _libraryViewModel.DocumentViewModel.GetBitmapData(item);
-            var size = bitmapData.Length >= 1024 * 1024
-                ? $"{bitmapData.Length / (1024.0 * 1024.0):F2} MB"
-                : bitmapData.Length >= 1024
-                    ? $"{bitmapData.Length / 1024.0:F2} KB"
-                    : $"{bitmapData.Length} bytes";
-
-            BitmapInfoDisplay.Text = item.HPixels + " x " + item.VPixels + " px " + size;
-
-            // Directly set the cached bitmap data to the Image control
-            using (var memoryStream = new MemoryStream(bitmapData))
+            if (_libraryViewModel.DocumentViewModel != null && item != null)
             {
-                memoryStream.Seek(0, SeekOrigin.Begin); // Ensure the stream is at the beginning
-                LibraryBitmapPreview.Source = new Avalonia.Media.Imaging.Bitmap(memoryStream);
+                var bitmapData = _libraryViewModel.DocumentViewModel.GetBitmapData(item);
+                var size = bitmapData.Length >= 1024 * 1024
+                    ? $"{bitmapData.Length / (1024.0 * 1024.0):F2} MB"
+                    : bitmapData.Length >= 1024
+                        ? $"{bitmapData.Length / 1024.0:F2} KB"
+                        : $"{bitmapData.Length} bytes";
+
+                BitmapInfoDisplay.Text = item.HPixels + " x " + item.VPixels + " px " + size;
+
+                // Directly set the cached bitmap data to the Image control
+                using (var memoryStream = new MemoryStream(bitmapData))
+                {
+                    memoryStream.Seek(0, SeekOrigin.Begin); // Ensure the stream is at the beginning
+                    var bitmap = new Avalonia.Media.Imaging.Bitmap(memoryStream);
+                    LibraryBitmapPreview.Source = bitmap;
+
+                    // Center the image inside its available space
+                    LibraryBitmapPreview.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+                    LibraryBitmapPreview.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center;
+                    
+                    // Ensure the image scales proportionally while fitting within bounds
+                    LibraryBitmapPreview.Stretch = Avalonia.Media.Stretch.Uniform;
+                }
+            }
+            else
+            {
+                // Handle the null case appropriately (e.g., log an error, show a message, etc.)
+                BitmapInfoDisplay.Text = "Unable to load bitmap data.";
             }
 
             SetTextBoxText();
 
-            //Canvas logic
-            var transformGroup = (TransformGroup)LibraryBitmapPreview.RenderTransform;
-            _scaleTransform = (ScaleTransform)transformGroup.Children[0];
-            _translateTransform = (TranslateTransform)transformGroup.Children[1];
-
+            LibraryBitmapPreview.RenderTransform = new ScaleTransform(_currentZoom, _currentZoom);
             LibraryBitmapPreview.PointerWheelChanged += OnMouseWheelZoom;
-            LibraryBitmapPreview.PointerPressed += OnMousePressed;
-            LibraryBitmapPreview.PointerReleased += OnMouseReleased;
-            LibraryBitmapPreview.PointerMoved += OnMouseMoved;
         }
 
         private void OnMouseWheelZoom(object? sender, PointerWheelEventArgs e)
         {
+            if (LibraryBitmapPreview == null)
+                return;
+
+            // Get the position of the cursor relative to the LibraryBitmapPreview
             var pointerPosition = e.GetPosition(LibraryBitmapPreview);
-            double zoomFactor = e.Delta.Y > 0 ? ZoomInFactor : ZoomOutFactor;
 
-            ApplyZoom(zoomFactor);
+            // Calculate the relative position as a fraction of the control's dimensions
+            double relativeX = pointerPosition.X / LibraryBitmapPreview.Bounds.Width;
+            double relativeY = pointerPosition.Y / LibraryBitmapPreview.Bounds.Height;
+
+            // Clamp the relative position to ensure it stays within [0.0, 1.0]
+            relativeX = Math.Clamp(relativeX, 0.0, 1.0);
+            relativeY = Math.Clamp(relativeY, 0.0, 1.0);
+
+            // Set the RenderTransformOrigin to the clamped relative position
+            LibraryBitmapPreview.RenderTransformOrigin = new Avalonia.RelativePoint(relativeX, relativeY, Avalonia.RelativeUnit.Relative);
+
+            // Adjust the zoom level
+            if (e.Delta.Y > 0)
+            {
+                // Zoom in
+                _currentZoom = Math.Min(_currentZoom * ZoomInFactor, MaxZoom);
+            }
+            else if (e.Delta.Y < 0)
+            {
+                // Zoom out
+                _currentZoom = Math.Max(_currentZoom * ZoomOutFactor, MinZoom);
+            }
+
+            // Apply the zoom to the LibraryBitmapPreview control
+            LibraryBitmapPreview.RenderTransform = new ScaleTransform(_currentZoom, _currentZoom);
+
+            // Prevent further propagation of the event
             e.Handled = true;
         }
 
-        private void ApplyZoom(double zoomFactor)
-        {
-            // Calculate the new scale values
-            var newScaleX = _scaleTransform.ScaleX * zoomFactor;
-            var newScaleY = _scaleTransform.ScaleY * zoomFactor;
-
-            // Clamp the zoom to min/max values
-            newScaleX = Math.Max(MinZoom, Math.Min(MaxZoom, newScaleX));
-            newScaleY = Math.Max(MinZoom, Math.Min(MaxZoom, newScaleY));
-
-            // Calculate the center of the image in control coordinates
-            var centerX = LibraryBitmapPreview.Bounds.Width / 2;
-            var centerY = LibraryBitmapPreview.Bounds.Height / 2;
-
-            // Calculate the current center position in image coordinates (before zoom)
-            var imagePointX = (centerX - _translateTransform.X) / _scaleTransform.ScaleX;
-            var imagePointY = (centerY - _translateTransform.Y) / _scaleTransform.ScaleY;
-
-            // Apply the new scale
-            _scaleTransform.ScaleX = newScaleX;
-            _scaleTransform.ScaleY = newScaleY;
-
-            // Adjust the translation to keep the center position fixed in image space
-            _translateTransform.X = centerX - imagePointX * newScaleX;
-            _translateTransform.Y = centerY - imagePointY * newScaleY;
-        }
-
-        private void OnMousePressed(object? sender, PointerPressedEventArgs e)
-        {
-            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            {
-                _isPanning = true;
-                _lastMousePosition = e.GetPosition(this);
-                e.Handled = true;
-            }
-        }
-
-        private void OnMouseReleased(object? sender, PointerReleasedEventArgs e)
-        {
-            _isPanning = false;
-            e.Handled = true;
-        }
-
-        private void OnMouseMoved(object? sender, PointerEventArgs e)
-        {
-            if (_isPanning)
-            {
-                var currentPosition = e.GetPosition(this);
-                var delta = currentPosition - _lastMousePosition;
-                _lastMousePosition = currentPosition;
-
-                _translateTransform.X += delta.X;
-                _translateTransform.Y += delta.Y;
-
-                e.Handled = true;
-            }
-        }
-         
         private void SetTextBoxText()
         {
             string path = _libraryViewModel.UserLibrarySelection![0].Name;

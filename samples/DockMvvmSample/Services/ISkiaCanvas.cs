@@ -52,7 +52,7 @@ namespace Avalonia.Controls
         /// </summary>
         public event EventHandler<SKPaintSurfaceEventArgs>? PaintSurface;
 
-        private static readonly Vector Dpi = new Vector(96, 96);
+        private static readonly Vector Dpi = new Vector(300, 300);
 
         private bool _IgnorePixelScaling;
 

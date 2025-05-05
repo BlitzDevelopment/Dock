@@ -47,7 +47,7 @@ public class DockFactory : Factory
                 OpenDocuments.Add(document);
             }
 
-            CsXFL.An.SetActiveDocument(CsXFL.An.GetDocument(document.DocumentIndex!.Value));
+            CsXFL.An.SetActiveDocument(CsXFL.An.GetDocument(document.DocumentIndex));
             App.EventAggregator.Publish(new ActiveDocumentChangedEvent(document));
         }
     }
@@ -67,7 +67,7 @@ public class DockFactory : Factory
             }
 
             // Call CloseDocument with the updated index
-            CsXFL.An.CloseDocument(document.DocumentIndex!.Value);
+            CsXFL.An.CloseDocument(document.DocumentIndex);
         }
     }
 

@@ -69,22 +69,20 @@ public partial class LibraryView : UserControl
 
         HierarchalTreeView.PointerPressed += (sender, e) =>
         {
-            // Ensure the event is handled even if the item is not selected
-            e.Handled = true;
-
             // Check if the right mouse button was pressed
             if (e.GetCurrentPoint(HierarchalTreeView).Properties.IsRightButtonPressed)
             {
                 return; // Allow the context menu to appear
             }
 
-            // Handle left mouse button for drag-and-drop
-            if (e.GetCurrentPoint(HierarchalTreeView).Properties.IsLeftButtonPressed)
-            {
-                var position = e.GetPosition(HierarchalTreeView);
-                var hitTestResult = HierarchalTreeView.InputHitTest(position);
+            // Allow the default selection behavior to occur
+            var position = e.GetPosition(HierarchalTreeView);
+            var hitTestResult = HierarchalTreeView.InputHitTest(position);
 
-                if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
+            if (hitTestResult is Control control && control.DataContext is Blitz.Models.Tools.Library.LibraryItem item)
+            {
+                // Handle left mouse button for drag-and-drop
+                if (e.GetCurrentPoint(HierarchalTreeView).Properties.IsLeftButtonPressed)
                 {
                     try
                     {
@@ -104,6 +102,9 @@ public partial class LibraryView : UserControl
                     }
                 }
             }
+
+            // Mark the event as handled only after processing the drag-and-drop logic
+            e.Handled = true;
         };
          
         // Drag-and-drop into FlatTreeView
@@ -359,7 +360,7 @@ public partial class LibraryView : UserControl
     void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         _documentViewModel = e.Document;
-        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex!.Value);
+        _workingCsXFLDoc = CsXFL.An.GetDocument(e.Document.DocumentIndex);
 
         // Rebuild the FlatLibrary with the current search parameters
         if (_libraryViewModel != null && _workingCsXFLDoc != null)

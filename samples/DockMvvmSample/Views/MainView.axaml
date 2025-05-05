@@ -15,9 +15,16 @@
     <vm:MainWindowViewModel />
   </Design.DataContext>
 
-  <Grid RowDefinitions="Auto,*,25" ColumnDefinitions="Auto,*" Background="Transparent">
+  <Grid RowDefinitions="Auto,*,25" ColumnDefinitions="Auto,*" Background="Transparent" >
     
-    <Menu Grid.Row="0" Grid.Column="0" VerticalAlignment="Top">
+    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,12,0" >
+        <!-- Icon -->
+        <Image Source="/Assets/Blitz.ico" Width="20" Height="20" Margin="0,0,8,0" />
+        <!-- Text -->
+        <TextBlock Text="Blitz" FontSize="14" VerticalAlignment="Center" FontWeight="Bold" />
+    </StackPanel>
+
+    <Menu Grid.Row="0" Grid.Column="1" VerticalAlignment="Top" PointerPressed="OnPointerPressed" >
       <MenuItem Header="_File">
         <MenuItem Header="New" Command="{Binding NewDocumentCommand}" />
         <MenuItem Header="Open Document" Command="{Binding OpenDocumentCommand}" />
@@ -140,7 +147,7 @@
 
     </Menu>
     
-    <DockControl x:Name="DockControl" Layout="{Binding Layout}" Margin="4"
+    <DockControl x:Name="DockControl" Layout="{Binding Layout}" Margin="4,0,4,4"
                      Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" />
     <Panel DataContext="{Binding Layout.ActiveDockable}"
            Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2">

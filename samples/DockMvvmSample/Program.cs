@@ -49,6 +49,13 @@ internal class Program
             .UsePlatformDetect()
             .UseSkia()
             .With(new SkiaOptions { MaxGpuResourceSizeBytes = 256 * 1024 * 1024 }) // Adjust as needed
+            .With(new Win32PlatformOptions
+            {
+                RenderingMode = new[]
+                {
+                    Win32RenderingMode.AngleEgl
+                }
+            })
             .UsePlatformDetect()
             .LogToTrace();
             

@@ -11,18 +11,30 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using Blitz.Events;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Blitz.ViewModels.Documents;
 
-public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
+public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
 {
-    public int? DocumentIndex { get; set; }
+    public int DocumentIndex { get; set; }
 
     private ZipArchive? _zipArchive;
     private Dictionary<string, byte[]> _bitmapCache;
     private Dictionary<string, byte[]> _soundCache;
     private bool _isXFL;
     private string _documentPath;
+
+    [ObservableProperty]
+    private string? _canvasColor;
+    [ObservableProperty]
+    private int _canvasWidth;
+
+    [ObservableProperty]
+    private int _canvasHeight;
+
+
+    private CsXFL.Document _workingCsXFLDoc;
 
     public DocumentViewModel(bool isXFL, string documentPath)
     {
@@ -35,6 +47,23 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
         {
             InitializeZipArchive();
         }
+
+        InvalidateCanvas();
+        App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+    }
+
+    private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
+    {
+        _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
+        InvalidateCanvas();
+    }
+
+    public void InvalidateCanvas()
+    {
+        if (_workingCsXFLDoc == null) { return; }
+        CanvasColor = _workingCsXFLDoc.BackgroundColor;
+        CanvasWidth = _workingCsXFLDoc.Width;
+        CanvasHeight = _workingCsXFLDoc.Height;
     }
 
     public void InitializeZipArchive()
@@ -165,12 +194,12 @@ public class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
 
     private byte[] GetEmptyPng()
     {
-        using (var bitmap = new Bitmap(1, 1))
+        using (var image = new Image<Rgba32>(1, 1))
         {
-            bitmap.SetPixel(0, 0, System.Drawing.Color.Transparent);
+            image[0, 0] = new Rgba32(0, 0, 0, 0); // Set the single pixel to transparent
             using (var ms = new MemoryStream())
             {
-                bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                image.Save(ms, new PngEncoder()); // Save the image as PNG
                 return ms.ToArray();
             }
         }

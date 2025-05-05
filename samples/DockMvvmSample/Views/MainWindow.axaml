@@ -23,6 +23,11 @@
         Icon="/Assets/Blitz.ico"
         ids:DockProperties.IsDragEnabled="True" ids:DockProperties.IsDropEnabled="True">
 
+  <Window.Styles>
+    <Style Selector="Window[WindowState=Maximized]">
+      <Setter Property="Padding" Value="8" />
+    </Style>
+  </Window.Styles>
   <Window.Resources>
     <ExperimentalAcrylicMaterial BackgroundSource="Digger"
                                  TintColor="{DynamicResource SystemAltHighColor}"

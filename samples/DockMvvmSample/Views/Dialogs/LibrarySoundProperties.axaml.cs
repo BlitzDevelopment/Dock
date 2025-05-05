@@ -34,7 +34,7 @@ namespace Blitz.Views
             _mainWindowViewModel = (MainWindowViewModel)_libraryViewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
             _workingCsXFLDoc = CsXFL.An.GetActiveDocument();
             _audioData = audioData;
-            _soundItem = item as CsXFL.SoundItem;
+            _soundItem = item as CsXFL.SoundItem ?? throw new ArgumentNullException(nameof(item), "Item must be a SoundItem.");
 
             var size = audioData.Length >= 1024 * 1024
                 ? $"{audioData.Length / (1024.0 * 1024.0):F2} MB"
@@ -54,7 +54,9 @@ namespace Blitz.Views
             {
                 canvas.ResetMatrix();
 
-                var fileExtension = Path.GetExtension(_libraryViewModel.Sound.Href)?.TrimStart('.').ToLower() ?? string.Empty;
+                var fileExtension = _libraryViewModel.Sound?.Href != null
+                    ? Path.GetExtension(_libraryViewModel.Sound.Href)?.TrimStart('.').ToLower()
+                    : string.Empty;
 
                 if (fileExtension == "wav" || fileExtension == "flac")
                 {

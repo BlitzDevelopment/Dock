@@ -96,7 +96,16 @@ public class BlitzAppData : IBlitzAppData
                 }
                 else
                 {
-                    Preferences = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonContent);
+                    var deserializedPreferences = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonContent);
+                    if (deserializedPreferences != null)
+                    {
+                        Preferences = deserializedPreferences;
+                    }
+                    else
+                    {
+                        Log.Warning("Deserialization returned null. Restoring factory preferences.");
+                        RestoreFactoryPreferences();
+                    }
                 }
             }
             catch (Exception ex)
@@ -129,6 +138,16 @@ public class BlitzAppData : IBlitzAppData
                                 UIType = "ComboBox",
                                 Options = new[] { "None", "Fps", "DirtyRects", "LayoutTimeGraph", "RenderTimeGraph" },
                                 Tooltip = "Display various information about application render performance."
+                            }
+                        },
+                        {
+                            "Language", new 
+                            {
+                                Value = "English",
+                                Tags = new[] { "language" },
+                                UIType = "ComboBox",
+                                Options = new[] { "English", "Igpay Atinlay" },
+                                Tooltip = "Change the application language."
                             }
                         },
                         {

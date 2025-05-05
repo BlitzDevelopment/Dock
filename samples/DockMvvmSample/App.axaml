@@ -88,4 +88,11 @@
 
   </Application.Styles>
 
+  <!-- Silly Windows -->
+  <!-- <Window.Styles>
+    <Style Selector="Window[WindowState=Maximized]">
+      <Setter Property="Padding" Value="8" />
+    </Style>
+  </Window.Styles> -->
+
 </Application>
