@@ -510,7 +510,7 @@ public partial class LibraryView : UserControl
                 else if (fileExtension == "mp3")
                 {
                     var pcmData = App.AudioService.DecodeMp3ToWav(audioData);
-                    var amplitudes = App.AudioService.GetAudioAmplitudes(pcmData, 16, 1);
+                    var amplitudes = App.AudioService.GetAudioAmplitudes(pcmData, 16, 1, 100);
                     (_cachedWaveformPicture, _, _) = App.AudioService.GenerateWaveform(amplitudes, 800, 200, _libraryViewModel.CanvasColor!);
                 }
             }

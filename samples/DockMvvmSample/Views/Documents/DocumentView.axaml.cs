@@ -206,12 +206,17 @@ public partial class DocumentView : UserControl
             transformOrigin.M14 += (float)elementAsSymbolInstance.TransformationPoint.X;
             transformOrigin.M24 += (float)elementAsSymbolInstance.TransformationPoint.Y;
 
-            Matrix correctedMatrix = SerializeMatrix(transformOrigin);
+            SKMatrix ImplicitConversationOperator = new SKMatrix(
+                transformOrigin.M11,
+                -transformOrigin.M12,
+                transformOrigin.M14,
+                -transformOrigin.M21,
+                transformOrigin.M22,
+                transformOrigin.M24,
+                0, 0, 1
+            );
 
-            // Apply transformations
-            canvas.Translate((float)correctedMatrix.Tx, (float)correctedMatrix.Ty);
-            canvas.Skew((float)correctedMatrix.C / 2, (float)correctedMatrix.B / 2);
-            canvas.Scale((float)correctedMatrix.A, (float)correctedMatrix.D);
+            canvas.SetMatrix(ImplicitConversationOperator);
 
             // Draw the cached picture
             if (cachedRenderedPicture != null)

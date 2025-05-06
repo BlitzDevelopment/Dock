@@ -8,8 +8,6 @@ Do it later:
     [HIGH] Document/Canvas tabs should be unique and separated from all other tabs. Right now this causes a crash when user tries to drag a panel into the document tab
 	Store a workspace .xml to save & restore workspaces
 		This will require Windows toolbar to summon/dismiss panels	
-	Do we want a Dashboard?
-		<Button Content="Dashboard" Command="{Binding Navigate}" CommandParameter="Dashboard" Grid.Column="2" />
 
 General Issues:
 	Want my TL BR rounded rect for modals -- DialogOverlayPopupHost >> Border PART_ContentBackground
@@ -21,20 +19,17 @@ Taskbar:
 	[LOW] Import to Library command only contains bitmap files-- What are all of our importable files?
 	[MED] Export Image no functionality
 	[MED] Export Video specified frame range should enable new controls for specifying a frame range to render
+	Export Video ffmpeg progress dialog
 
 Library Panel:
 	Need Connor Help:
 
+	Some things don't render-- look at Sunset file
 	Render Canvas Background does nothing, current renderer doesn't add the canvas BG
-
-	Me problems:
-
 	Export Video In-Mem rendering locks up on my system
 	Bitmap .dat decoding crashes the program
 
 	Do this yourself:
-
-	** Downsample mp3 audio waveform, too much data
 
 	**Hierchical Source & Flat Source PER DocumentViewModel
 		* Otherwise, folder expansion states persist between open documents
@@ -44,8 +39,11 @@ Library Panel:
 	File explorer D&D for flatview is correctly implemented, HierchicalTree D&D should hover & folder autoexpand before dropping
 	Double tapping name to edit doesn't work
 
-	[HIGH] No clipboard service
+	[HIGH] No clipboard service-- mainwindowviewmodel, CsXFL importtofile
+		In Animate; Copied symbol and all dependencies are added to a buffer, don't need the source document open to importtofile
+
 	[HIGH] No memento service
+		-- requires hotkeys
 
 	[LOW] Make Bitmap/Sound/Symbol properties look nice & add functionality
 		How to handle replacing data?
@@ -53,11 +51,13 @@ Library Panel:
 	[LOW] Name/Type/UseCount spacing should be synchronized between both TreeViews and name length shouldn't update the spacing
 	
 	// // //
-	Preferences are fucked
+	Preferences load are fucked
 
 Canvas:
 
 	DocumentViewModel enqueue warning + animation
 	Fade in/out animation for loading
+
+	Registration point logic err help me connor
 
 	Everything
