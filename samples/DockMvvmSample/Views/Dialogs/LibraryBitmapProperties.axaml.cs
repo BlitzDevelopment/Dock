@@ -1,6 +1,7 @@
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Controls;
+using Avalonia.Controls.PanAndZoom;
 using Avalonia.Interactivity;
 using Blitz.ViewModels.Tools;
 using Avalonia.Markup.Xaml;
@@ -18,18 +19,17 @@ namespace Blitz.Views
         private LibraryViewModel _libraryViewModel;
         private MainWindowViewModel _mainWindowViewModel;
         private CsXFL.Document _workingCsXFLDoc;
+        private readonly ZoomBorder? _zoomBorder;
         public string? DialogIdentifier { get; set; }
-        private bool _isPanning;
-        private const double MinZoom = 0.5;
-        private const double MaxZoom = 4.0;
-        private const double ZoomInFactor = 1.1;
-        private const double ZoomOutFactor = 0.9;
-        private double _currentZoom = 1.0;
 
         public LibraryBitmapProperties(CsXFL.BitmapItem item)
         {
             AvaloniaXamlLoader.Load(this);
             DataContext = this;
+
+            _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
+            _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
+
             var _libraryViewModelRegistry = ViewModelRegistry.Instance;
             _libraryViewModel = (LibraryViewModel)_libraryViewModelRegistry.GetViewModel(nameof(LibraryViewModel));
             _mainWindowViewModel = (MainWindowViewModel)_libraryViewModelRegistry.GetViewModel(nameof(MainWindowViewModel));
@@ -70,46 +70,6 @@ namespace Blitz.Views
 
             SetTextBoxText();
 
-            LibraryBitmapPreview.RenderTransform = new ScaleTransform(_currentZoom, _currentZoom);
-            LibraryBitmapPreview.PointerWheelChanged += OnMouseWheelZoom;
-        }
-
-        private void OnMouseWheelZoom(object? sender, PointerWheelEventArgs e)
-        {
-            if (LibraryBitmapPreview == null)
-                return;
-
-            // Get the position of the cursor relative to the LibraryBitmapPreview
-            var pointerPosition = e.GetPosition(LibraryBitmapPreview);
-
-            // Calculate the relative position as a fraction of the control's dimensions
-            double relativeX = pointerPosition.X / LibraryBitmapPreview.Bounds.Width;
-            double relativeY = pointerPosition.Y / LibraryBitmapPreview.Bounds.Height;
-
-            // Clamp the relative position to ensure it stays within [0.0, 1.0]
-            relativeX = Math.Clamp(relativeX, 0.0, 1.0);
-            relativeY = Math.Clamp(relativeY, 0.0, 1.0);
-
-            // Set the RenderTransformOrigin to the clamped relative position
-            LibraryBitmapPreview.RenderTransformOrigin = new Avalonia.RelativePoint(relativeX, relativeY, Avalonia.RelativeUnit.Relative);
-
-            // Adjust the zoom level
-            if (e.Delta.Y > 0)
-            {
-                // Zoom in
-                _currentZoom = Math.Min(_currentZoom * ZoomInFactor, MaxZoom);
-            }
-            else if (e.Delta.Y < 0)
-            {
-                // Zoom out
-                _currentZoom = Math.Max(_currentZoom * ZoomOutFactor, MinZoom);
-            }
-
-            // Apply the zoom to the LibraryBitmapPreview control
-            LibraryBitmapPreview.RenderTransform = new ScaleTransform(_currentZoom, _currentZoom);
-
-            // Prevent further propagation of the event
-            e.Handled = true;
         }
 
         private void SetTextBoxText()

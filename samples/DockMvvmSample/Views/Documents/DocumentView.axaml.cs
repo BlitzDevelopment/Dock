@@ -1,28 +1,30 @@
-﻿using Avalonia.Controls;
+﻿using Avalonia.Animation;
+using Avalonia.Controls;
+using Avalonia.Controls.PanAndZoom;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
-using System.Threading.Tasks;
-using Avalonia.Animation;
-using System;
+using Avalonia.Media;
 using Avalonia.Styling;
-using Blitz.ViewModels.Documents;
-using Blitz.Events;
-using CsXFL;
-using System.IO;
+using Avalonia.Svg;
 using Avalonia.Threading;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using Blitz.Events;
+using Blitz.ViewModels.Documents;
+using CsXFL;
 using Rendering;
-using System.Xml.Linq;
-using Svg.Skia;
 using SkiaSharp;
+using Svg.Skia;
+using System;
 using System.Collections.Generic;
-using System.Numerics;
+using System.IO;
+using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Blitz.Views.Documents;
 
 public partial class DocumentView : UserControl
 {
     private readonly DocumentViewModel _documentViewModel;
+    private readonly ZoomBorder? _zoomBorder;
     private CsXFL.Document _workingCsXFLDoc;
     public DocumentView()
     {
@@ -40,6 +42,40 @@ public partial class DocumentView : UserControl
             });
         ShowFlyoutAsync("Loaded " + Path.GetFileName(An.GetActiveDocument().Filename)).ConfigureAwait(false);
 
+        _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
+        _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
+        if (_zoomBorder != null)
+        {
+            _zoomBorder.KeyDown += ZoomBorder_KeyDown;
+            
+            _zoomBorder.ZoomChanged += ZoomBorder_ZoomChanged;
+        }
+    }
+
+    private void ZoomBorder_KeyDown(object? sender, KeyEventArgs e)
+        {
+            switch (e.Key)
+            {
+                case Key.F:
+                    _zoomBorder?.Fill();
+                    break;
+                case Key.U:
+                    _zoomBorder?.Uniform();
+                    break;
+                case Key.R:
+                    _zoomBorder?.ResetMatrix();
+                    break;
+                case Key.T:
+                    _zoomBorder?.ToggleStretchMode();
+                    _zoomBorder?.AutoFit();
+                    break;
+            }
+        }
+
+    private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
+    {
+        NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
+        MainSkXamlCanvas.Invalidate(); 
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
@@ -48,180 +84,108 @@ public partial class DocumentView : UserControl
        ViewFrame();
     }
 
-    private readonly Dictionary<string, (SKPicture RenderedPicture, CsXFL.Rectangle Bbox)> _svgCache = new();
-
-    public static Matrix4x4 CreateAffine(double a, double b, double c, double d, double tx, double ty)
-    {
-        return new Matrix4x4
-        {
-            M11 = (float)a,
-            M12 = (float)b,
-            M21 = (float)c,
-            M22 = (float)d,
-            M14 = (float)tx,
-            M24 = (float)ty,
-            M33 = 1,
-            M44 = 1
-        };
-    }
-    private static Matrix4x4 DeserializeMatrix(Matrix? matrix)
-    {
-        if (matrix is null)
-        {
-            return Matrix4x4.Identity;
-        }
-
-        return CreateAffine(matrix.A, matrix.B, matrix.C, matrix.D, matrix.Tx, matrix.Ty);
-    }
-
-    private static Matrix SerializeMatrix(Matrix4x4 matrix)
-    {
-        return new Matrix
-        {
-            A = matrix.M11,
-            B = matrix.M12,
-            C = matrix.M21,
-            D = matrix.M22,
-            Tx = matrix.M14,
-            Ty = matrix.M24
-        };
-    }
-
-    private List<Action<SKCanvas>> _drawingInstructions = new();
-
     public void ViewFrame()
     {
         var operatingTimeline = _workingCsXFLDoc.Timelines[0];
         var operatingFrame = 0;
-
         var layers = operatingTimeline.Layers;
 
-        // Precompute drawing instructions
-        _drawingInstructions.Clear();
         for (int i = layers.Count - 1; i >= 0; i--)
         {
             var layer = layers[i];
             if (layer.GetFrameCount() <= operatingFrame)
             {
-                continue; // Skip this layer and move to the next one
+                continue;
             }
 
             var frame = layer.GetFrame(operatingFrame);
             foreach (var element in frame.Elements)
             {
-                if (element is CsXFL.SymbolInstance)
+                try
                 {
-                    try
+                    string appDataFolder = App.BlitzAppData.GetTmpFolder();
+
+                    SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
+                    string elementIdentifier =  _workingCsXFLDoc.Timelines[0].Name + "_" + layer.Name + "_" + element.Name;
+
+                    // No color effects, no masks
+                    (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(element, elementIdentifier, (operatingFrame-layer.GetFrame(operatingFrame).StartFrame), CsXFL.Color.DefaultColor(), false);
+
+                    // Create the root SVG element
+                    XNamespace svgNamespace = "http://www.w3.org/2000/svg";
+                    var svgRoot = new XElement(svgNamespace + "svg",
+                        new XAttribute("xmlns", svgNamespace.NamespaceName),
+                        new XAttribute("version", "1.1"),
+                        new XAttribute("width", "100%"),
+                        new XAttribute("height", "100%")
+                    );
+
+                    // Add the defs (d) to the SVG
+                    if (d != null)
                     {
-                        var elementAsSymbolInstance = (CsXFL.SymbolInstance)element;
-                        var elementAsSymbolItem = (CsXFL.SymbolItem)elementAsSymbolInstance.CorrespondingItem;
-
-                        // Should also include AS3 & anything else that makes the visuals unique
-                        string cacheKey = $"{elementAsSymbolItem.Name}_{elementAsSymbolInstance.FirstFrame}";
-
-                        // Check if the element is already cached
-                        if (!_svgCache.TryGetValue(cacheKey, out var cachedData))
+                        var defsElement = new XElement(svgNamespace + "defs");
+                        foreach (var def in d.Values)
                         {
-                            string appDataFolder = App.BlitzAppData.GetTmpFolder();
-
-                            SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
-                            Console.WriteLine("Rendering symbol: " + elementAsSymbolItem.Name + " as " + elementAsSymbolInstance.FirstFrame);
-                            (XDocument renderedSvgDoc, CsXFL.Rectangle renderedBbox) = renderer.RenderSymbol(elementAsSymbolItem.Timeline, elementAsSymbolInstance.FirstFrame);
-
-                            // Convert the rendered SVG to SKPicture and cache it
-                            using (var stream = new MemoryStream())
-                            {
-                                renderedSvgDoc.Save(stream); // Directly save the XDocument to the MemoryStream
-                                stream.Seek(0, SeekOrigin.Begin); // Reset the stream position to the beginning
-
-                                var svg = new SKSvg();
-                                svg.Load(stream);
-
-                                if (svg.Picture != null)
-                                {
-                                    cachedData = (svg.Picture, renderedBbox);
-                                    _svgCache[cacheKey] = cachedData;
-                                }
-                            }
+                            defsElement.Add(def);
                         }
-
-                        var (cachedRenderedPicture, bbox) = cachedData;
-
-                        // Precompute the drawing action
-                        _drawingInstructions.Add(canvas =>
-                        {
-                            canvas.Save();
-                            ApplyTransformAndDraw(canvas, elementAsSymbolInstance, cachedRenderedPicture);
-                            canvas.Restore();
-                        });
+                        svgRoot.Add(defsElement);
                     }
-                    catch (Exception ex)
+
+                    // Add the body (b) to the SVG
+                    if (b != null)
                     {
-                        Console.WriteLine($"Error rendering symbol: {ex.Message}" + ex.StackTrace);
+                        foreach (var bodyElement in b)
+                        {
+                            svgRoot.Add(bodyElement);
+                        }
                     }
+
+                    // Create the XDocument
+                    XDocument renderedSvgDoc = new XDocument(svgRoot);
+                    ApplyTransformAndDraw(MainSkXamlCanvas, element, renderedSvgDoc);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error rendering symbol: {ex.Message}" + ex.StackTrace);
                 }
             }
         }
 
-        MainSkXamlCanvas.Width = MainCanvas.Width;
-        MainSkXamlCanvas.Height = MainCanvas.Height;
-
-        MainSkXamlCanvas.PaintSurface += (sender, args) =>
-        {
-            var canvas = args.Surface.Canvas;
-
-            // Clear the canvas
-            canvas.Clear(SkiaSharp.SKColors.Transparent);
-
-            // Execute precomputed drawing instructions
-            foreach (var drawAction in _drawingInstructions)
-            {
-                drawAction(canvas);
-            }
-        };
+        MainSkXamlCanvas.Width = _workingCsXFLDoc.Width;
+        MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
     }
 
-    private void ApplyTransformAndDraw(SKCanvas canvas, CsXFL.SymbolInstance elementAsSymbolInstance, SKPicture cachedRenderedPicture)
+    private void ApplyTransformAndDraw(SKXamlCanvas skXamlCanvas, CsXFL.Element element, XDocument renderedSvgDoc)
     {
         try
         {
-            // Fix this later
-            System.Numerics.Matrix4x4 transformOrigin = System.Numerics.Matrix4x4.Identity;
-
-            // Translate to the transformation point
-            transformOrigin.M14 = (float)-elementAsSymbolInstance.TransformationPoint.X;
-            transformOrigin.M24 = (float)-elementAsSymbolInstance.TransformationPoint.Y;
-
-            var affineMatrix = CreateAffine(
-                elementAsSymbolInstance.Matrix.A,
-                elementAsSymbolInstance.Matrix.B,
-                elementAsSymbolInstance.Matrix.C,
-                elementAsSymbolInstance.Matrix.D,
-                elementAsSymbolInstance.Matrix.Tx,
-                elementAsSymbolInstance.Matrix.Ty
-            );
-
-            transformOrigin *= affineMatrix;
-
-            transformOrigin.M14 += (float)elementAsSymbolInstance.TransformationPoint.X;
-            transformOrigin.M24 += (float)elementAsSymbolInstance.TransformationPoint.Y;
-
-            SKMatrix ImplicitConversationOperator = new SKMatrix(
-                transformOrigin.M11,
-                -transformOrigin.M12,
-                transformOrigin.M14,
-                -transformOrigin.M21,
-                transformOrigin.M22,
-                transformOrigin.M24,
-                0, 0, 1
-            );
-
-            canvas.SetMatrix(ImplicitConversationOperator);
-
-            // Draw the cached picture
-            if (cachedRenderedPicture != null)
+            // Set the width and height attributes of the root SVG element
+            var svgRoot = renderedSvgDoc.Root;
+            if (svgRoot != null)
             {
-                canvas.DrawPicture(cachedRenderedPicture);
+                svgRoot.SetAttributeValue("width", skXamlCanvas.Width.ToString());
+                svgRoot.SetAttributeValue("height", skXamlCanvas.Height.ToString());
+            }
+
+            // Convert the XDocument to a string
+            string svgContent = renderedSvgDoc.ToString();
+
+            var svgImage = new SvgImage();
+            using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svgContent)))
+            {
+                svgImage.Source = SvgSource.Load(stream); // Load the SVG content from a stream
+            }
+
+            // Create an Image control to host the SvgImage
+            var imageControl = new Image
+            {
+                Source = svgImage,
+                Stretch = Avalonia.Media.Stretch.Uniform // Adjust as needed
+            };
+
+            if (skXamlCanvas.Parent is Panel parentPanel)
+            {
+                parentPanel.Children.Add(imageControl);
             }
         }
         catch (Exception ex)

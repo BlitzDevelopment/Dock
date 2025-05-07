@@ -4,6 +4,8 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:skia="clr-namespace:Avalonia.Controls;assembly=Blitz"
+             xmlns:svg="clr-namespace:Avalonia.Svg;assembly=Avalonia.Svg"
+             xmlns:paz="using:Avalonia.Controls.PanAndZoom"
              xmlns:vm="using:Blitz.ViewModels.Documents"
              xmlns:progRing="clr-namespace:AvaloniaProgressRing;assembly=AvaloniaProgressRing"
              mc:Ignorable="d"
@@ -11,66 +13,87 @@
              x:DataType="vm:DocumentViewModel" x:CompileBindings="True">
   <Grid Focusable="True">
 
-    <!-- Existing Content -->
-    <Viewbox Stretch="Uniform">
-        <Canvas x:Name="MainCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
-            <Rectangle Fill="{Binding CanvasColor}" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" />
-            <skia:SKXamlCanvas x:Name="MainSkXamlCanvas"/>
-        </Canvas>
-    </Viewbox>
+    <Grid>
+        <!-- Define rows: one for the StackPanel and one for the ZoomBorder -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50" /> <!-- StackPanel row -->
+            <RowDefinition Height="*" /> <!-- ZoomBorder row -->
+        </Grid.RowDefinitions>
 
-    <!-- Top Flyout -->
-    <Border x:Name="TopFlyout"
-            Height="50"
-            VerticalAlignment="Top"
-            HorizontalAlignment="Stretch"
-            Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
+        <!-- StackPanel above the Canvas -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-        <!-- Left ComboBox -->
-        <ComboBox Grid.Column="0"
-                  Margin="5"
-                  VerticalAlignment="Center"
-                  HorizontalAlignment="Left"
-                  Width="100"
-                  SelectedIndex="0">
-          <ComboBoxItem Content="Scene 1" />
-          <ComboBoxItem Content="Scene 2" />
-          <ComboBoxItem Content="Scene 3" />
-        </ComboBox>
+            <!-- Left ComboBox -->
+            <ComboBox x:Name="SceneSelector" Grid.Column="0"
+                      Margin="5"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Left"
+                      Width="100"
+                      SelectedIndex="0">
+            </ComboBox>
 
-        <!-- Right Buttons and NumericUpDown -->
-        <StackPanel Grid.Column="2"
-                    Orientation="Horizontal"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Right"
-                    Margin="5">
+            <!-- Empty middle column -->
+            <Grid Grid.Column="1" />
 
-          <Button Content="Button 1"
-                  Margin="5,0"
-                  Width="75" />
-
-          <Button Content="Button 2"
-                  Margin="5,0"
-                  Width="75" />
-
-          <Button Content="Button 3"
-                  Margin="5,0"
-                  Width="75" />
-
-          <NumericUpDown Width="75"
+            <!-- Right Buttons and NumericUpDown -->
+            <StackPanel Grid.Column="2"
+                        Orientation="Horizontal"
                         VerticalAlignment="Center"
-                        Minimum="0"
-                        Maximum="400"
-                        Value="10" />
+                        HorizontalAlignment="Right"
+                        Margin="5">
+
+              <Button Margin="5,0" ToolTip.Tip="Center Stage">
+                <Button.Content>
+                  <StackPanel Orientation="Vertical">
+                    <PathIcon Data="{StaticResource can_center}" />
+                  </StackPanel>
+                </Button.Content>
+              </Button>
+
+              <Button Margin="5,0" ToolTip.Tip="Rotate Stage">
+                <Button.Content>
+                  <StackPanel Orientation="Vertical">
+                    <PathIcon Data="{StaticResource can_rotation}" />
+                  </StackPanel>
+                </Button.Content>
+              </Button>
+
+              <Button Margin="5,0" ToolTip.Tip="Clip content to stage">
+                <Button.Content>
+                  <StackPanel Orientation="Vertical">
+                    <PathIcon Data="{StaticResource can_clip}" />
+                  </StackPanel>
+                </Button.Content>
+              </Button>
+
+              <NumericUpDown x:Name="NumericUpDown" Width="60"
+                            VerticalAlignment="Center"
+                            Minimum="0"
+                            Maximum="400"
+                            Value="10"
+                            ShowButtonSpinner="False" />
+            </StackPanel>
+          </Grid>
         </StackPanel>
-      </Grid>
-    </Border>
+
+        <!-- Existing ZoomBorder -->
+        <paz:ZoomBorder Grid.Row="1" Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
+                        MinZoomX="0.1" MinZoomY="0.1" 
+                        MaxZoomX="40" MaxZoomY="40"
+                        Background="SlateBlue" ClipToBounds="True" Focusable="True"
+                        VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+            <Canvas x:Name="MainCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
+                <Rectangle Fill="{Binding CanvasColor}" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" />
+                <skia:SKXamlCanvas x:Name="MainSkXamlCanvas"/>
+            </Canvas>
+        </paz:ZoomBorder>
+    </Grid>
 
     <!-- Bottom-right Flyout and ProgressRing -->
     <Grid>

@@ -2,6 +2,7 @@
         xmlns:dialogHostAvalonia="clr-namespace:DialogHostAvalonia;assembly=DialogHost.Avalonia"
         xmlns="https://github.com/avaloniaui"
         xmlns:skia="clr-namespace:Avalonia.Controls;assembly=Blitz"
+        xmlns:paz="using:Avalonia.Controls.PanAndZoom"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Width="626">
   <Grid Margin="0">
@@ -22,18 +23,18 @@
             <Grid Width="323" Height="400">
                 <Rectangle Fill="White" />
                 <Grid ClipToBounds="True">
+                  <paz:ZoomBorder Grid.Row="1" Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
+                    MinZoomX="0.1" MinZoomY="0.1" 
+                    MaxZoomX="40" MaxZoomY="40"
+                    Background="SlateBlue" ClipToBounds="True" Focusable="True"
+                    VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
                     <Image x:Name="LibraryBitmapPreview" 
                           Source="{Binding BitmapImageSource}"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center"
                           Stretch="Uniform">
-                        <Image.RenderTransform>
-                            <TransformGroup>
-                                <ScaleTransform />
-                                <TranslateTransform />
-                            </TransformGroup>
-                        </Image.RenderTransform>
                     </Image>
+                  </paz:ZoomBorder>
                 </Grid>
             </Grid>
               <!-- SoundInfoDisplay and Import Button -->

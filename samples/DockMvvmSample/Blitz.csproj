@@ -12,13 +12,18 @@
 
   <Import Project="..\..\build\Base.props" />
   <Import Project="..\..\build\ReferenceAssemblies.props" />
-  <Import Project="..\..\build\Avalonia.props" />
   <Import Project="..\..\build\Avalonia.Themes.Fluent.props" />
   <Import Project="..\..\build\Avalonia.Desktop.props" />
   <Import Project="..\..\build\Avalonia.Diagnostics.props" />
   <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Win32" Version="11.3.0" />
     <PackageReference Include="AutoMapper" Version="13.0.1" />
+    <PackageReference Include="Avalonia.Controls.PanAndZoom" Version="11.2.0" />
     <PackageReference Include="Avalonia.Controls.TreeDataGrid" Version="11.1.0" />
+    <PackageReference Include="Avalonia.Svg" Version="11.3.0" />
+    <PackageReference Include="Avalonia.Win32" Version="11.3.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Deadpikle.AvaloniaProgressRing" Version="0.10.0" />
     <PackageReference Include="DialogHost.Avalonia" Version="0.9.2" />

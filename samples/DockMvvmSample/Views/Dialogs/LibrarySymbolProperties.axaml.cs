@@ -70,29 +70,29 @@ namespace Blitz.Views
 
             try
             {
-                var symbolToRender = _libraryViewModel.UserLibrarySelection[0] as CsXFL.SymbolItem;
-                (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
-                SkiaSharp.SKPicture renderedSymbol = null!;
+                // var symbolToRender = _libraryViewModel.UserLibrarySelection[0] as CsXFL.SymbolItem;
+                // (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
+                // SkiaSharp.SKPicture renderedSymbol = null!;
 
-                using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(renderedSVG.ToString())))
-                {
-                    var svg = new SKSvg();
-                    svg.Load(stream);
-                    renderedSymbol = svg.Picture;
-                }
+                // using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(renderedSVG.ToString())))
+                // {
+                //     var svg = new SKSvg();
+                //     svg.Load(stream);
+                //     renderedSymbol = svg.Picture;
+                // }
 
-                // Use the cached picture
-                var boundingBox = bbox!;
-                var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
-                var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
-                var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
-                var boundingBoxCenterY = boundingBox.Bottom + boundingBoxHeight / 2;
+                // // Use the cached picture
+                // var boundingBox = bbox!;
+                // var boundingBoxWidth = boundingBox.Right - boundingBox.Left;
+                // var boundingBoxHeight = boundingBox.Top - boundingBox.Bottom;
+                // var boundingBoxCenterX = boundingBox.Left + boundingBoxWidth / 2;
+                // var boundingBoxCenterY = boundingBox.Bottom + boundingBoxHeight / 2;
 
-                canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
-                canvas.Scale(0.9f * (float)Math.Min(canvas.LocalClipBounds.Width / boundingBoxWidth, canvas.LocalClipBounds.Height / boundingBoxHeight));
-                canvas.Translate((float)-boundingBoxCenterX, (float)-boundingBoxCenterY);
+                // canvas.Translate(canvas.LocalClipBounds.MidX, canvas.LocalClipBounds.MidY);
+                // canvas.Scale(0.9f * (float)Math.Min(canvas.LocalClipBounds.Width / boundingBoxWidth, canvas.LocalClipBounds.Height / boundingBoxHeight));
+                // canvas.Translate((float)-boundingBoxCenterX, (float)-boundingBoxCenterY);
 
-                canvas.DrawPicture(renderedSymbol);
+                // canvas.DrawPicture(renderedSymbol);
             }
             catch (Exception ex)
             {

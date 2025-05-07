@@ -298,10 +298,10 @@ public partial class LibraryViewModel : Tool
 
             try
             {
-                var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
-                (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
-                SvgData = renderedSVG;
-                BoundingBox = bbox;
+                // var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
+                // (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
+                // SvgData = renderedSVG;
+                // BoundingBox = bbox;
             }
             catch (Exception ex)
             {
