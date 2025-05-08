@@ -5,7 +5,6 @@ using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Styling;
-using Avalonia.Svg;
 using Avalonia.Threading;
 using Blitz.Events;
 using Blitz.ViewModels.Documents;
@@ -75,13 +74,16 @@ public partial class DocumentView : UserControl
     private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
     {
         NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
-        MainSkXamlCanvas.Invalidate(); 
+        MainSkXamlCanvas.Invalidate();
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-       _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
-       ViewFrame();
+        // Bind a new event to clear the canvas
+        MainSkXamlCanvas.PaintSurface += ClearCanvas;
+
+        _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
+        ViewFrame();
     }
 
     public void ViewFrame()
@@ -159,39 +161,40 @@ public partial class DocumentView : UserControl
     {
         try
         {
-            // Set the width and height attributes of the root SVG element
-            var svgRoot = renderedSvgDoc.Root;
-            if (svgRoot != null)
+            skXamlCanvas.PaintSurface += (sender, e) =>
             {
-                svgRoot.SetAttributeValue("width", skXamlCanvas.Width.ToString());
-                svgRoot.SetAttributeValue("height", skXamlCanvas.Height.ToString());
-            }
-
-            // Convert the XDocument to a string
-            string svgContent = renderedSvgDoc.ToString();
-
-            var svgImage = new SvgImage();
-            using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svgContent)))
-            {
-                svgImage.Source = SvgSource.Load(stream); // Load the SVG content from a stream
-            }
-
-            // Create an Image control to host the SvgImage
-            var imageControl = new Image
-            {
-                Source = svgImage,
-                Stretch = Avalonia.Media.Stretch.Uniform // Adjust as needed
+                OnCanvasPaint(sender, e, renderedSvgDoc);
             };
-
-            if (skXamlCanvas.Parent is Panel parentPanel)
-            {
-                parentPanel.Children.Add(imageControl);
-            }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error applying transform and drawing: {ex.Message}" + ex.StackTrace);
         }
+    }
+
+    private SKPicture? _cachedSvgPicture;
+    void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e, XDocument renderedSvgDoc)
+    {
+        var canvas = e.Surface.Canvas;
+
+        using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(renderedSvgDoc.ToString())))
+        {
+            var svg = new SKSvg();
+            svg.Load(stream);
+            _cachedSvgPicture = svg.Picture;
+        }
+
+        var matrix = SKMatrix.CreateTranslation((float)_zoomBorder.OffsetX, (float)_zoomBorder.OffsetY);
+        matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale((float)_zoomBorder.ZoomX, (float)_zoomBorder.ZoomY));
+
+        canvas.DrawPicture(_cachedSvgPicture);
+        canvas.SetMatrix(matrix);
+    }
+
+    private void ClearCanvas(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColors.Transparent);
     }
 
     private void InitializeComponent()
