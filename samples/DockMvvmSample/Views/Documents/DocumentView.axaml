@@ -14,78 +14,82 @@
   <Grid Focusable="True">
 
     <Grid>
-        <!-- Define rows: one for the StackPanel and one for the ZoomBorder -->
+        <!-- Define rows: one for the Toolbar and one for the Stage -->
         <Grid.RowDefinitions>
-            <RowDefinition Height="50" /> <!-- StackPanel row -->
-            <RowDefinition Height="*" /> <!-- ZoomBorder row -->
+            <RowDefinition Height="50" />
+            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Replace the StackPanel with a Grid for proper alignment -->
-        <Grid Grid.Row="0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" /> <!-- Left ComboBox -->
-            <ColumnDefinition Width="*" />   <!-- Empty space -->
-            <ColumnDefinition Width="Auto" /> <!-- Right Buttons and NumericUpDown -->
-          </Grid.ColumnDefinitions>
+      <!-- Canvas & Stage -->
+      <Grid Grid.Row="1">
+          <skia:SKXamlCanvas x:Name="MainSkXamlCanvas" IsHitTestVisible="False"/>
+          <paz:ZoomBorder Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
+                          MinZoomX="0.1" MinZoomY="0.1" 
+                          MaxZoomX="40" MaxZoomY="40"
+                          ClipToBounds="True" Focusable="True"
+                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ZIndex="-1">
+              <Canvas x:Name="MainCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
+                  <Rectangle Fill="{Binding CanvasColor}" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" Opacity="1" />
+              </Canvas>
+          </paz:ZoomBorder>
+      </Grid>
 
-          <!-- Left ComboBox -->
-          <ComboBox x:Name="SceneSelector" Grid.Column="0"
-                    Margin="5"
+      <!-- Toolbar -->
+      <Grid Grid.Row="0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" /> <!-- Left ComboBox -->
+          <ColumnDefinition Width="*" />   <!-- Empty space -->
+          <ColumnDefinition Width="Auto" /> <!-- Right Buttons and NumericUpDown -->
+        </Grid.ColumnDefinitions>
+
+        <!-- Left ComboBox -->
+        <ComboBox x:Name="SceneSelector" Grid.Column="0"
+                  Margin="5"
+                  VerticalAlignment="Center"
+                  HorizontalAlignment="Left"
+                  Width="100"
+                  SelectedIndex="0" />
+
+        <!-- Right Buttons and NumericUpDown -->
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
                     VerticalAlignment="Center"
-                    HorizontalAlignment="Left"
-                    Width="100"
-                    SelectedIndex="0" />
+                    HorizontalAlignment="Right"
+                    Margin="5">
+          <Button Margin="5,0" ToolTip.Tip="Center Stage">
+            <Button.Content>
+              <StackPanel Orientation="Vertical">
+                <PathIcon Data="{StaticResource can_center}" />
+              </StackPanel>
+            </Button.Content>
+          </Button>
 
-          <!-- Right Buttons and NumericUpDown -->
-          <StackPanel Grid.Column="2"
-                      Orientation="Horizontal"
-                      VerticalAlignment="Center"
-                      HorizontalAlignment="Right"
-                      Margin="5">
-            <Button Margin="5,0" ToolTip.Tip="Center Stage">
-              <Button.Content>
-                <StackPanel Orientation="Vertical">
-                  <PathIcon Data="{StaticResource can_center}" />
-                </StackPanel>
-              </Button.Content>
-            </Button>
+          <Button Margin="5,0" ToolTip.Tip="Rotate Stage">
+            <Button.Content>
+              <StackPanel Orientation="Vertical">
+                <PathIcon Data="{StaticResource can_rotation}" />
+              </StackPanel>
+            </Button.Content>
+          </Button>
 
-            <Button Margin="5,0" ToolTip.Tip="Rotate Stage">
-              <Button.Content>
-                <StackPanel Orientation="Vertical">
-                  <PathIcon Data="{StaticResource can_rotation}" />
-                </StackPanel>
-              </Button.Content>
-            </Button>
+          <Button Margin="5,0" ToolTip.Tip="Clip content to stage">
+            <Button.Content>
+              <StackPanel Orientation="Vertical">
+                <PathIcon Data="{StaticResource can_clip}" />
+              </StackPanel>
+            </Button.Content>
+          </Button>
 
-            <Button Margin="5,0" ToolTip.Tip="Clip content to stage">
-              <Button.Content>
-                <StackPanel Orientation="Vertical">
-                  <PathIcon Data="{StaticResource can_clip}" />
-                </StackPanel>
-              </Button.Content>
-            </Button>
+          <NumericUpDown x:Name="NumericUpDown" Width="60"
+                        VerticalAlignment="Center"
+                        Minimum="0"
+                        Maximum="400"
+                        Value="10"
+                        ShowButtonSpinner="False" />
+        </StackPanel>
+      </Grid>
 
-            <NumericUpDown x:Name="NumericUpDown" Width="60"
-                          VerticalAlignment="Center"
-                          Minimum="0"
-                          Maximum="400"
-                          Value="10"
-                          ShowButtonSpinner="False" />
-          </StackPanel>
-        </Grid>
 
-        <!-- Existing ZoomBorder -->
-        <skia:SKXamlCanvas Grid.Row="1" x:Name="MainSkXamlCanvas"/>
-        <paz:ZoomBorder Grid.Row="1" Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
-                        MinZoomX="0.1" MinZoomY="0.1" 
-                        MaxZoomX="40" MaxZoomY="40"
-                        ClipToBounds="True" Focusable="True"
-                        VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-            <Canvas x:Name="MainCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
-                <Rectangle Fill="{Binding CanvasColor}" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" Opacity="0.25" />
-            </Canvas>
-        </paz:ZoomBorder>
 
     </Grid>
 

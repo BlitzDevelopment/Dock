@@ -25,6 +25,9 @@ public partial class DocumentView : UserControl
     private readonly DocumentViewModel _documentViewModel;
     private readonly ZoomBorder? _zoomBorder;
     private CsXFL.Document _workingCsXFLDoc;
+    private readonly Dictionary<string, SKPicture> _svgPictureCache = new();
+    private SKPicture? _cachedSvgPicture;
+
     public DocumentView()
     {
         InitializeComponent();
@@ -33,6 +36,14 @@ public partial class DocumentView : UserControl
         App.EventAggregator.Subscribe<DocumentProgressChangedEvent>(OnDocumentProgressChanged);
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
+        _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
+        _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
+        if (_zoomBorder != null)
+        {
+            _zoomBorder.KeyDown += ZoomBorder_KeyDown;
+            _zoomBorder.ZoomChanged += ZoomBorder_ZoomChanged;
+        }
+
         SetProgressRingState(true);
         Task.Run(async () =>
             {
@@ -40,15 +51,6 @@ public partial class DocumentView : UserControl
                 await Dispatcher.UIThread.InvokeAsync(() => SetProgressRingState(false));
             });
         ShowFlyoutAsync("Loaded " + Path.GetFileName(An.GetActiveDocument().Filename)).ConfigureAwait(false);
-
-        _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
-        _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
-        if (_zoomBorder != null)
-        {
-            _zoomBorder.KeyDown += ZoomBorder_KeyDown;
-            
-            _zoomBorder.ZoomChanged += ZoomBorder_ZoomChanged;
-        }
     }
 
     private void ZoomBorder_KeyDown(object? sender, KeyEventArgs e)
@@ -73,16 +75,15 @@ public partial class DocumentView : UserControl
 
     private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
     {
+        Console.WriteLine($"ZoomX: {e.ZoomX}, ZoomY: {e.ZoomY}");
         NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
         MainSkXamlCanvas.Invalidate();
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        // Bind a new event to clear the canvas
-        MainSkXamlCanvas.PaintSurface += ClearCanvas;
-
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
+        MainSkXamlCanvas.PaintSurface += ClearCanvas;
         ViewFrame();
     }
 
@@ -110,7 +111,7 @@ public partial class DocumentView : UserControl
                     SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
                     string elementIdentifier =  _workingCsXFLDoc.Timelines[0].Name + "_" + layer.Name + "_" + element.Name;
 
-                    // No color effects, no masks
+                    // No support for color effects yet
                     (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(element, elementIdentifier, (operatingFrame-layer.GetFrame(operatingFrame).StartFrame), CsXFL.Color.DefaultColor(), false);
 
                     // Create the root SVG element
@@ -144,7 +145,7 @@ public partial class DocumentView : UserControl
 
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
-                    ApplyTransformAndDraw(MainSkXamlCanvas, element, renderedSvgDoc);
+                    ApplyTransformAndDraw(renderedSvgDoc);
                 }
                 catch (Exception ex)
                 {
@@ -157,14 +158,17 @@ public partial class DocumentView : UserControl
         MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
     }
 
-    private void ApplyTransformAndDraw(SKXamlCanvas skXamlCanvas, CsXFL.Element element, XDocument renderedSvgDoc)
+    private void ApplyTransformAndDraw(XDocument renderedSvgDoc)
     {
         try
         {
-            skXamlCanvas.PaintSurface += (sender, e) =>
+            MainSkXamlCanvas.PaintSurface -= OnCanvasPaintWrapper;
+            MainSkXamlCanvas.PaintSurface += OnCanvasPaintWrapper;
+
+            void OnCanvasPaintWrapper(object sender, SKPaintSurfaceEventArgs e)
             {
                 OnCanvasPaint(sender, e, renderedSvgDoc);
-            };
+            }
         }
         catch (Exception ex)
         {
@@ -172,23 +176,46 @@ public partial class DocumentView : UserControl
         }
     }
 
-    private SKPicture? _cachedSvgPicture;
     void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e, XDocument renderedSvgDoc)
     {
         var canvas = e.Surface.Canvas;
 
-        using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(renderedSvgDoc.ToString())))
+        // Generate a unique key for the SVG content
+        string svgKey = renderedSvgDoc.ToString().GetHashCode().ToString();
+
+        // Check if the SKPicture is already cached
+        if (!_svgPictureCache.TryGetValue(svgKey, out var cachedPicture))
         {
-            var svg = new SKSvg();
-            svg.Load(stream);
-            _cachedSvgPicture = svg.Picture;
+            using (var stream = new MemoryStream())
+            {
+                var writer = new StreamWriter(stream);
+                writer.Write(renderedSvgDoc.ToString());
+                writer.Flush();
+                stream.Position = 0;
+
+                var svg = new SKSvg();
+                svg.Load(stream);
+                cachedPicture = svg.Picture;
+
+                // Cache the SKPicture
+                if (cachedPicture != null)
+                {
+                    _svgPictureCache[svgKey] = cachedPicture;
+                }
+            }
         }
 
+        _cachedSvgPicture = cachedPicture;
+
+        // Apply transformations and draw the picture
         var matrix = SKMatrix.CreateTranslation((float)_zoomBorder.OffsetX, (float)_zoomBorder.OffsetY);
         matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale((float)_zoomBorder.ZoomX, (float)_zoomBorder.ZoomY));
 
-        canvas.DrawPicture(_cachedSvgPicture);
         canvas.SetMatrix(matrix);
+        if (_cachedSvgPicture != null)
+        {
+            canvas.DrawPicture(_cachedSvgPicture);
+        }
     }
 
     private void ClearCanvas(object sender, SKPaintSurfaceEventArgs e)
