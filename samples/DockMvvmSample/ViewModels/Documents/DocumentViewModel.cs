@@ -12,17 +12,12 @@ using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using Blitz.Events;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Avalonia.Controls.PanAndZoom;
-using Avalonia.Controls;
-using Avalonia;
 
 namespace Blitz.ViewModels.Documents;
 
 public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
 {
     public int DocumentIndex { get; set; }
-    private CsXFL.Document _workingCsXFLDoc;
 
     private ZipArchive? _zipArchive;
     private Dictionary<string, byte[]> _bitmapCache;
@@ -34,14 +29,12 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
     private string? _canvasColor;
     [ObservableProperty]
     private int _canvasWidth;
+
     [ObservableProperty]
     private int _canvasHeight;
-    
-    private int _selectedTimelineIndex;
-    private List<string> _timelineNames;
 
-    public ZoomBorder ZoomBorder;
-    public ComboBox SceneSelector;
+
+    private CsXFL.Document _workingCsXFLDoc;
 
     public DocumentViewModel(bool isXFL, string documentPath)
     {
@@ -49,13 +42,13 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
         _documentPath = documentPath;
         _bitmapCache = new Dictionary<string, byte[]>();
         _soundCache = new Dictionary<string, byte[]>();
-        _timelineNames = new List<string>();
 
         if (!_isXFL)
         {
             InitializeZipArchive();
         }
 
+        InvalidateCanvas();
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
     }
 
@@ -63,27 +56,6 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
     {
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
         InvalidateCanvas();
-        PopulateTimelines();
-        _selectedTimelineIndex = _workingCsXFLDoc.CurrentTimeline;
-    }
-
-    private void PopulateTimelines()
-    {
-        if (_workingCsXFLDoc?.Timelines != null)
-        {
-            _timelineNames.Clear();
-            foreach (var timeline in _workingCsXFLDoc.Timelines)
-            {
-                _timelineNames.Add(timeline.Name);
-            }
-
-            if (SceneSelector != null)
-            {
-                SceneSelector.ItemsSource = null;
-                SceneSelector.ItemsSource = _timelineNames;
-                SceneSelector.SelectedIndex = 0;
-            }
-        }
     }
 
     public void InvalidateCanvas()
@@ -345,12 +317,6 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
         return audioData;
     }
 
-    [RelayCommand]
-    private void CenterStage()
-    {
-        ZoomBorder.Uniform();
-    }
-        
     public void Dispose()
     {
         _bitmapCache.Clear();
