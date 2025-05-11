@@ -21,21 +21,21 @@
         </Grid.RowDefinitions>
 
       <!-- Canvas & Stage -->
-      <Grid Grid.Row="1">
-          <skia:SKXamlCanvas x:Name="MainSkXamlCanvas" IsHitTestVisible="False"/>
+      <Grid x:Name="CanvasClip" Grid.Row="1" ClipToBounds="True">
+          <Canvas x:Name="MainCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" ClipToBounds="True"/>
           <paz:ZoomBorder Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
                           MinZoomX="0.1" MinZoomY="0.1" 
                           MaxZoomX="40" MaxZoomY="40"
                           ClipToBounds="True" Focusable="True"
                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ZIndex="-1">
-              <Canvas x:Name="MainCanvas" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
+              <Canvas x:Name="Stage" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
                   <Rectangle Fill="{Binding CanvasColor}" Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}" Opacity="1" />
               </Canvas>
           </paz:ZoomBorder>
       </Grid>
 
       <!-- Toolbar -->
-      <Grid Grid.Row="0">
+      <Grid Grid.Row="0" Opacity="1" Background="Black">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto" /> <!-- Left ComboBox -->
           <ColumnDefinition Width="*" />   <!-- Empty space -->
@@ -44,7 +44,7 @@
 
         <!-- Left ComboBox -->
         <ComboBox x:Name="SceneSelector" Grid.Column="0"
-                  Margin="5"
+                  Margin="15,5,5,5"
                   VerticalAlignment="Center"
                   HorizontalAlignment="Left"
                   Width="100"
@@ -56,7 +56,7 @@
                     VerticalAlignment="Center"
                     HorizontalAlignment="Right"
                     Margin="5">
-          <Button Margin="5,0" ToolTip.Tip="Center Stage">
+          <Button Margin="5,0" ToolTip.Tip="Center Stage" Command="{Binding CenterStageCommand}">
             <Button.Content>
               <StackPanel Orientation="Vertical">
                 <PathIcon Data="{StaticResource can_center}" />
@@ -81,6 +81,7 @@
           </Button>
 
           <NumericUpDown x:Name="NumericUpDown" Width="60"
+                        Margin="15,0,15,0"
                         VerticalAlignment="Center"
                         Minimum="0"
                         Maximum="400"
@@ -88,8 +89,6 @@
                         ShowButtonSpinner="False" />
         </StackPanel>
       </Grid>
-
-
 
     </Grid>
 

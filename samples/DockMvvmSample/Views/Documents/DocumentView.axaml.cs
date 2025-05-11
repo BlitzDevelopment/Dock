@@ -10,6 +10,7 @@ using Blitz.Events;
 using Blitz.ViewModels.Documents;
 using CsXFL;
 using Rendering;
+using Serilog;
 using SkiaSharp;
 using Svg.Skia;
 using System;
@@ -20,10 +21,77 @@ using System.Xml.Linq;
 
 namespace Blitz.Views.Documents;
 
+public class CanvasManager
+{
+    private List<Avalonia.Controls.SKXamlCanvas> _canvasList;
+
+    public CanvasManager()
+    {
+        _canvasList = new List<Avalonia.Controls.SKXamlCanvas>();
+    }
+
+    public void AddCanvas(Avalonia.Controls.SKXamlCanvas canvas)
+    {
+        Console.WriteLine(_canvasList.Count + "CanvasListCount");
+        canvas.IsHitTestVisible = false;
+        _canvasList.Add(canvas);
+    }
+
+    public void RemoveCanvas(Avalonia.Controls.SKXamlCanvas canvas)
+    {
+        _canvasList.Remove(canvas);
+    }
+
+    public IEnumerable<Avalonia.Controls.SKXamlCanvas> GetAllCanvases()
+    {
+        return _canvasList;
+    }
+
+    public void InvalidateAllCanvases()
+    {
+        foreach (var canvas in _canvasList)
+        {
+            canvas.Invalidate();
+        }
+    }
+
+    public void AddEventHandlerToAllCanvases(EventHandler<SKPaintSurfaceEventArgs> handler)
+    {
+        foreach (var canvas in _canvasList)
+        {
+            canvas.PaintSurface += handler;
+        }
+    }
+
+    public void RemoveEventHandlerFromAllCanvases(EventHandler<SKPaintSurfaceEventArgs> handler)
+    {
+        foreach (var canvas in _canvasList)
+        {
+            canvas.PaintSurface -= handler;
+        }
+    }
+
+    public void AddAllCanvasesToParent(Canvas parentCanvas)
+    {
+        foreach (var canvas in _canvasList)
+        {
+            parentCanvas.Children.Add(canvas);
+        }
+    }
+
+    public void RemoveAllChildrenFromParent(Canvas parentCanvas)
+    {
+        _canvasList.Clear();
+        parentCanvas.Children.Clear();
+    }
+}
+
 public partial class DocumentView : UserControl
 {
+    private readonly CanvasManager _canvasManager = new();
     private readonly DocumentViewModel _documentViewModel;
     private readonly ZoomBorder? _zoomBorder;
+    private Canvas? _mainCanvas;
     private CsXFL.Document _workingCsXFLDoc;
     private readonly Dictionary<string, SKPicture> _svgPictureCache = new();
     private SKPicture? _cachedSvgPicture;
@@ -36,11 +104,12 @@ public partial class DocumentView : UserControl
         App.EventAggregator.Subscribe<DocumentProgressChangedEvent>(OnDocumentProgressChanged);
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
+        _mainCanvas = this.Find<Canvas>("MainCanvas");
+
         _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
         _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
         if (_zoomBorder != null)
         {
-            _zoomBorder.KeyDown += ZoomBorder_KeyDown;
             _zoomBorder.ZoomChanged += ZoomBorder_ZoomChanged;
         }
 
@@ -53,38 +122,32 @@ public partial class DocumentView : UserControl
         ShowFlyoutAsync("Loaded " + Path.GetFileName(An.GetActiveDocument().Filename)).ConfigureAwait(false);
     }
 
-    private void ZoomBorder_KeyDown(object? sender, KeyEventArgs e)
-        {
-            switch (e.Key)
-            {
-                case Key.F:
-                    _zoomBorder?.Fill();
-                    break;
-                case Key.U:
-                    _zoomBorder?.Uniform();
-                    break;
-                case Key.R:
-                    _zoomBorder?.ResetMatrix();
-                    break;
-                case Key.T:
-                    _zoomBorder?.ToggleStretchMode();
-                    _zoomBorder?.AutoFit();
-                    break;
-            }
-        }
-
+    private double _previousZoomX = -1;
     private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
     {
-        Console.WriteLine($"ZoomX: {e.ZoomX}, ZoomY: {e.ZoomY}");
-        NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
-        MainSkXamlCanvas.Invalidate();
+        if (Math.Abs(e.ZoomX - _previousZoomX) > 0.0001)
+        {
+            // It's a zoom event
+            NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
+            HandlePan();
+            _canvasManager.InvalidateAllCanvases();
+        }
+        else
+        {
+            // It's a pan event
+            HandlePan();
+        }
+
+        _previousZoomX = e.ZoomX; // Update the previous ZoomX value
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
+        Log.Information("[DocumentViewModel] Active document changed to: ", An.GetDocument(e.Document.DocumentIndex).Filename);
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
-        MainSkXamlCanvas.PaintSurface += ClearCanvas;
+        _canvasManager.RemoveAllChildrenFromParent(_mainCanvas!);
         ViewFrame();
+        _canvasManager.InvalidateAllCanvases();
     }
 
     public void ViewFrame()
@@ -145,7 +208,15 @@ public partial class DocumentView : UserControl
 
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
-                    ApplyTransformAndDraw(renderedSvgDoc);
+
+                    // Create a new SKXamlCanvas for this element
+                    var canvas = new Avalonia.Controls.SKXamlCanvas();
+                    canvas.Width = _workingCsXFLDoc.Width;
+                    canvas.Height = _workingCsXFLDoc.Height;
+                    canvas.PaintSurface += (sender, e) => OnCanvasPaint(sender, e, renderedSvgDoc);
+
+                    // Add the canvas to the CanvasManager
+                    _canvasManager.AddCanvas(canvas);
                 }
                 catch (Exception ex)
                 {
@@ -153,27 +224,7 @@ public partial class DocumentView : UserControl
                 }
             }
         }
-
-        MainSkXamlCanvas.Width = _workingCsXFLDoc.Width;
-        MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
-    }
-
-    private void ApplyTransformAndDraw(XDocument renderedSvgDoc)
-    {
-        try
-        {
-            MainSkXamlCanvas.PaintSurface -= OnCanvasPaintWrapper;
-            MainSkXamlCanvas.PaintSurface += OnCanvasPaintWrapper;
-
-            void OnCanvasPaintWrapper(object sender, SKPaintSurfaceEventArgs e)
-            {
-                OnCanvasPaint(sender, e, renderedSvgDoc);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error applying transform and drawing: {ex.Message}" + ex.StackTrace);
-        }
+        _canvasManager.AddAllCanvasesToParent(_mainCanvas!);
     }
 
     void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e, XDocument renderedSvgDoc)
@@ -208,8 +259,7 @@ public partial class DocumentView : UserControl
         _cachedSvgPicture = cachedPicture;
 
         // Apply transformations and draw the picture
-        var matrix = SKMatrix.CreateTranslation((float)_zoomBorder.OffsetX, (float)_zoomBorder.OffsetY);
-        matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale((float)_zoomBorder.ZoomX, (float)_zoomBorder.ZoomY));
+        var matrix = SKMatrix.CreateScale((float)_zoomBorder.ZoomX, (float)_zoomBorder.ZoomY);
 
         canvas.SetMatrix(matrix);
         if (_cachedSvgPicture != null)
@@ -218,7 +268,19 @@ public partial class DocumentView : UserControl
         }
     }
 
-    private void ClearCanvas(object sender, SKPaintSurfaceEventArgs e)
+    private void HandlePan()
+    {
+        // Create a translation matrix
+        var translateMatrix = Avalonia.Matrix.CreateTranslation(_zoomBorder.OffsetX, _zoomBorder.OffsetY);
+
+        // Apply the translation matrix as the RenderTransform for all canvases
+        foreach (var canvas in _canvasManager.GetAllCanvases())
+        {
+            canvas.RenderTransform = new MatrixTransform(translateMatrix);
+        }
+    }
+
+    private void ClearCanvas(object? sender, SKPaintSurfaceEventArgs e)
     {
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.Transparent);
