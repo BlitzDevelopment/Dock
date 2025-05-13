@@ -167,7 +167,7 @@ public partial class DocumentView : UserControl
 
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
-                    ApplyTransformAndDraw(renderedSvgDoc);
+                    ApplyTransformAndDraw(renderedSvgDoc, element);
                 }
                 catch (Exception ex)
                 {
@@ -180,7 +180,7 @@ public partial class DocumentView : UserControl
         MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
     }
 
-    private void ApplyTransformAndDraw(XDocument renderedSvgDoc)
+    private void ApplyTransformAndDraw(XDocument renderedSvgDoc, Element element)
     {
         try
         {
@@ -189,7 +189,7 @@ public partial class DocumentView : UserControl
 
             void OnCanvasPaintWrapper(object sender, SKPaintSurfaceEventArgs e)
             {
-                OnCanvasPaint(sender, e, renderedSvgDoc);
+                OnCanvasPaint(sender, e, renderedSvgDoc, element);
             }
         }
         catch (Exception ex)
@@ -198,7 +198,7 @@ public partial class DocumentView : UserControl
         }
     }
 
-    void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e, XDocument renderedSvgDoc)
+    void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e, XDocument renderedSvgDoc, Element element)
     {
         var canvas = e.Surface.Canvas;
 
@@ -237,6 +237,46 @@ public partial class DocumentView : UserControl
         if (_cachedSvgPicture != null)
         {
             canvas.DrawPicture(_cachedSvgPicture);
+        }
+
+        // Not supporting text runs right now
+
+        // Custom handling for text elements in the SVG
+        Console.WriteLine("Text elements in SVG:");
+        Console.WriteLine(renderedSvgDoc.ToString());
+        var textElements = renderedSvgDoc.Descendants().Where(el => el.Name.LocalName == "text");
+        if (textElements.Any())
+        {
+            foreach (var textElement in textElements)
+            {
+                var tspan = textElement.Descendants().FirstOrDefault(el => el.Name.LocalName == "tspan");
+                if (tspan != null)
+                {
+                    // Extract font settings from the tspan attributes
+                    string fontFamily = tspan.Attribute("font-family")?.Value ?? "Times New Roman";
+                    float fontSize = float.TryParse(tspan.Attribute("font-size")?.Value, out var size) ? size : 24;
+                    string fillColor = tspan.Attribute("fill")?.Value ?? "#000000";
+
+                    // Convert fill color to SKColor
+                    SKColor skFillColor = SKColor.Parse(fillColor);
+
+                    using SKPaint paint = new SKPaint
+                    {
+                        Color = skFillColor,
+                        IsAntialias = true,
+                        TextSize = fontSize,
+                        Typeface = SKTypeface.FromFamilyName(
+                            familyName: fontFamily,
+                            weight: SKFontStyleWeight.SemiBold,
+                            width: SKFontStyleWidth.Normal,
+                            slant: SKFontStyleSlant.Italic),
+                    };
+
+                    string textContent = tspan.Value;
+
+                    canvas.DrawText(textContent, (float)element.Matrix.Tx, (float)element.Matrix.Ty, paint);
+                }
+            }
         }
     }
     #endregion
