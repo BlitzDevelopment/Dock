@@ -1,7 +1,6 @@
 ﻿using Avalonia.Animation;
 using Avalonia.Controls;
 using Avalonia.Controls.PanAndZoom;
-using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -17,16 +16,25 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Linq;
 
 namespace Blitz.Views.Documents;
 
 public partial class DocumentView : UserControl
 {
+    #region Data
     private readonly DocumentViewModel _documentViewModel;
-    private readonly ZoomBorder? _zoomBorder;
     private CsXFL.Document _workingCsXFLDoc;
+    #endregion
+
+    #region UI Elements
+    private readonly ZoomBorder? _zoomBorder;
+    #endregion
+
+    #region Caching
     private readonly Dictionary<string, SKPicture> _svgPictureCache = new();
     private SKPicture? _cachedSvgPicture;
+    #endregion
 
     public DocumentView()
     {
@@ -36,14 +44,15 @@ public partial class DocumentView : UserControl
         App.EventAggregator.Subscribe<DocumentProgressChangedEvent>(OnDocumentProgressChanged);
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
+        // Initialize ZoomBorder and make it transparent
         _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
         _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
         if (_zoomBorder != null)
         {
-            _zoomBorder.KeyDown += ZoomBorder_KeyDown;
             _zoomBorder.ZoomChanged += ZoomBorder_ZoomChanged;
         }
 
+        // ProgressRing control and flyout modal
         SetProgressRingState(true);
         Task.Run(async () =>
             {
@@ -53,40 +62,53 @@ public partial class DocumentView : UserControl
         ShowFlyoutAsync("Loaded " + Path.GetFileName(An.GetActiveDocument().Filename)).ConfigureAwait(false);
     }
 
-    private void ZoomBorder_KeyDown(object? sender, KeyEventArgs e)
-        {
-            switch (e.Key)
-            {
-                case Key.F:
-                    _zoomBorder?.Fill();
-                    break;
-                case Key.U:
-                    _zoomBorder?.Uniform();
-                    break;
-                case Key.R:
-                    _zoomBorder?.ResetMatrix();
-                    break;
-                case Key.T:
-                    _zoomBorder?.ToggleStretchMode();
-                    _zoomBorder?.AutoFit();
-                    break;
-            }
-        }
+    private void InitializeComponent()
+    {
+        AvaloniaXamlLoader.Load(this);
+    }
 
+    #region Event Handlers
     private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
     {
-        Console.WriteLine($"ZoomX: {e.ZoomX}, ZoomY: {e.ZoomY}");
+        //Console.WriteLine($"ZoomX: {e.ZoomX}, ZoomY: {e.ZoomY}");
         NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
         MainSkXamlCanvas.Invalidate();
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
+        e.Document.ZoomBorder = _zoomBorder;
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
+        PopulateSceneSelector();
         MainSkXamlCanvas.PaintSurface += ClearCanvas;
         ViewFrame();
     }
+    #endregion
 
+    private void ClearCanvas(object sender, SKPaintSurfaceEventArgs e)
+    {
+        var canvas = e.Surface.Canvas;
+        canvas.Clear(SKColors.Transparent);
+    }
+
+    public void PopulateSceneSelector()
+    {
+        if (_workingCsXFLDoc?.Timelines == null || SceneSelector == null)
+        {
+            return;
+        }
+
+        // Populate ComboBox with timeline names using ItemsSource
+        SceneSelector.ItemsSource = _workingCsXFLDoc.Timelines.Select(t => t.Name).ToList();
+
+        // Optionally set the selected item to the first timeline
+        if (SceneSelector.ItemsSource is IList<string> items && items.Count > 0)
+        {
+            SceneSelector.SelectedIndex = 0;
+        }
+    }
+
+    #region Canvas Rendering
     public void ViewFrame()
     {
         var operatingTimeline = _workingCsXFLDoc.Timelines[0];
@@ -217,18 +239,9 @@ public partial class DocumentView : UserControl
             canvas.DrawPicture(_cachedSvgPicture);
         }
     }
+    #endregion
 
-    private void ClearCanvas(object sender, SKPaintSurfaceEventArgs e)
-    {
-        var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.Transparent);
-    }
-
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
-
+    #region Ring & Flyout
     public async void SetProgressRingState(bool isActive)
     {
         if (ProgressRingControl != null)
@@ -289,4 +302,5 @@ public partial class DocumentView : UserControl
         await Task.Delay(durationInMilliseconds);
         FlyoutContainer.IsVisible = false;
     }
+    #endregion
 }

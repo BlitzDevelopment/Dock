@@ -3,38 +3,42 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using Dock.Model.Mvvm.Controls;
 using CsXFL;
 using Serilog;
-using System.Drawing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using Blitz.Events;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Avalonia.Controls.PanAndZoom;
 
 namespace Blitz.ViewModels.Documents;
 
 public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDisposable
 {
+    #region Document Properties
     public int DocumentIndex { get; set; }
-
-    private ZipArchive? _zipArchive;
-    private Dictionary<string, byte[]> _bitmapCache;
-    private Dictionary<string, byte[]> _soundCache;
+    private CsXFL.Document _workingCsXFLDoc;
     private bool _isXFL;
     private string _documentPath;
+    private ZipArchive? _zipArchive;
+    #endregion
 
+    #region Caches
+    private Dictionary<string, byte[]> _bitmapCache;
+    private Dictionary<string, byte[]> _soundCache;
+    #endregion
+
+    #region UI Elements
+    public ZoomBorder ZoomBorder;
     [ObservableProperty]
-    private string? _canvasColor;
+    private string? _stageColor;
     [ObservableProperty]
-    private int _canvasWidth;
-
+    private int _stageWidth;
     [ObservableProperty]
-    private int _canvasHeight;
-
-
-    private CsXFL.Document _workingCsXFLDoc;
+    private int _stageHeight;
+    #endregion
 
     public DocumentViewModel(bool isXFL, string documentPath)
     {
@@ -48,22 +52,28 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
             InitializeZipArchive();
         }
 
-        InvalidateCanvas();
+        InvalidateStage();
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
-        InvalidateCanvas();
+        InvalidateStage();
     }
 
-    public void InvalidateCanvas()
+    public void InvalidateStage()
     {
         if (_workingCsXFLDoc == null) { return; }
-        CanvasColor = _workingCsXFLDoc.BackgroundColor;
-        CanvasWidth = _workingCsXFLDoc.Width;
-        CanvasHeight = _workingCsXFLDoc.Height;
+        StageColor = _workingCsXFLDoc.BackgroundColor;
+        StageWidth = _workingCsXFLDoc.Width;
+        StageHeight = _workingCsXFLDoc.Height;
+    }
+
+    [RelayCommand]
+    private void CenterStage()
+    {
+        ZoomBorder.Uniform();
     }
 
     public void InitializeZipArchive()
