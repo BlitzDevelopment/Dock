@@ -29,6 +29,7 @@ public partial class DocumentView : UserControl
 
     #region UI Elements
     private readonly ZoomBorder? _zoomBorder;
+    private DrawingCanvas? _drawingCanvas;
     #endregion
 
     #region Caching
@@ -72,7 +73,7 @@ public partial class DocumentView : UserControl
     {
         //Console.WriteLine($"ZoomX: {e.ZoomX}, ZoomY: {e.ZoomY}");
         NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
-        MainSkXamlCanvas.Invalidate();
+        //MainSkXamlCanvas.Invalidate();
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
@@ -80,7 +81,7 @@ public partial class DocumentView : UserControl
         e.Document.ZoomBorder = _zoomBorder;
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
         PopulateSceneSelector();
-        MainSkXamlCanvas.PaintSurface += ClearCanvas;
+        //MainSkXamlCanvas.PaintSurface += ClearCanvas;
         ViewFrame();
     }
     #endregion
@@ -167,7 +168,14 @@ public partial class DocumentView : UserControl
 
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
-                    ApplyTransformAndDraw(renderedSvgDoc, element);
+                    _drawingCanvas = this.Find<DrawingCanvas>("DrawingCanvas");
+                    if (_drawingCanvas == null)
+                    {
+                        Console.WriteLine("Error: DrawingCanvas not found in the XAML.");
+                        return;
+                    }
+                    _drawingCanvas.AddSvgLayer(renderedSvgDoc);
+                    //ApplyTransformAndDraw(renderedSvgDoc, element);
                 }
                 catch (Exception ex)
                 {
@@ -176,16 +184,16 @@ public partial class DocumentView : UserControl
             }
         }
 
-        MainSkXamlCanvas.Width = _workingCsXFLDoc.Width;
-        MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
+        //MainSkXamlCanvas.Width = _workingCsXFLDoc.Width;
+        //MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
     }
 
     private void ApplyTransformAndDraw(XDocument renderedSvgDoc, Element element)
     {
         try
         {
-            MainSkXamlCanvas.PaintSurface -= OnCanvasPaintWrapper;
-            MainSkXamlCanvas.PaintSurface += OnCanvasPaintWrapper;
+            //MainSkXamlCanvas.PaintSurface -= OnCanvasPaintWrapper;
+            //MainSkXamlCanvas.PaintSurface += OnCanvasPaintWrapper;
 
             void OnCanvasPaintWrapper(object sender, SKPaintSurfaceEventArgs e)
             {
@@ -242,8 +250,6 @@ public partial class DocumentView : UserControl
         // Not supporting text runs right now
 
         // Custom handling for text elements in the SVG
-        Console.WriteLine("Text elements in SVG:");
-        Console.WriteLine(renderedSvgDoc.ToString());
         var textElements = renderedSvgDoc.Descendants().Where(el => el.Name.LocalName == "text");
         if (textElements.Any())
         {

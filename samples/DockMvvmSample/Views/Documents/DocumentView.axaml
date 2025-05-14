@@ -22,15 +22,14 @@
 
       <!-- Canvas & Stage -->
       <Grid Grid.Row="1">
-          <skia:SKXamlCanvas x:Name="MainSkXamlCanvas" IsHitTestVisible="False"/>
+          <!-- <skia:SKXamlCanvas x:Name="MainSkXamlCanvas" IsHitTestVisible="False"/> -->
+          <!-- <skia:DrawingCanvas x:Name="DrawingCanvas" Width="1920" Height="1080" IsHitTestVisible="False" /> -->
           <paz:ZoomBorder Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
                           MinZoomX="0.1" MinZoomY="0.1" 
                           MaxZoomX="40" MaxZoomY="40"
                           ClipToBounds="True" Focusable="True"
                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ZIndex="-1">
-              <Canvas x:Name="MainCanvas" Width="{Binding StageWidth}" Height="{Binding StageHeight}">
-                  <Rectangle Fill="{Binding StageColor}" Width="{Binding StageWidth}" Height="{Binding StageHeight}" Opacity="1" />
-              </Canvas>
+              <skia:DrawingCanvas x:Name="DrawingCanvas" Width="1920" Height="1080" IsHitTestVisible="False" />
           </paz:ZoomBorder>
       </Grid>
 
