@@ -45,7 +45,7 @@ public partial class DocumentView : UserControl
         App.EventAggregator.Subscribe<DocumentProgressChangedEvent>(OnDocumentProgressChanged);
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
-        // Initialize ZoomBorder and make it transparent
+        _drawingCanvas = this.Find<DrawingCanvas>("DrawingCanvas");
         _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
         _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
         if (_zoomBorder != null)
@@ -69,19 +69,28 @@ public partial class DocumentView : UserControl
     }
 
     #region Event Handlers
+    private double _previousZoomX = -1; // Initialize with an invalid value
     private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
     {
-        //Console.WriteLine($"ZoomX: {e.ZoomX}, ZoomY: {e.ZoomY}");
-        NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
+        // Check if the ZoomX value has changed
+        if (Math.Abs(e.ZoomX - _previousZoomX) > 0.0001) // Epsilon award
+        {
+            _previousZoomX = e.ZoomX; // Update the stored value
+            NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
+            _drawingCanvas.SetScale(e.ZoomX);
+        }
+        
         //MainSkXamlCanvas.Invalidate();
     }
-
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         e.Document.ZoomBorder = _zoomBorder;
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
         PopulateSceneSelector();
         //MainSkXamlCanvas.PaintSurface += ClearCanvas;
+        _drawingCanvas.ClearAllLayers();
+        _drawingCanvas.Width = _workingCsXFLDoc.Width;
+        _drawingCanvas.Height = _workingCsXFLDoc.Height;
         ViewFrame();
     }
     #endregion
@@ -168,12 +177,6 @@ public partial class DocumentView : UserControl
 
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
-                    _drawingCanvas = this.Find<DrawingCanvas>("DrawingCanvas");
-                    if (_drawingCanvas == null)
-                    {
-                        Console.WriteLine("Error: DrawingCanvas not found in the XAML.");
-                        return;
-                    }
                     _drawingCanvas.AddSvgLayer(renderedSvgDoc);
                     //ApplyTransformAndDraw(renderedSvgDoc, element);
                 }

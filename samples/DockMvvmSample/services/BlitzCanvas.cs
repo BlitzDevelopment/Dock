@@ -9,13 +9,59 @@ using Avalonia.Media.Imaging;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Xml.Linq;
+using System.Diagnostics;
+using Avalonia.Threading;
 
 namespace Avalonia.Controls;
+
+class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
+{
+    private readonly SKSurface _compositedSurface;
+
+    public CustomDrawOp(Rect bounds, SKSurface compositedSurface)
+    {
+        _compositedSurface = compositedSurface;
+        Bounds = bounds;
+    }
+    
+    public void Dispose()
+    {
+        // No-op
+    }
+
+    public Rect Bounds { get; }
+    public bool HitTest(Point p) => false;
+    public bool Equals(Avalonia.Rendering.SceneGraph.ICustomDrawOperation other) => false;
+
+    public void Render(ImmediateDrawingContext context)
+    {
+        var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+        if (leaseFeature == null || _compositedSurface == null)
+            return;
+
+        using var lease = leaseFeature.Lease();
+        var canvas = lease.SkCanvas;
+
+        if (canvas != null)
+        {
+            canvas.Save();
+
+            // Draw the composited surface onto the Skia canvas
+            using (var snapshot = _compositedSurface.Snapshot())
+            {
+                canvas.DrawImage(snapshot, SKRect.Create(0, 0, (float)Bounds.Width, (float)Bounds.Height));
+            }
+
+            canvas.Restore();
+        }
+    }
+}
 
 public class Layer
 {
     public SKImage Image { get; set; }
     public SKSurface Surface { get; set; }
+    public SKPicture Picture { get; set; } 
 
     public void LoadSvg(XDocument svgDocument, int width, int height)
     {
@@ -27,12 +73,14 @@ public class Layer
             svg.Load(stream);
         }
 
+        Picture = svg.Picture; // Store the SKPicture
+
         var info = new SKImageInfo(width, height);
         Surface = SKSurface.Create(info);
         var canvas = Surface.Canvas;
 
         canvas.Clear(SKColors.Transparent);
-        canvas.DrawPicture(svg.Picture);
+        canvas.DrawPicture(Picture); // Use the SKPicture for rendering
         canvas.Flush();
 
         Image = Surface.Snapshot();
@@ -50,6 +98,34 @@ public class DrawingCanvas : UserControl
 
     //Our render target we compile everything to and present to the user
     private RenderTargetBitmap RenderTarget;
+    private SKSurface CompositedSurface;
+    private bool IsRenderTargetDirty = true;
+
+    // Add a Scale property to manage zoom level
+    private double _scale = 1.0;
+    public double Scale
+    {
+        get => _scale;
+        set
+        {
+            if (_scale != value)
+            {
+                _scale = value;
+                IsRenderTargetDirty = true; // Mark RenderTarget as dirty when scale changes
+            }
+        }
+    }
+
+    public void SetScale(double scale)
+    {
+        if (scale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be greater than zero.");
+        }
+
+        Scale = scale; // Update the scale property
+        InvalidateVisual(); // Invalidate the control to trigger a re-render
+    }
 
     public override void EndInit()
     {
@@ -90,6 +166,33 @@ public class DrawingCanvas : UserControl
 
         ImageLayers.Add(layer);
         ActiveLayer = ImageLayers.Count - 1;
+
+        IsRenderTargetDirty = true; // Mark RenderTarget as dirty
+    }
+
+    public void ClearAllLayers()
+    {
+        // Dispose of all layers and their resources
+        foreach (var layer in ImageLayers)
+        {
+            layer.Surface?.Dispose();
+            layer.Image?.Dispose();
+        }
+
+        // Clear the list of layers
+        ImageLayers.Clear();
+
+        // Reset the active layer and cached layer
+        ActiveLayer = -1;
+        CachedActiveLayer?.Surface?.Dispose();
+        CachedActiveLayer?.Image?.Dispose();
+        CachedActiveLayer = null;
+
+        // Dispose of the RenderTarget and reset it
+        RenderTarget?.Dispose();
+        RenderTarget = null;
+
+        IsRenderTargetDirty = true; // Mark RenderTarget as dirty
     }
 
     public Task<bool> SaveAsync(string path)
@@ -111,74 +214,40 @@ public class DrawingCanvas : UserControl
 
     private void CompositeLayersToRenderTarget()
     {
-        var info = new SKImageInfo((int)Width, (int)Height);
-        using (var surface = SKSurface.Create(info))
+        // We are not checking the current dimensions
+        if (CompositedSurface == null)
         {
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.White);
+            CompositedSurface?.Dispose();
+            var info = new SKImageInfo((int)(Width * _scale), (int)(Height * _scale));
+            CompositedSurface = SKSurface.Create(info);
+        }
 
-            foreach (var layer in ImageLayers)
+        var canvas = CompositedSurface.Canvas;
+        canvas.Clear(SKColors.White);
+
+        // Composite all layers onto the canvas
+        foreach (var layer in ImageLayers)
+        {
+            if (layer.Picture != null)
             {
-                if (layer.Image != null)
-                {
-                    canvas.DrawImage(layer.Image, 0, 0);
-                }
-            }
-
-            canvas.Flush();
-
-            // Copy the composited image to the RenderTargetBitmap
-            using (var snapshot = surface.Snapshot())
-            using (var data = snapshot.Encode(SKEncodedImageFormat.Png, 100))
-            using (var stream = new MemoryStream())
-            {
-                data.SaveTo(stream);
-                stream.Seek(0, SeekOrigin.Begin);
-
-                // Create a new RenderTargetBitmap and load the composited image into it
-                var bitmap = new Bitmap(stream);
-                RenderTarget = new RenderTargetBitmap(
-                    new PixelSize(bitmap.PixelSize.Width, bitmap.PixelSize.Height),
-                    new Vector(96, 96)
-                );
-
-                using (var drawingContext = RenderTarget.CreateDrawingContext())
-                {
-                    drawingContext.DrawImage(
-                        bitmap,
-                        new Rect(0, 0, bitmap.PixelSize.Width, bitmap.PixelSize.Height), // sourceRect
-                        new Rect(0, 0, bitmap.PixelSize.Width, bitmap.PixelSize.Height)  // destRect
-                    );
-                }
+                canvas.Save();
+                canvas.Scale((float)_scale, (float)_scale); // Apply scaling
+                canvas.DrawPicture(layer.Picture); // Draw vector graphics
+                canvas.Restore();
             }
         }
+
+        canvas.Flush();
+        IsRenderTargetDirty = false; // Mark composited surface as up-to-date
     }
 
     public override void Render(DrawingContext context)
     {
-        try
+        if (IsRenderTargetDirty)
         {
-            // Ensure the RenderTarget is updated with the composited layers
             CompositeLayersToRenderTarget();
-
-            if (RenderTarget == null)
-            {
-                Console.WriteLine("RenderTarget is null");
-                return;
-            }
-
-            Console.WriteLine($"RenderTarget dimensions: {RenderTarget.PixelSize.Width}x{RenderTarget.PixelSize.Height}");
-            Console.WriteLine($"Number of layers: {ImageLayers.Count}");
-
-            // Draw the finalized RenderTarget to the screen
-            var sourceRect = new Rect(0, 0, RenderTarget.PixelSize.Width, RenderTarget.PixelSize.Height);
-            var destRect = new Rect(0, 0, RenderTarget.PixelSize.Width, RenderTarget.PixelSize.Height);
-
-            context.DrawImage(RenderTarget, sourceRect, destRect);
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error during Render: {ex.Message}");
-        }
+
+        context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), CompositedSurface));
     }
 }
