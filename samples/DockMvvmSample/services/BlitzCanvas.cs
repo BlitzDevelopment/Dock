@@ -16,12 +16,14 @@ namespace Avalonia.Controls;
 
 class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 {
-    private readonly SKSurface _compositedSurface;
+    private readonly SKPicture _compositedPicture;
+    private readonly double _scale;
 
-    public CustomDrawOp(Rect bounds, SKSurface compositedSurface)
+    public CustomDrawOp(Rect bounds, SKPicture compositedPicture, double scale)
     {
-        _compositedSurface = compositedSurface;
+        _compositedPicture = compositedPicture;
         Bounds = bounds;
+        _scale = scale;
     }
     
     public void Dispose()
@@ -36,7 +38,7 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
     public void Render(ImmediateDrawingContext context)
     {
         var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-        if (leaseFeature == null || _compositedSurface == null)
+        if (leaseFeature == null || _compositedPicture == null)
             return;
 
         using var lease = leaseFeature.Lease();
@@ -44,15 +46,13 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 
         if (canvas != null)
         {
-            canvas.Save();
+            //canvas.Save();
 
-            // Draw the composited surface onto the Skia canvas
-            using (var snapshot = _compositedSurface.Snapshot())
-            {
-                canvas.DrawImage(snapshot, SKRect.Create(0, 0, (float)Bounds.Width, (float)Bounds.Height));
-            }
+            // Apply scaling
+            canvas.DrawPicture(_compositedPicture, 0, 0);
+            canvas.Scale((float)_scale, (float)_scale);
 
-            canvas.Restore();
+            //canvas.Restore();
         }
     }
 }
@@ -98,7 +98,7 @@ public class DrawingCanvas : UserControl
 
     //Our render target we compile everything to and present to the user
     private RenderTargetBitmap RenderTarget;
-    private SKSurface CompositedSurface;
+    private SKPicture _compositedPicture;
     private bool IsRenderTargetDirty = true;
 
     // Add a Scale property to manage zoom level
@@ -214,31 +214,24 @@ public class DrawingCanvas : UserControl
 
     private void CompositeLayersToRenderTarget()
     {
-        // We are not checking the current dimensions
-        if (CompositedSurface == null)
-        {
-            CompositedSurface?.Dispose();
-            var info = new SKImageInfo((int)(Width * _scale), (int)(Height * _scale));
-            CompositedSurface = SKSurface.Create(info);
-        }
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)Width, (float)Height));
 
-        var canvas = CompositedSurface.Canvas;
         canvas.Clear(SKColors.White);
 
-        // Composite all layers onto the canvas
+        // Composite all layers as vector graphics
         foreach (var layer in ImageLayers)
         {
             if (layer.Picture != null)
             {
                 canvas.Save();
-                canvas.Scale((float)_scale, (float)_scale); // Apply scaling
                 canvas.DrawPicture(layer.Picture); // Draw vector graphics
                 canvas.Restore();
             }
         }
 
-        canvas.Flush();
-        IsRenderTargetDirty = false; // Mark composited surface as up-to-date
+        _compositedPicture = recorder.EndRecording();
+        IsRenderTargetDirty = false; // Mark composited picture as up-to-date
     }
 
     public override void Render(DrawingContext context)
@@ -248,6 +241,6 @@ public class DrawingCanvas : UserControl
             CompositeLayersToRenderTarget();
         }
 
-        context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), CompositedSurface));
+        context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), _compositedPicture, _scale));
     }
 }

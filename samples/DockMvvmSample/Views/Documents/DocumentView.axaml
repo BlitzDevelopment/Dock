@@ -30,6 +30,7 @@
                           ClipToBounds="True" Focusable="True"
                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ZIndex="-1">
               <skia:DrawingCanvas x:Name="DrawingCanvas" Width="1920" Height="1080" IsHitTestVisible="False" />
+              <!-- <Rectangle Width="1920" Height="1080" Fill="Red" /> -->
           </paz:ZoomBorder>
       </Grid>
 
