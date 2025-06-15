@@ -46,13 +46,8 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 
         if (canvas != null)
         {
-            //canvas.Save();
-
-            // Apply scaling
             canvas.DrawPicture(_compositedPicture, 0, 0);
             canvas.Scale((float)_scale, (float)_scale);
-
-            //canvas.Restore();
         }
     }
 }
@@ -101,6 +96,22 @@ public class DrawingCanvas : UserControl
     private SKPicture _compositedPicture;
     private bool IsRenderTargetDirty = true;
 
+    // Add a StageColor property to manage the background color
+    private SKColor _stageColor = SKColors.White; // Default to white
+    public SKColor StageColor
+    {
+        get => _stageColor;
+        set
+        {
+            if (_stageColor != value)
+            {
+                _stageColor = value;
+                IsRenderTargetDirty = true; // Mark RenderTarget as dirty when StageColor changes
+                InvalidateVisual();
+            }
+        }
+    }
+
     // Add a Scale property to manage zoom level
     private double _scale = 1.0;
     public double Scale
@@ -116,6 +127,16 @@ public class DrawingCanvas : UserControl
         }
     }
 
+    // Add a property to toggle Avalonia's ClipToBounds behavior
+    public static readonly StyledProperty<bool> ClipToBoundsProperty =
+        AvaloniaProperty.Register<DrawingCanvas, bool>(nameof(ClipToBounds), true);
+
+    public bool ClipToBounds
+    {
+        get => GetValue(ClipToBoundsProperty);
+        set => SetValue(ClipToBoundsProperty, value);
+    }
+
     public void SetScale(double scale)
     {
         if (scale <= 0)
@@ -125,6 +146,12 @@ public class DrawingCanvas : UserControl
 
         Scale = scale; // Update the scale property
         InvalidateVisual(); // Invalidate the control to trigger a re-render
+    }
+
+    public DrawingCanvas()
+    {
+        // Bind the Avalonia ClipToBounds property to this control
+        this.Bind(UserControl.ClipToBoundsProperty, this.GetObservable(ClipToBoundsProperty));
     }
 
     public override void EndInit()
@@ -217,7 +244,7 @@ public class DrawingCanvas : UserControl
         using var recorder = new SKPictureRecorder();
         var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)Width, (float)Height));
 
-        canvas.Clear(SKColors.White);
+        canvas.Clear(StageColor);
 
         // Composite all layers as vector graphics
         foreach (var layer in ImageLayers)

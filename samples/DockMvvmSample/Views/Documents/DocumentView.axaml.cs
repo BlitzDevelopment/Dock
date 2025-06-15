@@ -23,18 +23,13 @@ namespace Blitz.Views.Documents;
 public partial class DocumentView : UserControl
 {
     #region Data
-    private readonly DocumentViewModel _documentViewModel;
+    private DocumentViewModel _documentViewModel;
     private CsXFL.Document _workingCsXFLDoc;
     #endregion
 
     #region UI Elements
     private readonly ZoomBorder? _zoomBorder;
     private DrawingCanvas? _drawingCanvas;
-    #endregion
-
-    #region Caching
-    private readonly Dictionary<string, SKPicture> _svgPictureCache = new();
-    private SKPicture? _cachedSvgPicture;
     #endregion
 
     public DocumentView()
@@ -44,6 +39,9 @@ public partial class DocumentView : UserControl
         App.EventAggregator.Subscribe<DocumentFlyoutRequestedEvent>(OnDocumentFlyoutRequested);
         App.EventAggregator.Subscribe<DocumentProgressChangedEvent>(OnDocumentProgressChanged);
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
+
+        App.EventAggregator.Subscribe<CanvasActionCenterEvent>(RequestCanvasActionCenter);
+        App.EventAggregator.Subscribe<CanvasActionToggleClipEvent>(RequestCanvasActionToggleClip);
 
         _drawingCanvas = this.Find<DrawingCanvas>("DrawingCanvas");
         _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
@@ -69,6 +67,22 @@ public partial class DocumentView : UserControl
     }
 
     #region Event Handlers
+    void RequestCanvasActionCenter(CanvasActionCenterEvent e)
+    {
+        if (e.DocumentIndex != _documentViewModel.DocumentIndex)
+            return;
+
+        _zoomBorder.Uniform();
+    }
+
+    void RequestCanvasActionToggleClip(CanvasActionToggleClipEvent e)
+    {
+        if (e.DocumentIndex != _documentViewModel.DocumentIndex)
+            return;
+
+        _drawingCanvas.ClipToBounds = !_drawingCanvas.ClipToBounds;
+    }
+
     private double _previousZoomX = -1; // Initialize with an invalid value
     private void ZoomBorder_ZoomChanged(object sender, ZoomChangedEventArgs e)
     {
@@ -79,18 +93,18 @@ public partial class DocumentView : UserControl
             NumericUpDown.Value = (decimal)Math.Round(e.ZoomX, 2);
             _drawingCanvas.SetScale(e.ZoomX);
         }
-        
-        //MainSkXamlCanvas.Invalidate();
     }
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
-        e.Document.ZoomBorder = _zoomBorder;
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
+        _documentViewModel = e.Document;
         PopulateSceneSelector();
-        //MainSkXamlCanvas.PaintSurface += ClearCanvas;
+
         _drawingCanvas.ClearAllLayers();
         _drawingCanvas.Width = _workingCsXFLDoc.Width;
         _drawingCanvas.Height = _workingCsXFLDoc.Height;
+        _drawingCanvas.StageColor = SKColor.Parse(_workingCsXFLDoc.BackgroundColor);
+
         ViewFrame();
     }
     #endregion
@@ -178,112 +192,10 @@ public partial class DocumentView : UserControl
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
                     _drawingCanvas.AddSvgLayer(renderedSvgDoc);
-                    //ApplyTransformAndDraw(renderedSvgDoc, element);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error rendering symbol: {ex.Message}" + ex.StackTrace);
-                }
-            }
-        }
-
-        //MainSkXamlCanvas.Width = _workingCsXFLDoc.Width;
-        //MainSkXamlCanvas.Height = _workingCsXFLDoc.Height;
-    }
-
-    private void ApplyTransformAndDraw(XDocument renderedSvgDoc, Element element)
-    {
-        try
-        {
-            //MainSkXamlCanvas.PaintSurface -= OnCanvasPaintWrapper;
-            //MainSkXamlCanvas.PaintSurface += OnCanvasPaintWrapper;
-
-            void OnCanvasPaintWrapper(object sender, SKPaintSurfaceEventArgs e)
-            {
-                OnCanvasPaint(sender, e, renderedSvgDoc, element);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error applying transform and drawing: {ex.Message}" + ex.StackTrace);
-        }
-    }
-
-    void OnCanvasPaint(object sender, SKPaintSurfaceEventArgs e, XDocument renderedSvgDoc, Element element)
-    {
-        var canvas = e.Surface.Canvas;
-
-        // Generate a unique key for the SVG content
-        string svgKey = renderedSvgDoc.ToString().GetHashCode().ToString();
-
-        // Check if the SKPicture is already cached
-        if (!_svgPictureCache.TryGetValue(svgKey, out var cachedPicture))
-        {
-            using (var stream = new MemoryStream())
-            {
-                var writer = new StreamWriter(stream);
-                writer.Write(renderedSvgDoc.ToString());
-                writer.Flush();
-                stream.Position = 0;
-
-                var svg = new SKSvg();
-                svg.Load(stream);
-                cachedPicture = svg.Picture;
-
-                // Cache the SKPicture
-                if (cachedPicture != null)
-                {
-                    _svgPictureCache[svgKey] = cachedPicture;
-                }
-            }
-        }
-
-        _cachedSvgPicture = cachedPicture;
-
-        // Apply transformations and draw the picture
-        var matrix = SKMatrix.CreateTranslation((float)_zoomBorder.OffsetX, (float)_zoomBorder.OffsetY);
-        matrix = SKMatrix.Concat(matrix, SKMatrix.CreateScale((float)_zoomBorder.ZoomX, (float)_zoomBorder.ZoomY));
-
-        canvas.SetMatrix(matrix);
-        if (_cachedSvgPicture != null)
-        {
-            canvas.DrawPicture(_cachedSvgPicture);
-        }
-
-        // Not supporting text runs right now
-
-        // Custom handling for text elements in the SVG
-        var textElements = renderedSvgDoc.Descendants().Where(el => el.Name.LocalName == "text");
-        if (textElements.Any())
-        {
-            foreach (var textElement in textElements)
-            {
-                var tspan = textElement.Descendants().FirstOrDefault(el => el.Name.LocalName == "tspan");
-                if (tspan != null)
-                {
-                    // Extract font settings from the tspan attributes
-                    string fontFamily = tspan.Attribute("font-family")?.Value ?? "Times New Roman";
-                    float fontSize = float.TryParse(tspan.Attribute("font-size")?.Value, out var size) ? size : 24;
-                    string fillColor = tspan.Attribute("fill")?.Value ?? "#000000";
-
-                    // Convert fill color to SKColor
-                    SKColor skFillColor = SKColor.Parse(fillColor);
-
-                    using SKPaint paint = new SKPaint
-                    {
-                        Color = skFillColor,
-                        IsAntialias = true,
-                        TextSize = fontSize,
-                        Typeface = SKTypeface.FromFamilyName(
-                            familyName: fontFamily,
-                            weight: SKFontStyleWeight.SemiBold,
-                            width: SKFontStyleWidth.Normal,
-                            slant: SKFontStyleSlant.Italic),
-                    };
-
-                    string textContent = tspan.Value;
-
-                    canvas.DrawText(textContent, (float)element.Matrix.Tx, (float)element.Matrix.Ty, paint);
                 }
             }
         }

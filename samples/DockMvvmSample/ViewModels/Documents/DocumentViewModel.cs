@@ -12,6 +12,7 @@ using Blitz.Events;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia.Controls.PanAndZoom;
+using Avalonia.Controls;
 
 namespace Blitz.ViewModels.Documents;
 
@@ -30,16 +31,6 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
     private Dictionary<string, byte[]> _soundCache;
     #endregion
 
-    #region UI Elements
-    public ZoomBorder ZoomBorder;
-    [ObservableProperty]
-    private string? _stageColor;
-    [ObservableProperty]
-    private int _stageWidth;
-    [ObservableProperty]
-    private int _stageHeight;
-    #endregion
-
     public DocumentViewModel(bool isXFL, string documentPath)
     {
         _isXFL = isXFL;
@@ -52,28 +43,24 @@ public partial class DocumentViewModel : Dock.Model.Mvvm.Controls.Document, IDis
             InitializeZipArchive();
         }
 
-        InvalidateStage();
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
     }
 
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
-        InvalidateStage();
-    }
-
-    public void InvalidateStage()
-    {
-        if (_workingCsXFLDoc == null) { return; }
-        StageColor = _workingCsXFLDoc.BackgroundColor;
-        StageWidth = _workingCsXFLDoc.Width;
-        StageHeight = _workingCsXFLDoc.Height;
     }
 
     [RelayCommand]
     private void CenterStage()
     {
-        ZoomBorder.Uniform();
+        App.EventAggregator.Publish(new CanvasActionCenterEvent(DocumentIndex));
+    }
+
+    [RelayCommand]
+    private void ClipCanvas()
+    {
+        App.EventAggregator.Publish(new CanvasActionToggleClipEvent(DocumentIndex));
     }
 
     public void InitializeZipArchive()

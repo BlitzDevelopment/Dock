@@ -25,7 +25,7 @@ namespace Blitz.Events
             Document = document;
         }
     }
-    
+
     public class ActiveDocumentChangedEvent
     {
         public DocumentViewModel Document { get; set; }
@@ -73,7 +73,29 @@ namespace Blitz.Events
     }
     public class LibraryItemsChangedEvent
     {
-        public LibraryItemsChangedEvent() {}
+        public LibraryItemsChangedEvent() { }
+    }
+    #endregion
+
+    #region Canvas
+    public class CanvasActionCenterEvent
+    {
+        public int DocumentIndex { get; set; }
+
+        public CanvasActionCenterEvent(int documentIndex)
+        {
+            DocumentIndex = documentIndex;
+        }
+    }
+
+    public class CanvasActionToggleClipEvent
+    {
+        public int DocumentIndex { get; set; }
+
+        public CanvasActionToggleClipEvent(int documentIndex)
+        {
+            DocumentIndex = documentIndex;
+        }
     }
     #endregion
 }

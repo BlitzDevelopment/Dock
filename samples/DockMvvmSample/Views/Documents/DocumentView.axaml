@@ -22,7 +22,6 @@
 
       <!-- Canvas & Stage -->
       <Grid Grid.Row="1">
-          <!-- <skia:SKXamlCanvas x:Name="MainSkXamlCanvas" IsHitTestVisible="False"/> -->
           <!-- <skia:DrawingCanvas x:Name="DrawingCanvas" Width="1920" Height="1080" IsHitTestVisible="False" /> -->
           <paz:ZoomBorder Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
                           MinZoomX="0.1" MinZoomY="0.1" 
@@ -30,7 +29,6 @@
                           ClipToBounds="True" Focusable="True"
                           VerticalAlignment="Stretch" HorizontalAlignment="Stretch" ZIndex="-1">
               <skia:DrawingCanvas x:Name="DrawingCanvas" Width="1920" Height="1080" IsHitTestVisible="False" />
-              <!-- <Rectangle Width="1920" Height="1080" Fill="Red" /> -->
           </paz:ZoomBorder>
       </Grid>
 
@@ -72,7 +70,7 @@
             </Button.Content>
           </Button>
 
-          <Button Margin="5,0" ToolTip.Tip="Clip content to stage">
+          <Button Margin="5,0" ToolTip.Tip="Clip content to stage" Command="{Binding ClipCanvasCommand}">
             <Button.Content>
               <StackPanel Orientation="Vertical">
                 <PathIcon Data="{StaticResource can_clip}" />
