@@ -12,6 +12,8 @@ using System.Xml.Linq;
 using System.Linq;
 using System.Diagnostics;
 using Avalonia.Threading;
+using Avalonia.Input;
+using System.Runtime.InteropServices;
 
 namespace Avalonia.Controls;
 
@@ -59,6 +61,12 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 public class BlitzCanvasController
 {
     private readonly List<BlitzLayer> _layers = new();
+    public IReadOnlyList<BlitzLayer> Layers => _layers;
+
+    public BlitzLayer AdorningLayer { get; set; } = new BlitzLayer
+    {
+        Visible = false
+    };
 
     public BlitzCanvasController()
     {
@@ -89,9 +97,11 @@ public class BlitzCanvasController
     {
         var pictures = new List<SKPicture>();
 
+        // Composite all elements from visible layers
         foreach (var layer in _layers)
         {
-            if (!layer.Visible) continue;
+            if (!layer.Visible)
+                continue;
 
             using var recorder = new SKPictureRecorder();
             var canvas = recorder.BeginRecording(new SKRect(0, 0, 1920, 1080)); // TODO: Adjust size as needed
@@ -104,8 +114,62 @@ public class BlitzCanvasController
             pictures.Add(recorder.EndRecording());
         }
 
+        // Adorning layer
+        if (AdorningLayer.Visible)
+        {
+            using var recorder = new SKPictureRecorder();
+            var canvas = recorder.BeginRecording(new SKRect(0, 0, 1920, 1080)); // Adjust canvas size as needed
+
+            foreach (var element in AdorningLayer.Elements)
+            {
+                if (element.Picture != null)
+                {
+                    canvas.DrawPicture(element.Picture);
+                }
+            }
+
+            pictures.Add(recorder.EndRecording());
+        }
+
         return pictures;
     }
+
+    public void UpdateAdorningLayer(Rect bounds, SKColor color)
+    {
+        // Clear existing elements in the adorning layer
+        AdorningLayer.Elements.Clear();
+
+        // Create a new element representing the bounding box
+        var boundingBoxElement = new BlitzElement
+        {
+            Picture = CreateBoundingBoxPicture(bounds, color),
+            Name = "BoundingBox"
+        };
+
+        AdorningLayer.Elements.Add(boundingBoxElement);
+    }
+
+    private SKPicture CreateBoundingBoxPicture(Rect bounds, SKColor color)
+    {
+        Console.WriteLine($"Creating bounding box with bounds: {bounds}"); // Log the bounds
+
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom));
+
+        using var paint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke, // Use Stroke to draw the rectangle outline
+            Color = color,               // Use the provided color
+            StrokeWidth = 2,             // Set the stroke width
+            IsAntialias = true           // Enable anti-aliasing for smooth edges
+        };
+
+        // Draw a rectangle matching the bounds
+        canvas.DrawRect(new SKRect((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom), paint);
+
+        return recorder.EndRecording();
+    }
+
 }
 #endregion
 
@@ -279,6 +343,9 @@ public class DrawingCanvas : UserControl
     {
         // Bind the Avalonia ClipToBounds property to this control
         this.Bind(UserControl.ClipToBoundsProperty, this.GetObservable(ClipToBoundsProperty));
+        Focusable = true;
+        IsHitTestVisible = true;
+        Background = Brushes.Transparent;
     }
 
     public override void EndInit()
@@ -361,5 +428,68 @@ public class DrawingCanvas : UserControl
         // Use the CustomDrawOp to render the scaled SKPicture
         context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), _compositedPicture, _scale));
     }
+
+    //MARK: Hit Testing
+    public void HitTest(Point mousePosition)
+    {
+        var transformedPoint = new SKPoint((float)(mousePosition.X / _scale), (float)(mousePosition.Y / _scale));
+        Console.WriteLine($"HitTest at position: {transformedPoint} with scale: {_scale}");
+
+        foreach (var layer in CanvasController.Layers.Reverse<BlitzLayer>()) // Reverse to check topmost layers first
+        {
+            if (!layer.Visible)
+                continue;
+
+            foreach (var element in layer.Elements)
+            {
+                if (element.Picture == null)
+                    continue;
+
+                // Set custom bounds as a 50x50 rectangle centered on element.Matrix.Tx and element.Matrix.Ty
+                var centerX = (float)element.Matrix.Tx;
+                var centerY = (float)element.Matrix.Ty;
+                var bounds = new SKRect(centerX - 225, centerY - 225, centerX + 225, centerY + 225);
+
+                if (bounds.Contains(transformedPoint))
+                {
+                    Console.WriteLine($"Hit Layer: {layer.Name}, Element: {element.Name}");
+
+                    // Update the adorning layer with the bounding box
+                    CanvasController.AdorningLayer.Visible = true;
+                    CanvasController.UpdateAdorningLayer(new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height), SKColors.Blue);
+
+                    // Update the render target and invalidate the visual
+                    CompositeLayersToRenderTarget();
+                    InvalidateVisual();
+                    return;
+                }
+            }
+        }
+
+        Console.WriteLine("No hit detected.");
+        CanvasController.AdorningLayer.Elements.Clear(); // Clear the adorning layer if no hit
+        CanvasController.AdorningLayer.Visible = false;
+
+        // Update the render target and invalidate the visual
+        CompositeLayersToRenderTarget();
+        InvalidateVisual();
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        if (e.Handled)
+        {
+            Console.WriteLine("PointerPressed event was already handled.");
+            return;
+        }
+
+        base.OnPointerPressed(e);
+        var mousePosition = e.GetPosition(this);
+        HitTest(mousePosition);
+    }
+
+    //MARK: Selection Tool
+    
+    
 }
 #endregion
