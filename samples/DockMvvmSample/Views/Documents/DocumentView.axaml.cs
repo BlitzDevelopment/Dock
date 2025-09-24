@@ -100,7 +100,6 @@ public partial class DocumentView : UserControl
         _documentViewModel = e.Document;
         PopulateSceneSelector();
 
-        _drawingCanvas.ClearAllLayers();
         _drawingCanvas.Width = _workingCsXFLDoc.Width;
         _drawingCanvas.Height = _workingCsXFLDoc.Height;
         _drawingCanvas.StageColor = SKColor.Parse(_workingCsXFLDoc.BackgroundColor);
@@ -139,6 +138,9 @@ public partial class DocumentView : UserControl
         var operatingFrame = 0;
         var layers = operatingTimeline.Layers;
 
+        // Clear existing layers in the controller
+        _drawingCanvas.CanvasController.ClearAllLayers();
+
         for (int i = layers.Count - 1; i >= 0; i--)
         {
             var layer = layers[i];
@@ -147,18 +149,27 @@ public partial class DocumentView : UserControl
                 continue;
             }
 
+            // Create a new BlitzLayer
+            var blitzLayer = LayerConverter.ConvertToBlitzLayer(layer);
+
+            // Add elements to the BlitzLayer
             var frame = layer.GetFrame(operatingFrame);
             foreach (var element in frame.Elements)
             {
                 try
                 {
                     string appDataFolder = App.BlitzAppData.GetTmpFolder();
-
+                    string elementIdentifier = _workingCsXFLDoc.Timelines[0].Name + "_" + layer.Name + "_" + element.Name;
                     SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
-                    string elementIdentifier =  _workingCsXFLDoc.Timelines[0].Name + "_" + layer.Name + "_" + element.Name;
 
-                    // No support for color effects yet
-                    (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(element, elementIdentifier, (operatingFrame-layer.GetFrame(operatingFrame).StartFrame), CsXFL.Color.DefaultColor(), false);
+                    // Render the element
+                    (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(
+                        element,
+                        elementIdentifier,
+                        (operatingFrame - layer.GetFrame(operatingFrame).StartFrame),
+                        CsXFL.Color.DefaultColor(),
+                        false
+                    );
 
                     // Create the root SVG element
                     XNamespace svgNamespace = "http://www.w3.org/2000/svg";
@@ -191,13 +202,20 @@ public partial class DocumentView : UserControl
 
                     // Create the XDocument
                     XDocument renderedSvgDoc = new XDocument(svgRoot);
-                    _drawingCanvas.AddSvgLayer(renderedSvgDoc);
+
+                    // Create a BlitzElement and add it to the layer
+                    var blitzElement = ElementConverter.ConvertToBlitzElement(element);
+                    blitzElement.LoadSvg(renderedSvgDoc, _workingCsXFLDoc.Width, _workingCsXFLDoc.Height);
+                    blitzLayer.Elements.Add(blitzElement);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error rendering symbol: {ex.Message}" + ex.StackTrace);
+                    Console.WriteLine($"Error rendering element: {ex.Message}" + ex.StackTrace);
                 }
             }
+
+            // Add the layer to the controller
+            _drawingCanvas.CanvasController.AddLayer(blitzLayer);
         }
     }
     #endregion

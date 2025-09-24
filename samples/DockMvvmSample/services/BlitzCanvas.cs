@@ -9,11 +9,13 @@ using Avalonia.Media.Imaging;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Xml.Linq;
+using System.Linq;
 using System.Diagnostics;
 using Avalonia.Threading;
 
 namespace Avalonia.Controls;
 
+#region Avalonia Drawing
 class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 {
     private readonly SKPicture _compositedPicture;
@@ -25,7 +27,7 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
         Bounds = bounds;
         _scale = scale;
     }
-    
+
     public void Dispose()
     {
         // No-op
@@ -51,12 +53,118 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
         }
     }
 }
+#endregion
 
-public class Layer
+#region BlitzCanvasController
+public class BlitzCanvasController
+{
+    private readonly List<BlitzLayer> _layers = new();
+
+    public BlitzCanvasController()
+    {
+    }
+
+    public void AddLayer(BlitzLayer layer)
+    {
+        if (layer == null)
+            throw new ArgumentNullException(nameof(layer));
+
+        _layers.Add(layer);
+    }
+
+    public void RemoveLayer(BlitzLayer layer)
+    {
+        if (layer == null)
+            throw new ArgumentNullException(nameof(layer));
+
+        _layers.Remove(layer);
+    }
+
+    public void ClearAllLayers()
+    {
+        _layers.Clear();
+    }
+
+    public List<SKPicture> GenerateCompositedPictures()
+    {
+        var pictures = new List<SKPicture>();
+
+        foreach (var layer in _layers)
+        {
+            if (!layer.Visible) continue;
+
+            using var recorder = new SKPictureRecorder();
+            var canvas = recorder.BeginRecording(new SKRect(0, 0, 1920, 1080)); // TODO: Adjust size as needed
+
+            foreach (var element in layer.Elements)
+            {
+                canvas.DrawPicture(element.Picture);
+            }
+
+            pictures.Add(recorder.EndRecording());
+        }
+
+        return pictures;
+    }
+}
+#endregion
+
+#region Blitz Layers
+public class BlitzLayer
+{
+    //CsXFL Properties
+    public string Color { get; set; }
+    public string LayerType { get; set; }
+    public string Name { get; set; }
+    public bool Locked { get; set; }
+    public bool Current { get; set; }
+    public bool Selected { get; set; }
+    public bool Visible { get; set; }
+
+    //Elements
+    public List<BlitzElement> Elements { get; set; } = new List<BlitzElement>();
+}
+
+public static class LayerConverter
+{
+    public static BlitzLayer ConvertToBlitzLayer(CsXFL.Layer csxflLayer)
+    {
+        if (csxflLayer == null)
+            throw new ArgumentNullException(nameof(csxflLayer));
+
+        var blitzLayer = new BlitzLayer
+        {
+            Color = csxflLayer.Color,
+            LayerType = csxflLayer.LayerType,
+            Name = csxflLayer.Name,
+            Locked = csxflLayer.Locked,
+            Current = csxflLayer.Current,
+            Selected = csxflLayer.Selected,
+            Visible = csxflLayer.Visible
+        };
+
+        return blitzLayer;
+    }
+}
+#endregion
+
+#region Blitz Elements
+public class BlitzElement
 {
     public SKImage Image { get; set; }
     public SKSurface Surface { get; set; }
-    public SKPicture Picture { get; set; } 
+    public SKPicture Picture { get; set; }
+
+    //CsXFL Properties
+    public string ElementType { get; set; }
+    public string Name { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public bool Selected { get; set; }
+    public CsXFL.Matrix Matrix { get; set; }
+    public double ScaleX { get; set; }
+    public double ScaleY { get; set; }
+    public CsXFL.Point TransformationPoint { get; set; }
 
     public void LoadSvg(XDocument svgDocument, int width, int height)
     {
@@ -82,19 +190,40 @@ public class Layer
     }
 }
 
+public static class ElementConverter
+{
+    public static BlitzElement ConvertToBlitzElement(CsXFL.Element csxflelement)
+    {
+        if (csxflelement == null)
+            throw new ArgumentNullException(nameof(csxflelement));
+
+        // TODO: Being patient for width and height helpers...
+        var blitzelement = new BlitzElement
+        {
+            ElementType = csxflelement.ElementType,
+            Name = csxflelement.Name,
+            Width = 0,
+            Height = 0,
+            Selected = csxflelement.Selected,
+            Matrix = csxflelement.Matrix,
+            ScaleX = csxflelement.ScaleX,
+            ScaleY = csxflelement.ScaleY,
+            TransformationPoint = csxflelement.TransformationPoint   
+        };
+
+        return blitzelement;
+    }
+}
+#endregion
+
+#region Canvas Compositing
 public class DrawingCanvas : UserControl
 {
-    //This is where we keep the bitmaps that comprise individual layers
-    //we use to composite what we present to the user
-    private Layer UILayer;
-    private int ActiveLayer;
-    private Layer CachedActiveLayer;
-    private List<Layer> ImageLayers = new List<Layer>();
+    public BlitzCanvasController CanvasController = new BlitzCanvasController();
 
     //Our render target we compile everything to and present to the user
     private RenderTargetBitmap RenderTarget;
     private SKPicture _compositedPicture;
-    private bool IsRenderTargetDirty = true;
 
     // Add a StageColor property to manage the background color
     private SKColor _stageColor = SKColors.White; // Default to white
@@ -106,7 +235,6 @@ public class DrawingCanvas : UserControl
             if (_stageColor != value)
             {
                 _stageColor = value;
-                IsRenderTargetDirty = true; // Mark RenderTarget as dirty when StageColor changes
                 InvalidateVisual();
             }
         }
@@ -122,9 +250,19 @@ public class DrawingCanvas : UserControl
             if (_scale != value)
             {
                 _scale = value;
-                IsRenderTargetDirty = true; // Mark RenderTarget as dirty when scale changes
             }
         }
+    }
+
+    public void SetScale(double scale)
+    {
+        if (scale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be greater than zero.");
+        }
+
+        Scale = scale;
+        InvalidateVisual(); // Invalidate the control to trigger a re-render
     }
 
     // Add a property to toggle Avalonia's ClipToBounds behavior
@@ -135,17 +273,6 @@ public class DrawingCanvas : UserControl
     {
         get => GetValue(ClipToBoundsProperty);
         set => SetValue(ClipToBoundsProperty, value);
-    }
-
-    public void SetScale(double scale)
-    {
-        if (scale <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be greater than zero.");
-        }
-
-        Scale = scale; // Update the scale property
-        InvalidateVisual(); // Invalidate the control to trigger a re-render
     }
 
     public DrawingCanvas()
@@ -182,44 +309,28 @@ public class DrawingCanvas : UserControl
         base.EndInit();
     }
 
-    public void AddSvgLayer(XDocument svgDocument)
+    private void CompositeLayersToRenderTarget()
     {
-        var layer = new Layer();
-        layer.LoadSvg(svgDocument, (int)Width, (int)Height);
+        // Generate composited pictures from the BlitzCanvasController
+        var pictureLayers = CanvasController.GenerateCompositedPictures();
 
-        // Dispose of the previous active layer if necessary
-        CachedActiveLayer?.Surface?.Dispose();
-        CachedActiveLayer?.Image?.Dispose();
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)Width, (float)Height));
 
-        ImageLayers.Add(layer);
-        ActiveLayer = ImageLayers.Count - 1;
+        // Clear the canvas with the stage color
+        canvas.Clear(StageColor);
 
-        IsRenderTargetDirty = true; // Mark RenderTarget as dirty
-    }
-
-    public void ClearAllLayers()
-    {
-        // Dispose of all layers and their resources
-        foreach (var layer in ImageLayers)
+        // Iterate over all SKPicture layers
+        foreach (var picture in pictureLayers)
         {
-            layer.Surface?.Dispose();
-            layer.Image?.Dispose();
+            if (picture != null)
+            {
+                canvas.DrawPicture(picture);
+            }
         }
 
-        // Clear the list of layers
-        ImageLayers.Clear();
-
-        // Reset the active layer and cached layer
-        ActiveLayer = -1;
-        CachedActiveLayer?.Surface?.Dispose();
-        CachedActiveLayer?.Image?.Dispose();
-        CachedActiveLayer = null;
-
-        // Dispose of the RenderTarget and reset it
-        RenderTarget?.Dispose();
-        RenderTarget = null;
-
-        IsRenderTargetDirty = true; // Mark RenderTarget as dirty
+        // Finalize the composited picture
+        _compositedPicture = recorder.EndRecording();
     }
 
     public Task<bool> SaveAsync(string path)
@@ -230,7 +341,7 @@ public class DrawingCanvas : UserControl
             {
                 RenderTarget.Save(path);
             }
-            catch(Exception)
+            catch (Exception)
             {
                 return false;
             }
@@ -239,35 +350,16 @@ public class DrawingCanvas : UserControl
         });
     }
 
-    private void CompositeLayersToRenderTarget()
-    {
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)Width, (float)Height));
-
-        canvas.Clear(StageColor);
-
-        // Composite all layers as vector graphics
-        foreach (var layer in ImageLayers)
-        {
-            if (layer.Picture != null)
-            {
-                canvas.Save();
-                canvas.DrawPicture(layer.Picture); // Draw vector graphics
-                canvas.Restore();
-            }
-        }
-
-        _compositedPicture = recorder.EndRecording();
-        IsRenderTargetDirty = false; // Mark composited picture as up-to-date
-    }
-
     public override void Render(DrawingContext context)
     {
-        if (IsRenderTargetDirty)
+        if (_compositedPicture == null)
         {
+            // If the composited picture is null, we need to generate it
             CompositeLayersToRenderTarget();
         }
 
+        // Use the CustomDrawOp to render the scaled SKPicture
         context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), _compositedPicture, _scale));
     }
 }
+#endregion
