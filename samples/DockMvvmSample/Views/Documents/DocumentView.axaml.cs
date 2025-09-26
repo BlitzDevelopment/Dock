@@ -163,6 +163,7 @@ public partial class DocumentView : UserControl
                     SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
                     // Render the element
+                    CsXFL.Rectangle bbox = renderer.GetElementBoundingBox(element, operatingFrame);
                     (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(
                         element,
                         elementIdentifier,
@@ -205,7 +206,7 @@ public partial class DocumentView : UserControl
 
                     // Create a BlitzElement and add it to the layer
                     var blitzElement = ElementConverter.ConvertToBlitzElement(element);
-                    blitzElement.LoadSvg(renderedSvgDoc, _workingCsXFLDoc.Width, _workingCsXFLDoc.Height);
+                    blitzElement.LoadSvg(renderedSvgDoc, _workingCsXFLDoc.Width, _workingCsXFLDoc.Height, bbox);
                     blitzLayer.Elements.Add(blitzElement);
                 }
                 catch (Exception ex)

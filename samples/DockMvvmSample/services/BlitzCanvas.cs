@@ -10,34 +10,31 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Xml.Linq;
 using System.Linq;
-using System.Diagnostics;
-using Avalonia.Threading;
 using Avalonia.Input;
-using System.Runtime.InteropServices;
 
 namespace Avalonia.Controls;
 
-#region Avalonia Drawing
+#region Custom Drawing
 class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 {
     private readonly SKPicture _compositedPicture;
     private readonly double _scale;
 
+    public Rect Bounds { get; }
+    public bool HitTest(Point p) => false;
+    public bool Equals(Avalonia.Rendering.SceneGraph.ICustomDrawOperation other) => false;
+
     public CustomDrawOp(Rect bounds, SKPicture compositedPicture, double scale)
     {
         _compositedPicture = compositedPicture;
-        Bounds = bounds;
         _scale = scale;
+        Bounds = bounds;
     }
 
     public void Dispose()
     {
         // No-op
     }
-
-    public Rect Bounds { get; }
-    public bool HitTest(Point p) => false;
-    public bool Equals(Avalonia.Rendering.SceneGraph.ICustomDrawOperation other) => false;
 
     public void Render(ImmediateDrawingContext context)
     {
@@ -62,11 +59,6 @@ public class BlitzCanvasController
 {
     private readonly List<BlitzLayer> _layers = new();
     public IReadOnlyList<BlitzLayer> Layers => _layers;
-
-    public BlitzLayer AdorningLayer { get; set; } = new BlitzLayer
-    {
-        Visible = false
-    };
 
     public BlitzCanvasController()
     {
@@ -114,62 +106,8 @@ public class BlitzCanvasController
             pictures.Add(recorder.EndRecording());
         }
 
-        // Adorning layer
-        if (AdorningLayer.Visible)
-        {
-            using var recorder = new SKPictureRecorder();
-            var canvas = recorder.BeginRecording(new SKRect(0, 0, 1920, 1080)); // Adjust canvas size as needed
-
-            foreach (var element in AdorningLayer.Elements)
-            {
-                if (element.Picture != null)
-                {
-                    canvas.DrawPicture(element.Picture);
-                }
-            }
-
-            pictures.Add(recorder.EndRecording());
-        }
-
         return pictures;
     }
-
-    public void UpdateAdorningLayer(Rect bounds, SKColor color)
-    {
-        // Clear existing elements in the adorning layer
-        AdorningLayer.Elements.Clear();
-
-        // Create a new element representing the bounding box
-        var boundingBoxElement = new BlitzElement
-        {
-            Picture = CreateBoundingBoxPicture(bounds, color),
-            Name = "BoundingBox"
-        };
-
-        AdorningLayer.Elements.Add(boundingBoxElement);
-    }
-
-    private SKPicture CreateBoundingBoxPicture(Rect bounds, SKColor color)
-    {
-        Console.WriteLine($"Creating bounding box with bounds: {bounds}"); // Log the bounds
-
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(new SKRect((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom));
-
-        using var paint = new SKPaint
-        {
-            Style = SKPaintStyle.Stroke, // Use Stroke to draw the rectangle outline
-            Color = color,               // Use the provided color
-            StrokeWidth = 2,             // Set the stroke width
-            IsAntialias = true           // Enable anti-aliasing for smooth edges
-        };
-
-        // Draw a rectangle matching the bounds
-        canvas.DrawRect(new SKRect((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom), paint);
-
-        return recorder.EndRecording();
-    }
-
 }
 #endregion
 
@@ -185,7 +123,6 @@ public class BlitzLayer
     public bool Selected { get; set; }
     public bool Visible { get; set; }
 
-    //Elements
     public List<BlitzElement> Elements { get; set; } = new List<BlitzElement>();
 }
 
@@ -219,6 +156,8 @@ public class BlitzElement
     public SKSurface Surface { get; set; }
     public SKPicture Picture { get; set; }
 
+    public CsXFL.Element Model { get; set; }
+
     //CsXFL Properties
     public string ElementType { get; set; }
     public string Name { get; set; }
@@ -230,7 +169,9 @@ public class BlitzElement
     public double ScaleY { get; set; }
     public CsXFL.Point TransformationPoint { get; set; }
 
-    public void LoadSvg(XDocument svgDocument, int width, int height)
+    public CsXFL.Rectangle BBox { get; private set; }
+
+    public void LoadSvg(XDocument svgDocument, int width, int height, CsXFL.Rectangle bbox)
     {
         var svg = new SKSvg();
         using (var stream = new MemoryStream())
@@ -240,17 +181,19 @@ public class BlitzElement
             svg.Load(stream);
         }
 
-        Picture = svg.Picture; // Store the SKPicture
+        Picture = svg.Picture;
 
         var info = new SKImageInfo(width, height);
         Surface = SKSurface.Create(info);
         var canvas = Surface.Canvas;
 
         canvas.Clear(SKColors.Transparent);
-        canvas.DrawPicture(Picture); // Use the SKPicture for rendering
+        canvas.DrawPicture(Picture);
         canvas.Flush();
 
         Image = Surface.Snapshot();
+
+        BBox = bbox;
     }
 }
 
@@ -264,6 +207,7 @@ public static class ElementConverter
         // TODO: Being patient for width and height helpers...
         var blitzelement = new BlitzElement
         {
+            Model = csxflelement,
             ElementType = csxflelement.ElementType,
             Name = csxflelement.Name,
             Width = 0,
@@ -284,13 +228,22 @@ public static class ElementConverter
 public class DrawingCanvas : UserControl
 {
     public BlitzCanvasController CanvasController = new BlitzCanvasController();
+    private BlitzLayer _adorningLayer = new BlitzLayer
+    {
+        Visible = false
+    };
+
+    #region Selection State
+    private BlitzElement _selectedElement;
+    private Point _dragStartPosition;
+    private bool _isDragging;
+    #endregion
 
     //Our render target we compile everything to and present to the user
     private RenderTargetBitmap RenderTarget;
     private SKPicture _compositedPicture;
 
-    // Add a StageColor property to manage the background color
-    private SKColor _stageColor = SKColors.White; // Default to white
+    private SKColor _stageColor = SKColors.White;
     public SKColor StageColor
     {
         get => _stageColor;
@@ -304,7 +257,6 @@ public class DrawingCanvas : UserControl
         }
     }
 
-    // Add a Scale property to manage zoom level
     private double _scale = 1.0;
     public double Scale
     {
@@ -326,10 +278,18 @@ public class DrawingCanvas : UserControl
         }
 
         Scale = scale;
+
+        Console.WriteLine($"Scale set to: {scale}");
+        if (_selectedElement != null)
+        {
+            Console.WriteLine("Updating adoring layer due to scale change.");
+            UpdateAdorningLayer(_selectedElement, SKColor.Parse("#388ff9"));
+        }
+
         InvalidateVisual(); // Invalidate the control to trigger a re-render
     }
 
-    // Add a property to toggle Avalonia's ClipToBounds behavior
+    // Todo: redo this, it sucks
     public static readonly StyledProperty<bool> ClipToBoundsProperty =
         AvaloniaProperty.Register<DrawingCanvas, bool>(nameof(ClipToBounds), true);
 
@@ -345,7 +305,7 @@ public class DrawingCanvas : UserControl
         this.Bind(UserControl.ClipToBoundsProperty, this.GetObservable(ClipToBoundsProperty));
         Focusable = true;
         IsHitTestVisible = true;
-        Background = Brushes.Transparent;
+        Background = Avalonia.Media.Brushes.Transparent;
     }
 
     public override void EndInit()
@@ -400,6 +360,224 @@ public class DrawingCanvas : UserControl
         _compositedPicture = recorder.EndRecording();
     }
 
+    // MARK: Adorning
+    public void UpdateAdorningLayer(BlitzElement element, SKColor color)
+    {
+        // Clear existing elements in the adorning layer
+        _adorningLayer.Elements.Clear();
+
+        // Create a new element representing the bounding box
+        var boundingBoxElement = new BlitzElement
+        {
+            Picture = CreateSelectionAdorner(element, color),
+            Name = "BoundingBox"
+        };
+
+        _adorningLayer.Elements.Add(boundingBoxElement);
+        _adorningLayer.Visible = true;
+
+        InvalidateVisual(); // Trigger a re-render
+    }
+
+    private SKPicture CreateSelectionAdorner(BlitzElement element, SKColor color)
+    {
+        // Extract the bounding box and transformation matrix
+        CsXFL.Rectangle bbox = element.BBox;
+        CsXFL.Matrix matrix = element.Matrix;
+
+        // Transform the corners of the bounding box using the matrix
+        var topLeft = TransformPoint(matrix, bbox.Left, bbox.Top);
+        var topRight = TransformPoint(matrix, bbox.Right, bbox.Top);
+        var bottomLeft = TransformPoint(matrix, bbox.Left, bbox.Bottom);
+        var bottomRight = TransformPoint(matrix, bbox.Right, bbox.Bottom);
+
+        // Compute the axis-aligned bounding box (AABB)
+        float minX = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
+        float maxX = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
+        float minY = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
+        float maxY = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+
+        // Create the SKPicture
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect(minX, minY, maxX, maxY));
+
+        using var paint = new SKPaint
+        {
+            Style = SKPaintStyle.Stroke,        // Use Stroke to draw the rectangle outline
+            Color = color,                      // Use the provided color
+            StrokeWidth = 2 / (float)_scale,    // Adjust stroke width based on the scale
+            IsAntialias = true                  // Enable anti-aliasing for smooth edges
+        };
+
+        // Draw the axis-aligned bounding box
+        canvas.DrawRect(new SKRect(minX, minY, maxX, maxY), paint);
+
+        return recorder.EndRecording();
+    }
+
+    private SKPoint TransformPoint(CsXFL.Matrix matrix, double x, double y)
+    {
+        float transformedX = (float)(matrix.A * x + matrix.C * y + matrix.Tx);
+        float transformedY = (float)(matrix.B * x + matrix.D * y + matrix.Ty);
+        return new SKPoint(transformedX, transformedY);
+    }
+
+    private SKPicture GenerateAdorningLayer()
+    {
+        if (!_adorningLayer.Visible || _adorningLayer.Elements.Count == 0)
+            return null;
+
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)Width, (float)Height));
+
+        foreach (var element in _adorningLayer.Elements)
+        {
+            if (element.Picture != null)
+            {
+                canvas.DrawPicture(element.Picture);
+            }
+        }
+
+        return recorder.EndRecording();
+    }
+
+    //MARK: Element Hit Testing
+    public BlitzElement HitTest(Point mousePosition)
+    {
+        var transformedPoint = new SKPoint((float)(mousePosition.X), (float)(mousePosition.Y));
+        Console.WriteLine($"HitTest at position: {transformedPoint} with scale: {_scale}");
+
+        foreach (var layer in CanvasController.Layers.Reverse<BlitzLayer>()) // Reverse to check topmost layers first
+        {
+            if (!layer.Visible)
+                continue;
+
+            foreach (var element in layer.Elements)
+            {
+                if (element.Picture == null || element.Matrix == null)
+                    continue;
+
+                // Transform the point into the element's local coordinate space
+                var matrix = element.Matrix;
+                var skMatrix = new SKMatrix
+                {
+                    ScaleX = (float)matrix.A,
+                    SkewY = (float)matrix.B,
+                    SkewX = (float)matrix.C,
+                    ScaleY = (float)matrix.D,
+                    TransX = (float)matrix.Tx,
+                    TransY = (float)matrix.Ty,
+                    Persp0 = 0,
+                    Persp1 = 0,
+                    Persp2 = 1
+                };
+
+                if (!skMatrix.TryInvert(out var inverseMatrix))
+                {
+                    Console.WriteLine($"Failed to invert matrix for element: {element.Name}");
+                    continue;
+                }
+
+                // Use the `inverseMatrix` for further operations
+                var localPoint = inverseMatrix.MapPoint(transformedPoint);
+
+                // Check if the local point is within the element's bounding box
+                var bounds = new SKRect((float)element.BBox.Left, (float)element.BBox.Top, (float)element.BBox.Right, (float)element.BBox.Bottom);
+
+                if (bounds.Contains(localPoint))
+                {
+                    Console.WriteLine($"Hit Layer: {layer.Name}, Element: {element.ElementType}");
+                    return element;
+                }
+            }
+        }
+
+        Console.WriteLine("No hit detected.");
+        return null;
+    }
+
+    //MARK: Pointer Events
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        if (e.Handled)
+        {
+            Console.WriteLine("PointerPressed event was already handled.");
+            return;
+        }
+
+        // Check if the left mouse button was pressed
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            base.OnPointerPressed(e);
+            var mousePosition = e.GetPosition(this);
+            _selectedElement = HitTest(mousePosition);
+
+            if (_selectedElement != null)
+            {
+                _adorningLayer.Visible = true;
+                UpdateAdorningLayer(_selectedElement, SKColor.Parse("#388ff9"));
+                InvalidateVisual();
+
+                _dragStartPosition = mousePosition;
+                _isDragging = true;
+                e.Handled = true;
+            }
+            else
+            {
+                _selectedElement = null;
+                _adorningLayer.Elements.Clear();
+                _adorningLayer.Visible = false;
+                InvalidateVisual();
+            }
+        }
+        else
+        {
+            // Ignore if not left click
+        }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        if (_isDragging && _selectedElement != null)
+        {
+            var currentPosition = e.GetPosition(this);
+            var deltaX = currentPosition.X - _dragStartPosition.X;
+            var deltaY = currentPosition.Y - _dragStartPosition.Y;
+
+            // Update the element's transformation matrix
+            _selectedElement.Matrix.Tx += deltaX;
+            _selectedElement.Matrix.Ty += deltaY;
+
+            // Update the drag start position
+            _dragStartPosition = currentPosition;
+
+            // Redraw the canvas
+            CompositeLayersToRenderTarget();
+            InvalidateVisual();
+        }
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        if (_isDragging)
+        {
+            _isDragging = false;
+
+            if (_selectedElement != null)
+            {
+                // Update the model's matrix with the new Tx and Ty values
+                if (_selectedElement.Model != null)
+                {
+                    _selectedElement.Model.Matrix.Tx = _selectedElement.Matrix.Tx;
+                    _selectedElement.Model.Matrix.Ty = _selectedElement.Matrix.Ty;
+                }
+            }
+
+            e.Handled = true;
+        }
+    }
+
+    //MARK: Rendering
     public Task<bool> SaveAsync(string path)
     {
         return Task.Run(() =>
@@ -425,71 +603,15 @@ public class DrawingCanvas : UserControl
             CompositeLayersToRenderTarget();
         }
 
-        // Use the CustomDrawOp to render the scaled SKPicture
+        // Render the composited picture
         context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), _compositedPicture, _scale));
-    }
 
-    //MARK: Hit Testing
-    public void HitTest(Point mousePosition)
-    {
-        var transformedPoint = new SKPoint((float)(mousePosition.X / _scale), (float)(mousePosition.Y / _scale));
-        Console.WriteLine($"HitTest at position: {transformedPoint} with scale: {_scale}");
-
-        foreach (var layer in CanvasController.Layers.Reverse<BlitzLayer>()) // Reverse to check topmost layers first
+        // Render the adorning layer on top
+        var adorningPicture = GenerateAdorningLayer();
+        if (adorningPicture != null)
         {
-            if (!layer.Visible)
-                continue;
-
-            foreach (var element in layer.Elements)
-            {
-                if (element.Picture == null)
-                    continue;
-
-                // Set custom bounds as a 50x50 rectangle centered on element.Matrix.Tx and element.Matrix.Ty
-                var centerX = (float)element.Matrix.Tx;
-                var centerY = (float)element.Matrix.Ty;
-                var bounds = new SKRect(centerX - 225, centerY - 225, centerX + 225, centerY + 225);
-
-                if (bounds.Contains(transformedPoint))
-                {
-                    Console.WriteLine($"Hit Layer: {layer.Name}, Element: {element.Name}");
-
-                    // Update the adorning layer with the bounding box
-                    CanvasController.AdorningLayer.Visible = true;
-                    CanvasController.UpdateAdorningLayer(new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height), SKColors.Blue);
-
-                    // Update the render target and invalidate the visual
-                    CompositeLayersToRenderTarget();
-                    InvalidateVisual();
-                    return;
-                }
-            }
+            context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), adorningPicture, _scale));
         }
-
-        Console.WriteLine("No hit detected.");
-        CanvasController.AdorningLayer.Elements.Clear(); // Clear the adorning layer if no hit
-        CanvasController.AdorningLayer.Visible = false;
-
-        // Update the render target and invalidate the visual
-        CompositeLayersToRenderTarget();
-        InvalidateVisual();
     }
-
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        if (e.Handled)
-        {
-            Console.WriteLine("PointerPressed event was already handled.");
-            return;
-        }
-
-        base.OnPointerPressed(e);
-        var mousePosition = e.GetPosition(this);
-        HitTest(mousePosition);
-    }
-
-    //MARK: Selection Tool
-    
-    
 }
 #endregion
