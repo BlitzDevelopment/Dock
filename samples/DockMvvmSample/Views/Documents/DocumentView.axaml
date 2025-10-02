@@ -22,7 +22,6 @@
 
       <!-- Canvas & Stage -->
       <Grid Grid.Row="1">
-          <!-- <skia:DrawingCanvas x:Name="DrawingCanvas" Width="1920" Height="1080" IsHitTestVisible="False" /> -->
           <paz:ZoomBorder Name="ZoomBorder" Stretch="None" ZoomSpeed="1.2"
                           MinZoomX="0.1" MinZoomY="0.1" 
                           MaxZoomX="40" MaxZoomY="40"
@@ -115,7 +114,7 @@
                                x:Name="ProgressRingControl"
                                Width="40"
                                Height="40"
-                               IsActive="True"
+                               IsActive="False"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource SystemAccentColor}" />

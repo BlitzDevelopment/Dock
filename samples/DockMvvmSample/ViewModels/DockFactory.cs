@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using Blitz.Models.Documents;
 using Blitz.Models.Tools;
 using Blitz.ViewModels.Docks;
 using Blitz.ViewModels.Documents;

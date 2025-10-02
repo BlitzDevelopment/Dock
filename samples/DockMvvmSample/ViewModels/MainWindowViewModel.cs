@@ -204,7 +204,7 @@ public partial class MainWindowViewModel : ObservableObject
     public MainWindowViewModel()
     {
         OpenRecentMenuItem = new MenuItem();
-        _factory = new DockFactory(this, new DemoData());
+        _factory = new DockFactory(this, string.Empty);
 
         App.EventAggregator.Subscribe<ActiveDocumentChangedEvent>(OnActiveDocumentChanged);
 
