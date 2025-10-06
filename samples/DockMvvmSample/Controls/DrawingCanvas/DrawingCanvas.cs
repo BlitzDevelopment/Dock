@@ -9,6 +9,38 @@ namespace Avalonia.Controls;
 
 public partial class DrawingCanvas : UserControl
 {
+    private IDrawingCanvasTool _currentTool;
+    public IDrawingCanvasTool ActiveTool { get; set; }
+    public DrawingCanvasToolType ActiveToolType { get; private set; }
+
+    public void SetActiveTool(DrawingCanvasToolType toolType)
+    {
+        // Unsubscribe from previous tool's events if applicable
+        if (_currentTool is IDrawingCanvasTool interactiveTool)
+        {
+            PointerPressed -= interactiveTool.OnPointerPressed;
+            PointerMoved -= interactiveTool.OnPointerMoved;
+            PointerReleased -= interactiveTool.OnPointerReleased;
+        }
+
+        ActiveToolType = toolType;
+
+        _currentTool = toolType switch
+        {
+            DrawingCanvasToolType.Selection => new SelectionTool(),
+            DrawingCanvasToolType.Transformation => new TransformationTool(),
+            _ => throw new ArgumentOutOfRangeException(nameof(toolType), "Unsupported tool type")
+        };
+
+        // Subscribe to the new tool's events if it implements IInteractiveTool
+        if (_currentTool is IDrawingCanvasTool newInteractiveTool)
+        {
+            PointerPressed += newInteractiveTool.OnPointerPressed;
+            PointerMoved += newInteractiveTool.OnPointerMoved;
+            PointerReleased += newInteractiveTool.OnPointerReleased;
+        }
+    }
+
     public BlitzCanvasController CanvasController = new BlitzCanvasController();
     internal BlitzLayer AdorningLayer = new BlitzLayer
     {
@@ -25,7 +57,6 @@ public partial class DrawingCanvas : UserControl
     private RenderTargetBitmap RenderTarget;
     private SKPicture _compositedPicture;
 
-    private SKColor _adorningColor = SKColor.Parse("#388ff9");
     private SKColor _stageColor = SKColors.White;
     public SKColor StageColor
     {
@@ -65,7 +96,7 @@ public partial class DrawingCanvas : UserControl
 
         if (SelectedElement != null)
         {
-            UpdateAdorningLayer(SelectedElement, _adorningColor);
+            UpdateAdorningLayer(SelectedElement);
         }
 
         InvalidateVisual();
@@ -93,6 +124,8 @@ public partial class DrawingCanvas : UserControl
         Focusable = true;
         IsHitTestVisible = true;
         Background = Avalonia.Media.Brushes.Transparent;
+
+        SetActiveTool(DrawingCanvasToolType.Transformation);
     }
 
     public override void EndInit()
