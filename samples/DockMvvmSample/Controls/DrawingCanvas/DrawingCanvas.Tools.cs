@@ -166,25 +166,46 @@ public class TransformationTool : IDrawingCanvasTool
 
 
 
+        // Apply the inverse matrix to reset the SKPicture to its original state
         using var recorder = new SKPictureRecorder();
         var canvas = recorder.BeginRecording(element.Picture.CullRect);
-
-        // Extract the rotation angle from the matrix
-        float rotationAngle = (float)Math.Atan2(element.Matrix.B, element.Matrix.A) * (180 / (float)Math.PI);
-        float skewX = (float)Math.Atan2(element.Matrix.C, element.Matrix.D) * (180 / (float)Math.PI);
-        float skewY = (float)Math.Atan2(element.Matrix.B, element.Matrix.A) * (180 / (float)Math.PI);
-        Console.WriteLine($"Rotation Angle: {rotationAngle}");
-
-        // Apply the opposite rotation to make the canvas upright
-        canvas.RotateDegrees(rotationAngle, transformationPoint.X, transformationPoint.Y);
-        canvas.Scale(horizontalScale, verticalScale, transformationPoint.X, transformationPoint.Y);
-        canvas.RotateDegrees(-rotationAngle, transformationPoint.X, transformationPoint.Y);
-
-        // Draw the picture
+        var resetMatrix = new SKMatrix
+        {
+            ScaleX = (float)inverseMatrix.A,
+            SkewY = (float)inverseMatrix.B,
+            SkewX = (float)inverseMatrix.C,
+            ScaleY = (float)inverseMatrix.D,
+            TransX = (float)inverseMatrix.Tx,
+            TransY = (float)inverseMatrix.Ty,
+            Persp0 = 0,
+            Persp1 = 0,
+            Persp2 = 1
+        };
+        canvas.SetMatrix(resetMatrix);
         canvas.DrawPicture(element.Picture);
 
-        // End recording
+        // End recording to get the reset picture
         element.Picture = recorder.EndRecording();
+
+        // Record the scaled picture
+        using var scaledRecorder = new SKPictureRecorder();
+        var scaledCanvas = scaledRecorder.BeginRecording(element.Picture.CullRect);
+
+        var scaledMatrix = new SKMatrix
+        {
+            ScaleX = (float)element.Matrix.A,
+            SkewY = (float)element.Matrix.B,
+            SkewX = (float)element.Matrix.C,
+            ScaleY = (float)element.Matrix.D,
+            TransX = (float)element.Matrix.Tx,
+            TransY = (float)element.Matrix.Ty,
+            Persp0 = 0,
+            Persp1 = 0,
+            Persp2 = 1
+        };
+        scaledCanvas.SetMatrix(scaledMatrix);
+        scaledCanvas.DrawPicture(element.Picture);
+        element.Picture = scaledRecorder.EndRecording();
     }
 
     private bool TryInvertMatrix(CsXFL.Matrix matrix, out CsXFL.Matrix inverseMatrix)
