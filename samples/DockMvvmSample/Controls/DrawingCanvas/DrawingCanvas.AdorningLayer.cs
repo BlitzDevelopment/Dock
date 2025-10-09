@@ -66,8 +66,6 @@ public partial class DrawingCanvas
 
     private SKPicture CreateTransformationAdorner(BlitzElement element)
     {
-        Console.WriteLine("Creating transformation adorner");
-
         var bbox = element.BBox;
         var matrix = element.Matrix;
 

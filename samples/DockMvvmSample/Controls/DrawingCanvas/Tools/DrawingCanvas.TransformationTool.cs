@@ -1,134 +1,30 @@
-using Avalonia.Input;
 using System;
 using SkiaSharp;
 using System.Collections.Generic;
-using System.Linq;
+using Avalonia.Input;
 
 namespace Avalonia.Controls;
 
-public enum DrawingCanvasToolType
-{
-    Selection,
-    Transformation
-}
-
-public interface IDrawingCanvasTool
-{
-    void OnPointerPressed(object? sender, PointerPressedEventArgs e);
-    void OnPointerMoved(object? sender, PointerEventArgs e);
-    void OnPointerReleased(object? sender, PointerReleasedEventArgs e);
-
-}
-
-#region SELECTION
-public class SelectionTool : IDrawingCanvasTool
-{
-    public void OnPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (sender is not DrawingCanvas canvas)
-            return;
-
-        if (e.Handled)
-        {
-            return;
-        }
-
-        if (e.GetCurrentPoint(canvas).Properties.IsLeftButtonPressed)
-        {
-            var mousePosition = e.GetPosition(canvas);
-            canvas.SelectedElement = canvas.HitTest(mousePosition);
-
-            if (canvas.SelectedElement != null)
-            {
-                canvas.AdorningLayer.Visible = true;
-                canvas.UpdateAdorningLayer(canvas.SelectedElement);
-                canvas.InvalidateVisual();
-
-                canvas.DragStartPosition = mousePosition;
-                canvas.IsDragging = true;
-                e.Handled = true;
-            }
-            else
-            {
-                canvas.SelectedElement = null;
-                canvas.AdorningLayer.Elements.Clear();
-                canvas.AdorningLayer.Visible = false;
-                canvas.InvalidateVisual();
-            }
-        }
-    }
-
-    public void OnPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (sender is not DrawingCanvas canvas)
-            return;
-
-        if (canvas.IsDragging && canvas.SelectedElement != null)
-        {
-            var currentPosition = e.GetPosition(canvas);
-            var deltaX = currentPosition.X - canvas.DragStartPosition.X;
-            var deltaY = currentPosition.Y - canvas.DragStartPosition.Y;
-
-            ApplySkiaTranslation(canvas.SelectedElement, deltaX, deltaY);
-
-            // Update the model's matrix translation
-            canvas.SelectedElement.Matrix.Tx += deltaX;
-            canvas.SelectedElement.Matrix.Ty += deltaY;
-
-            canvas.DragStartPosition = currentPosition;
-
-            canvas.UpdateAdorningLayer(canvas.SelectedElement);
-            canvas.CompositeLayersToRenderTarget();
-            canvas.InvalidateVisual();
-        }
-    }
-
-    public void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (sender is not DrawingCanvas canvas)
-            return;
-
-        if (canvas.IsDragging)
-        {
-            canvas.IsDragging = false;
-
-            if (canvas.SelectedElement != null && canvas.SelectedElement.Model != null)
-            {
-                // Update the model's matrix translation
-                canvas.SelectedElement.Model.Matrix.Tx = canvas.SelectedElement.Matrix.Tx;
-                canvas.SelectedElement.Model.Matrix.Ty = canvas.SelectedElement.Matrix.Ty;
-            }
-
-            e.Handled = true;
-        }
-    }
-
-    private void ApplySkiaTranslation(BlitzElement element, double deltaX, double deltaY)
-    {
-        if (element.Picture == null)
-            return;
-
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(element.Picture.CullRect);
-        canvas.Translate((float)deltaX, (float)deltaY);
-        canvas.DrawPicture(element.Picture);
-        element.Picture = recorder.EndRecording();
-    }
-}
-#endregion
-
 public class TransformationTool : IDrawingCanvasTool
 {
+    private SKPoint _transformOrigin;
+    DrawingCanvas.TransformHandleType _activeHandle;
     private const double _handleMargin = 10.0;
     private const double _rotationMarginFactor = 3;
     private const double _edgeMargin = 5;
-    private SKPoint? _activeHandle;
+    private float _initialDistance;
+    private float _initialAngle;
+
+    private enum TransformationState
+    {
+        None,
+        DoubleScaling,
+        SingleScaling,
+        Rotating,
+        Shearing
+    }
     
-    // Transformation States
-    private bool _isDoubleScaling;
-    private bool _isSingleScaling;
-    private bool _isRotating;
-    private bool _isShearing;
+    private TransformationState _currentState = TransformationState.None;
 
     DrawingCanvas.TransformHandleType[] cornerHandles = new[]
     {
@@ -152,9 +48,7 @@ public class TransformationTool : IDrawingCanvasTool
         if (element.Picture == null || element.Matrix == null)
             return;
 
-        var matrix = element.Matrix;
-
-        if (!TryInvertMatrix(matrix, out var inverseMatrix))
+        if (!TryInvertMatrix(element.Matrix, out var inverseMatrix))
             return;
 
         // Transform the pivot point to local coordinates
@@ -162,9 +56,7 @@ public class TransformationTool : IDrawingCanvasTool
 
         // Apply scaling in the LOCAL coordinate space without applying the current matrix
         var localScaleMatrix = SKMatrix.CreateScale(horizontalScale, verticalScale, localPivot.X, localPivot.Y);
-        element.Matrix = PreConcatMatrix(matrix, localScaleMatrix);
-
-
+        element.Matrix = PreConcatMatrix(element.Matrix, localScaleMatrix);
 
         // Apply the inverse matrix to reset the SKPicture to its original state
         using var recorder = new SKPictureRecorder();
@@ -183,11 +75,9 @@ public class TransformationTool : IDrawingCanvasTool
         };
         canvas.SetMatrix(resetMatrix);
         canvas.DrawPicture(element.Picture);
-
-        // End recording to get the reset picture
         element.Picture = recorder.EndRecording();
 
-        // Record the scaled picture
+        // Record the scaled picture according to the scaled element matrix
         using var scaledRecorder = new SKPictureRecorder();
         var scaledCanvas = scaledRecorder.BeginRecording(element.Picture.CullRect);
 
@@ -208,41 +98,67 @@ public class TransformationTool : IDrawingCanvasTool
         element.Picture = scaledRecorder.EndRecording();
     }
 
-    private bool TryInvertMatrix(CsXFL.Matrix matrix, out CsXFL.Matrix inverseMatrix)
+    private void StartSingleScale(SKPoint transformationPoint, SKPoint handlePosition, DrawingCanvas.TransformHandleType handleType)
     {
-        inverseMatrix = new CsXFL.Matrix();
-        double determinant = matrix.A * matrix.D - matrix.B * matrix.C;
-        if (Math.Abs(determinant) < double.Epsilon)
-            return false;
+        _currentState = TransformationState.SingleScaling;
 
-        inverseMatrix.A = matrix.D / determinant;
-        inverseMatrix.B = -matrix.B / determinant;
-        inverseMatrix.C = -matrix.C / determinant;
-        inverseMatrix.D = matrix.A / determinant;
-        inverseMatrix.Tx = (matrix.C * matrix.Ty - matrix.D * matrix.Tx) / determinant;
-        inverseMatrix.Ty = (matrix.B * matrix.Tx - matrix.A * matrix.Ty) / determinant;
-
-        return true;
+        // Calculate the initial distance for scaling
+        if (handleType == DrawingCanvas.TransformHandleType.RightCenter || handleType == DrawingCanvas.TransformHandleType.LeftCenter)
+        {
+            _initialDistance = Math.Abs(handlePosition.X - transformationPoint.X);
+        }
+        else if (handleType == DrawingCanvas.TransformHandleType.TopCenter || handleType == DrawingCanvas.TransformHandleType.BottomCenter)
+        {
+            _initialDistance = Math.Abs(handlePosition.Y - transformationPoint.Y);
+        }
     }
 
-    private CsXFL.Matrix PreConcatMatrix(CsXFL.Matrix matrix, SKMatrix skMatrix)
+    private (float scaleX, float scaleY) UpdateSingleScale(SKPoint transformationPoint, SKPoint currentMousePosition)
     {
-        var result = new CsXFL.Matrix();
-        result.A = matrix.A * skMatrix.ScaleX + matrix.C * skMatrix.SkewY;
-        result.B = matrix.B * skMatrix.ScaleX + matrix.D * skMatrix.SkewY;
-        result.C = matrix.A * skMatrix.SkewX + matrix.C * skMatrix.ScaleY;
-        result.D = matrix.B * skMatrix.SkewX + matrix.D * skMatrix.ScaleY;
-        result.Tx = matrix.A * skMatrix.TransX + matrix.C * skMatrix.TransY + matrix.Tx;
-        result.Ty = matrix.B * skMatrix.TransX + matrix.D * skMatrix.TransY + matrix.Ty;
-        return result;
+        float scaleX = 1.0F, scaleY = 1.0F;
+
+        // Calculate the scaling factor based on the active handle
+        if (_activeHandle == DrawingCanvas.TransformHandleType.RightCenter || _activeHandle == DrawingCanvas.TransformHandleType.LeftCenter)
+        {
+            // Horizontal scaling
+            float currentDistance = currentMousePosition.X - transformationPoint.X;
+
+            // Scale directly based on the current distance
+            scaleX = currentDistance / _initialDistance;
+
+            // Adjust for direction (negative scaling if moving left)
+            if (_activeHandle == DrawingCanvas.TransformHandleType.LeftCenter)
+            {
+                scaleX = -scaleX;
+            }
+
+            // Update _initialDistance to match the new position
+            _initialDistance = Math.Abs(currentDistance);
+        }
+        else if (_activeHandle == DrawingCanvas.TransformHandleType.TopCenter || _activeHandle == DrawingCanvas.TransformHandleType.BottomCenter)
+        {
+            // Vertical scaling
+            float currentDistance = currentMousePosition.Y - transformationPoint.Y;
+
+            // Scale directly based on the current distance
+            scaleY = currentDistance / _initialDistance;
+
+            // Adjust for direction (negative scaling if moving up)
+            if (_activeHandle == DrawingCanvas.TransformHandleType.TopCenter)
+            {
+                scaleY = -scaleY;
+            }
+
+            // Update _initialDistance to match the new position
+            _initialDistance = Math.Abs(currentDistance);
+        }
+
+        return (scaleX, scaleY);
     }
     #endregion
 
     #region ROTATION LOGIC
-    private SKPoint _transformOrigin;
-    private float _initialAngle;
-
-    private void StartRotation(SKPoint transformOrigin, SKPoint startPoint, float currentRotation = 0)
+    private void StartRotation(SKPoint transformOrigin, SKPoint startPoint)
     {
         _transformOrigin = transformOrigin;
         _initialAngle = CalculateAngle(transformOrigin, startPoint);
@@ -339,6 +255,7 @@ public class TransformationTool : IDrawingCanvasTool
     #endregion
 
     #region TRANSFORMATION
+    // MARK: Pressed
     public void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not DrawingCanvas canvas)
@@ -365,8 +282,8 @@ public class TransformationTool : IDrawingCanvasTool
                     if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin))
                     {
                         Console.WriteLine("Double Axis Scaling NYI.");
-                        _activeHandle = handlePosition;
-                        _isDoubleScaling = true;
+                        _activeHandle = handleType;
+                        _currentState = TransformationState.DoubleScaling;
                         e.Handled = true;
                         return;
                     }
@@ -375,8 +292,9 @@ public class TransformationTool : IDrawingCanvasTool
                     if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin))
                     {
                         Console.WriteLine("Single Axis Scaling Start.");
-                        _activeHandle = handlePosition;
-                        _isSingleScaling = true;
+                        _activeHandle = handleType;
+                        _currentState = TransformationState.SingleScaling;
+                        StartSingleScale(transformationPoint, handlePosition, handleType);
                         e.Handled = true;
                         return;
                     }
@@ -385,9 +303,9 @@ public class TransformationTool : IDrawingCanvasTool
                     if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin * _rotationMarginFactor))
                     {
                         Console.WriteLine("Rotation Start");
-                        _activeHandle = handlePosition;
-                        _isRotating = true;
-                        StartRotation(transformationPoint, skMousePosition, 0);
+                        _activeHandle = handleType;
+                        _currentState = TransformationState.Rotating;
+                        StartRotation(transformationPoint, skMousePosition);
                         e.Handled = true;
                         return;
                     }
@@ -400,11 +318,12 @@ public class TransformationTool : IDrawingCanvasTool
                     if (IsWithinEdge(skMousePosition, edge, _edgeMargin))
                     {
                         Console.WriteLine("Shearing NYI.");
+                        _currentState = TransformationState.Shearing;
                         e.Handled = true;
                         return;
                     }
                 }
-                
+
                 // TODO: Add selection-drag logic.
             }
 
@@ -428,6 +347,7 @@ public class TransformationTool : IDrawingCanvasTool
         }
     }
 
+    // MARK: Moved
     public void OnPointerMoved(object? sender, PointerEventArgs e)
     {
         if (sender is not DrawingCanvas canvas)
@@ -442,15 +362,15 @@ public class TransformationTool : IDrawingCanvasTool
         }
 
         // IF Single Scaling
-        if (_isSingleScaling && canvas.SelectedElement != null)
+        if (_currentState.Equals(TransformationState.SingleScaling) && canvas.SelectedElement != null)
         {
             var mousePosition = e.GetPosition(canvas);
             var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
 
-            // TODO: You suck
-            float scaleX = 1.01F, scaleY = 1.00F;
+            // Update scaling factors
+            var (scaleX, scaleY) = UpdateSingleScale(transformationPoint, skMousePosition);
 
-            // Apply scaling relative to the bounding box
+            // Apply scaling relative to the transformation point
             Console.WriteLine($"Scaling X: {scaleX}, Y: {scaleY}");
             ApplyScaling(canvas.SelectedElement, transformationPoint, scaleX, scaleY);
 
@@ -461,7 +381,7 @@ public class TransformationTool : IDrawingCanvasTool
         }
 
         // IF Rotating
-        if (_isRotating && _activeHandle.HasValue && canvas.SelectedElement != null)
+        if (_currentState.Equals(TransformationState.Rotating) && canvas.SelectedElement != null)
         {
             var mousePosition = e.GetPosition(canvas);
             var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
@@ -475,8 +395,6 @@ public class TransformationTool : IDrawingCanvasTool
 
             // Apply the delta rotation
             ApplyRotation(canvas.SelectedElement, transformationPoint, deltaRotation);
-
-            _activeHandle = skMousePosition;
 
             canvas.UpdateAdorningLayer(canvas.SelectedElement);
             canvas.CompositeLayersToRenderTarget();
@@ -497,16 +415,13 @@ public class TransformationTool : IDrawingCanvasTool
         canvas.Cursor = new Cursor(StandardCursorType.Arrow);
     }
 
+    // MARK: Released
     public void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (sender is not DrawingCanvas canvas)
             return;
 
-        _isDoubleScaling = false;
-        _isSingleScaling = false;
-        _isRotating = false;
-        _isShearing = false;
-        _activeHandle = null;
+        _currentState = TransformationState.None;
 
         if (canvas.SelectedElement != null && canvas.SelectedElement.Model != null)
         {
@@ -579,6 +494,35 @@ public class TransformationTool : IDrawingCanvasTool
         };
 
         return edgeRegions;
+    }
+
+    private bool TryInvertMatrix(CsXFL.Matrix matrix, out CsXFL.Matrix inverseMatrix)
+    {
+        inverseMatrix = new CsXFL.Matrix();
+        double determinant = matrix.A * matrix.D - matrix.B * matrix.C;
+        if (Math.Abs(determinant) < double.Epsilon)
+            return false;
+
+        inverseMatrix.A = matrix.D / determinant;
+        inverseMatrix.B = -matrix.B / determinant;
+        inverseMatrix.C = -matrix.C / determinant;
+        inverseMatrix.D = matrix.A / determinant;
+        inverseMatrix.Tx = (matrix.C * matrix.Ty - matrix.D * matrix.Tx) / determinant;
+        inverseMatrix.Ty = (matrix.B * matrix.Tx - matrix.A * matrix.Ty) / determinant;
+
+        return true;
+    }
+
+    private CsXFL.Matrix PreConcatMatrix(CsXFL.Matrix matrix, SKMatrix skMatrix)
+    {
+        var result = new CsXFL.Matrix();
+        result.A = matrix.A * skMatrix.ScaleX + matrix.C * skMatrix.SkewY;
+        result.B = matrix.B * skMatrix.ScaleX + matrix.D * skMatrix.SkewY;
+        result.C = matrix.A * skMatrix.SkewX + matrix.C * skMatrix.ScaleY;
+        result.D = matrix.B * skMatrix.SkewX + matrix.D * skMatrix.ScaleY;
+        result.Tx = matrix.A * skMatrix.TransX + matrix.C * skMatrix.TransY + matrix.Tx;
+        result.Ty = matrix.B * skMatrix.TransX + matrix.D * skMatrix.TransY + matrix.Ty;
+        return result;
     }
 
     private SKPoint TransformPoint(SKPoint point, CsXFL.Matrix matrix)
