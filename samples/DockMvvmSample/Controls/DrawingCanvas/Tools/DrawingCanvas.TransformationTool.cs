@@ -5,10 +5,18 @@ using Avalonia.Input;
 
 namespace Avalonia.Controls;
 
+// Todo:
+// - Implement Double Axis Scaling
+// - Implement Shearing
+// Scaling is incorrect when element is sheared
+// Flickering when click-drag transform past transformation point (causes sign change)
+// Hit test areas do not scale with DrawingCanvas scale
+// Matrix values can become NaN
 public class TransformationTool : IDrawingCanvasTool
 {
     private SKPoint _transformOrigin;
     DrawingCanvas.TransformHandleType _activeHandle;
+    private const float _minScaleValue = 0.001f;
     private const double _handleMargin = 10.0;
     private const double _rotationMarginFactor = 3;
     private const double _edgeMargin = 5;
@@ -23,7 +31,7 @@ public class TransformationTool : IDrawingCanvasTool
         Rotating,
         Shearing
     }
-    
+
     private TransformationState _currentState = TransformationState.None;
 
     DrawingCanvas.TransformHandleType[] cornerHandles = new[]
@@ -43,6 +51,16 @@ public class TransformationTool : IDrawingCanvasTool
     };
 
     #region SCALING LOGIC
+    private CsXFL.Matrix ClampMatrix(CsXFL.Matrix matrix)
+    {
+        // Ensure the scale values (A, D) do not go below the minimum value
+        matrix.A = Math.Max(matrix.A, _minScaleValue);
+        matrix.D = Math.Max(matrix.D, _minScaleValue);
+
+        // Optionally clamp other values if needed
+        return matrix;
+    }
+
     private void ApplyScaling(BlitzElement element, SKPoint transformationPoint, float horizontalScale, float verticalScale)
     {
         if (element.Picture == null || element.Matrix == null)
@@ -51,12 +69,17 @@ public class TransformationTool : IDrawingCanvasTool
         if (!TryInvertMatrix(element.Matrix, out var inverseMatrix))
             return;
 
+        var matrix = element.Matrix;
+
         // Transform the pivot point to local coordinates
         var localPivot = TransformPoint(transformationPoint, inverseMatrix);
 
         // Apply scaling in the LOCAL coordinate space without applying the current matrix
         var localScaleMatrix = SKMatrix.CreateScale(horizontalScale, verticalScale, localPivot.X, localPivot.Y);
         element.Matrix = PreConcatMatrix(element.Matrix, localScaleMatrix);
+
+        // Enforce minimum scale constraints
+        element.Matrix = ClampMatrix(element.Matrix);
 
         // Apply the inverse matrix to reset the SKPicture to its original state
         using var recorder = new SKPictureRecorder();
@@ -98,7 +121,7 @@ public class TransformationTool : IDrawingCanvasTool
         element.Picture = scaledRecorder.EndRecording();
     }
 
-    private void StartSingleScale(SKPoint transformationPoint, SKPoint handlePosition, DrawingCanvas.TransformHandleType handleType)
+    private void StartSingleScale(SKPoint transformationPoint, SKPoint handlePosition, DrawingCanvas.TransformHandleType handleType, CsXFL.Matrix? currentMatrix = null)
     {
         _currentState = TransformationState.SingleScaling;
 
@@ -113,7 +136,7 @@ public class TransformationTool : IDrawingCanvasTool
         }
     }
 
-    private (float scaleX, float scaleY) UpdateSingleScale(SKPoint transformationPoint, SKPoint currentMousePosition)
+    private (float scaleX, float scaleY) UpdateSingleScale(SKPoint transformationPoint, SKPoint currentMousePosition, CsXFL.Matrix? currentMatrix = null)
     {
         float scaleX = 1.0F, scaleY = 1.0F;
 
@@ -294,7 +317,7 @@ public class TransformationTool : IDrawingCanvasTool
                         Console.WriteLine("Single Axis Scaling Start.");
                         _activeHandle = handleType;
                         _currentState = TransformationState.SingleScaling;
-                        StartSingleScale(transformationPoint, handlePosition, handleType);
+                        StartSingleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
                         e.Handled = true;
                         return;
                     }
@@ -368,7 +391,7 @@ public class TransformationTool : IDrawingCanvasTool
             var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
 
             // Update scaling factors
-            var (scaleX, scaleY) = UpdateSingleScale(transformationPoint, skMousePosition);
+            var (scaleX, scaleY) = UpdateSingleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
 
             // Apply scaling relative to the transformation point
             Console.WriteLine($"Scaling X: {scaleX}, Y: {scaleY}");

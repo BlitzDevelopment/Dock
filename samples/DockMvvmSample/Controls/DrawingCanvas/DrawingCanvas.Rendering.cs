@@ -12,12 +12,12 @@ public partial class DrawingCanvas
             CompositeLayersToRenderTarget();
         }
 
-        context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), _compositedPicture, _scale));
+        context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), _compositedPicture));
 
         var adorningPicture = GenerateAdorningLayer();
         if (adorningPicture != null)
         {
-            context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), adorningPicture, _scale));
+            context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), adorningPicture));
         }
     }
 

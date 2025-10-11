@@ -7,17 +7,14 @@ namespace Avalonia.Controls;
 
 class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 {
-    private readonly SKPicture _compositedPicture;
-    private readonly double _scale;
-
     public Rect Bounds { get; }
     public bool HitTest(Point p) => false;
     public bool Equals(ICustomDrawOperation other) => false;
+    private readonly SKPicture _compositedPicture;
 
-    public CustomDrawOp(Rect bounds, SKPicture compositedPicture, double scale)
+    public CustomDrawOp(Rect bounds, SKPicture compositedPicture)
     {
         _compositedPicture = compositedPicture;
-        _scale = scale;
         Bounds = bounds;
     }
 
@@ -38,7 +35,6 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
         if (canvas != null)
         {
             canvas.DrawPicture(_compositedPicture, 0, 0);
-            canvas.Scale((float)_scale, (float)_scale);
         }
     }
 }

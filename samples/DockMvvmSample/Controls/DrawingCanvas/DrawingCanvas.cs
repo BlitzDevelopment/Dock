@@ -102,11 +102,6 @@ public partial class DrawingCanvas : UserControl
         InvalidateVisual();
     }
 
-    public void RefreshCanvas()
-    {
-        InvalidateVisual();
-    }
-
     // Todo: redo this, it sucks
     public static readonly StyledProperty<bool> ClipToBoundsProperty =
         AvaloniaProperty.Register<DrawingCanvas, bool>(nameof(ClipToBounds), true);
@@ -130,10 +125,6 @@ public partial class DrawingCanvas : UserControl
 
     public override void EndInit()
     {
-        SKPaint SKBrush = new SKPaint();
-        SKBrush.IsAntialias = true;
-        SKBrush.Color = new SKColor(0, 0, 0);
-        SKBrush.Shader = SKShader.CreateColor(SKBrush.Color);
         RenderTarget = new RenderTargetBitmap(new PixelSize((int)Width, (int)Height), new Vector(96, 96));
 
         var drawingContext = RenderTarget.CreateDrawingContext();
