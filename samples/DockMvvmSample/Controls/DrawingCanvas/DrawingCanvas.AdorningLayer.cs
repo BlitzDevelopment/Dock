@@ -1,3 +1,4 @@
+using SixLabors.ImageSharp;
 using SkiaSharp;
 using System;
 using System.Linq;
@@ -6,9 +7,10 @@ namespace Avalonia.Controls;
 
 public partial class DrawingCanvas
 {
-    private const float _defaultStrokeWidth = 2f;
-    private const float _transformHandleSize = 10f;
+    public TransformationToolConfig TransformConfig { get; set; } = TransformationToolConfig.Default;
+
     private SKColor _selectionColor = SKColor.Parse("#388ff9");
+    private float _defaultStrokeWidth = 2.0f;
 
     public void UpdateAdorningLayer(BlitzElement element)
     {
@@ -83,8 +85,8 @@ public partial class DrawingCanvas
         using var paint = new SKPaint
         {
             Style = SKPaintStyle.Stroke,
-            Color = SKColor.Parse("#000000"),
-            StrokeWidth = _defaultStrokeWidth / (float)_scale,
+            Color = TransformConfig.TransformAdornerInteriorColor,
+            StrokeWidth = TransformConfig.TransformAdornerStrokeWidth / (float)_scale,
             IsAntialias = true
         };
 
@@ -98,13 +100,13 @@ public partial class DrawingCanvas
         canvas.DrawPath(path, paint);
 
         // Define the size of the scale-independent boxes
-        float boxSize = _transformHandleSize / (float)_scale;
-        float strokeWidth = _defaultStrokeWidth / (float)_scale;
+        float boxSize = TransformConfig.TransformAdornerHandleSize / (float)_scale;
+        float strokeWidth = TransformConfig.TransformAdornerStrokeWidth / (float)_scale;
 
         using var boxPaint = new SKPaint
         {
             Style = SKPaintStyle.StrokeAndFill,
-            Color = SKColors.Black,
+            Color = TransformConfig.TransformAdornerInteriorColor,
             StrokeWidth = strokeWidth,
             IsAntialias = true
         };
@@ -112,7 +114,7 @@ public partial class DrawingCanvas
         using var strokePaint = new SKPaint
         {
             Style = SKPaintStyle.Stroke,
-            Color = SKColors.White,
+            Color = TransformConfig.TransformAdornerBorderColor,
             StrokeWidth = strokeWidth,
             IsAntialias = true
         };
@@ -136,20 +138,20 @@ public partial class DrawingCanvas
         var transformationPoint = CalculateFixedTransformationPoint(matrix, element.TransformationPoint);
 
         // Draw the circle at the element's transformation point
-        float circleRadius = 5f / (float)_scale; // 5px radius
-        float circleStrokeWidth = 2f / (float)_scale; // 2px stroke width
+        float circleRadius = TransformConfig.TransformationPointRadius / (float)_scale; // 5px radius
+        float circleStrokeWidth = TransformConfig.TransformAdornerStrokeWidth / (float)_scale; // 2px stroke width
 
         using var circleFillPaint = new SKPaint
         {
             Style = SKPaintStyle.Fill,
-            Color = SKColors.White,
+            Color = TransformConfig.TransformAdornerBorderColor,
             IsAntialias = true
         };
 
         using var circleStrokePaint = new SKPaint
         {
             Style = SKPaintStyle.Stroke,
-            Color = SKColors.Black,
+            Color = TransformConfig.TransformAdornerInteriorColor,
             StrokeWidth = circleStrokeWidth,
             IsAntialias = true
         };
