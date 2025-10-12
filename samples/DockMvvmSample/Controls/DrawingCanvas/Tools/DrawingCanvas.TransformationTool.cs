@@ -11,263 +11,169 @@ namespace Avalonia.Controls;
 // - Implement Shearing
 public class TransformationTool : IDrawingCanvasTool
 {
+    // Transform state
     private SKPoint _transformOrigin;
-    private SKPoint _initialShearPoint;
     private ShearAxis _shearAxis;
-    DrawingCanvas.TransformHandleType _activeHandle;
-
-    private const float _minScaleValue = 0.001f;
-    private const double _handleMargin = 10.0;
-    private const double _rotationMarginFactor = 3;
-    private const double _edgeMargin = 5;
-    private const double _transformPointMargin = 8.0;
-    private const double _transformationPointSnapMargin = 15.0;
-
-
-    private float _initialDistance;
-    private float _initialAngle;
-    private float _initialDistanceX;
-    private float _initialDistanceY;
-    private float _initialShearOffsetX;
-    private float _initialShearOffsetY;
-    private bool _uniformDoubleScaling = false;
-    private bool _isSnapping = false;
-
-    private enum TransformationState
-    {
-        None,
-        DoubleScaling,
-        SingleScaling,
-        Rotating,
-        Shearing,
-        MovingTransformPoint
-    };
-
-    private enum ShearAxis
-    {
-        Horizontal,
-        Vertical
-    };
-
+    private DrawingCanvas.TransformHandleType _activeHandle;
     private TransformationState _currentState = TransformationState.None;
 
-    DrawingCanvas.TransformHandleType[] cornerHandles = new[]
-    {
-        DrawingCanvas.TransformHandleType.BottomLeft,
-        DrawingCanvas.TransformHandleType.TopLeft,
-        DrawingCanvas.TransformHandleType.BottomRight,
-        DrawingCanvas.TransformHandleType.TopRight
-    };
+    // Hit testing constants
+    private const float _matrixClampEpsilon = 0.001f; // Minimum RELATIVE size that a matrix is allowed to be scaled
+    private const double _handleMargin = 10.0, _edgeMargin = 5, _TransformSKPointMargin = 8.0, _transformationPointSnapMargin = 15.0, // Px
+                        _rotationMarginFactor = 3; // Multiplier for rotation handle margin (3x handle margin)
 
-    DrawingCanvas.TransformHandleType[] middleHandles = new[]
-    {
-        DrawingCanvas.TransformHandleType.BottomCenter,
-        DrawingCanvas.TransformHandleType.TopCenter,
-        DrawingCanvas.TransformHandleType.RightCenter,
-        DrawingCanvas.TransformHandleType.LeftCenter
-    };
+    // Initial values for transformations
+    private float _initialDistance, _initialAngle, _initialDistanceX, _initialDistanceY, 
+                _initialShearOffsetX, _initialShearOffsetY;
+    private bool _uniformDoubleScaling = false;
+
+    // Enums
+    private enum TransformationState { None, DoubleScaling, SingleScaling, Rotating, Shearing, MovingTransformSKPoint }
+    private enum ShearAxis { Horizontal, Vertical }
+
+    // Handle collections
+    private static readonly DrawingCanvas.TransformHandleType[] cornerHandles = 
+        { DrawingCanvas.TransformHandleType.BottomLeft, DrawingCanvas.TransformHandleType.TopLeft,
+        DrawingCanvas.TransformHandleType.BottomRight, DrawingCanvas.TransformHandleType.TopRight };
+
+    private static readonly DrawingCanvas.TransformHandleType[] middleHandles =
+        { DrawingCanvas.TransformHandleType.BottomCenter, DrawingCanvas.TransformHandleType.TopCenter,
+        DrawingCanvas.TransformHandleType.RightCenter, DrawingCanvas.TransformHandleType.LeftCenter };
 
     #region SCALING LOGIC
-    private CsXFL.Matrix ClampMatrix(CsXFL.Matrix matrix)
-    {
-        // Calculate the actual scale from the matrix determinant
-        double scaleX = Math.Sqrt(matrix.A * matrix.A + matrix.B * matrix.B);
-        double scaleY = Math.Sqrt(matrix.C * matrix.C + matrix.D * matrix.D);
-
-        // Only clamp if the actual scale is too small
-        if (scaleX < _minScaleValue)
-        {
-            double factor = _minScaleValue / scaleX;
-            matrix.A *= factor;
-            matrix.B *= factor;
-        }
-
-        if (scaleY < _minScaleValue)
-        {
-            double factor = _minScaleValue / scaleY;
-            matrix.C *= factor;
-            matrix.D *= factor;
-        }
-
-        return matrix;
-    }
-
+    /// <summary>
+    /// Applies scaling transformation to a BlitzElement around a specified transformation point. Updates the element's transformation matrix by applying scaling around the local transformation point, then regenerates the element's Picture by first resetting it with the inverse matrix, then applying the scaled matrix. The transformation point is converted to local coordinates before creating the scale matrix to ensure the scaling occurs around the correct pivot point regardless of the element's current transformation.
+    /// </summary>
+    /// <param name="element">The BlitzElement to scale. Must have a valid Picture and Matrix.</param>
+    /// <param name="transformationPoint">The point around which scaling is applied in world coordinates.</param>
+    /// <param name="horizontalScale">The scaling factor for the horizontal axis.</param>
+    /// <param name="verticalScale">The scaling factor for the vertical axis.</param>
     private void ApplyScaling(BlitzElement element, SKPoint transformationPoint, float horizontalScale, float verticalScale)
     {
-        if (element.Picture == null || element.Matrix == null)
+        if (element.Picture == null || element.Matrix == null || !TryInvertMatrix(element.Matrix, out var inverseMatrix))
             return;
 
-        if (!TryInvertMatrix(element.Matrix, out var inverseMatrix))
-            return;
-
-        var matrix = element.Matrix;
-
-        // Transform the pivot point to local coordinates
-        var localPivot = TransformPoint(transformationPoint, inverseMatrix);
-
-        // Apply scaling in the LOCAL coordinate space without applying the current matrix
+        var localPivot = TransformSKPoint(transformationPoint, inverseMatrix);
         var localScaleMatrix = SKMatrix.CreateScale(horizontalScale, verticalScale, localPivot.X, localPivot.Y);
-        element.Matrix = PreConcatMatrix(element.Matrix, localScaleMatrix);
-
-        // Enforce minimum scale constraints
-        element.Matrix = ClampMatrix(element.Matrix);
-
-        // Apply the inverse matrix to reset the SKPicture to its original state
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(element.Picture.CullRect);
-        var resetMatrix = new SKMatrix
+        
+        element.Matrix = ClampMatrix(PreConcatMatrix(element.Matrix, localScaleMatrix));
+        
+        // Helper method to create SKMatrix from CsXFL.Matrix
+        SKMatrix CreateSKMatrix(CsXFL.Matrix m) => new()
         {
-            ScaleX = (float)inverseMatrix.A,
-            SkewY = (float)inverseMatrix.B,
-            SkewX = (float)inverseMatrix.C,
-            ScaleY = (float)inverseMatrix.D,
-            TransX = (float)inverseMatrix.Tx,
-            TransY = (float)inverseMatrix.Ty,
-            Persp0 = 0,
-            Persp1 = 0,
-            Persp2 = 1
+            ScaleX = (float)m.A, SkewY = (float)m.B, SkewX = (float)m.C, ScaleY = (float)m.D,
+            TransX = (float)m.Tx, TransY = (float)m.Ty, Persp0 = 0, Persp1 = 0, Persp2 = 1
         };
-        canvas.SetMatrix(resetMatrix);
-        canvas.DrawPicture(element.Picture);
-        element.Picture = recorder.EndRecording();
 
-        // Record the scaled picture according to the scaled element matrix
-        using var scaledRecorder = new SKPictureRecorder();
-        var scaledCanvas = scaledRecorder.BeginRecording(element.Picture.CullRect);
-
-        var scaledMatrix = new SKMatrix
+        // Reset picture with inverse matrix
+        using (var recorder = new SKPictureRecorder())
         {
-            ScaleX = (float)element.Matrix.A,
-            SkewY = (float)element.Matrix.B,
-            SkewX = (float)element.Matrix.C,
-            ScaleY = (float)element.Matrix.D,
-            TransX = (float)element.Matrix.Tx,
-            TransY = (float)element.Matrix.Ty,
-            Persp0 = 0,
-            Persp1 = 0,
-            Persp2 = 1
-        };
-        scaledCanvas.SetMatrix(scaledMatrix);
-        scaledCanvas.DrawPicture(element.Picture);
-        element.Picture = scaledRecorder.EndRecording();
+            var canvas = recorder.BeginRecording(element.Picture.CullRect);
+            canvas.SetMatrix(CreateSKMatrix(inverseMatrix));
+            canvas.DrawPicture(element.Picture);
+            element.Picture = recorder.EndRecording();
+        }
+
+        // Apply scaled matrix to picture  
+        using (var scaledRecorder = new SKPictureRecorder())
+        {
+            var scaledCanvas = scaledRecorder.BeginRecording(element.Picture.CullRect);
+            scaledCanvas.SetMatrix(CreateSKMatrix(element.Matrix));
+            scaledCanvas.DrawPicture(element.Picture);
+            element.Picture = scaledRecorder.EndRecording();
+        }
     }
 
+    /// <summary>
+    /// Initializes single-axis scaling transformation by calculating the initial distance from the transformation point to the handle position in local coordinates.
+    /// </summary>
+    /// <param name="transformationPoint">The fixed point around which scaling occurs in world coordinates.</param>
+    /// <param name="handlePosition">The position of the transform handle being dragged in world coordinates.</param>
+    /// <param name="handleType">The type of handle that determines the scaling axis (horizontal for left/right center handles, vertical for top/bottom center handles).</param>
+    /// <param name="currentMatrix">The current transformation matrix of the element. If null or non-invertible, the operation is aborted.</param>
     private void StartSingleScale(SKPoint transformationPoint, SKPoint handlePosition, DrawingCanvas.TransformHandleType handleType, CsXFL.Matrix? currentMatrix = null)
     {
         _currentState = TransformationState.SingleScaling;
 
-        if (currentMatrix == null)
+        if (currentMatrix == null || !TryInvertMatrix(currentMatrix, out var inverseMatrix))
             return;
 
-        // Transform points to local coordinates for consistent calculation
-        if (!TryInvertMatrix(currentMatrix, out var inverseMatrix))
-            return;
+        var localHandlePos = TransformSKPoint(handlePosition, inverseMatrix);
+        var localTransformSKPoint = TransformSKPoint(transformationPoint, inverseMatrix);
 
-        var localHandlePos = TransformPoint(handlePosition, inverseMatrix);
-        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
+        // Calculate initial signed distance based on handle type
+        bool isHorizontal = handleType == DrawingCanvas.TransformHandleType.RightCenter || handleType == DrawingCanvas.TransformHandleType.LeftCenter;
+        _initialDistance = isHorizontal ? localHandlePos.X - localTransformSKPoint.X : localHandlePos.Y - localTransformSKPoint.Y;
 
-        // Calculate the initial SIGNED distance for scaling in local coordinates
-        if (handleType == DrawingCanvas.TransformHandleType.RightCenter || handleType == DrawingCanvas.TransformHandleType.LeftCenter)
-        {
-            _initialDistance = localHandlePos.X - localTransformPoint.X;
-
-            // Ensure minimum distance to prevent division by zero
-            if (Math.Abs(_initialDistance) < float.Epsilon)
-                _initialDistance = _initialDistance >= 0 ? float.Epsilon : -float.Epsilon;
-        }
-        else if (handleType == DrawingCanvas.TransformHandleType.TopCenter || handleType == DrawingCanvas.TransformHandleType.BottomCenter)
-        {
-            _initialDistance = localHandlePos.Y - localTransformPoint.Y;
-
-            // Ensure minimum distance to prevent division by zero
-            if (Math.Abs(_initialDistance) < float.Epsilon)
-                _initialDistance = _initialDistance >= 0 ? float.Epsilon : -float.Epsilon;
-        }
+        // Ensure minimum distance to prevent division by zero
+        if (Math.Abs(_initialDistance) < float.Epsilon)
+            _initialDistance = _initialDistance >= 0 ? float.Epsilon : -float.Epsilon;
     }
 
+    /// <summary>
+    /// Calculates the current scaling factors for single-axis scaling based on mouse movement from the initial handle position.
+    /// </summary>
+    /// <param name="transformationPoint">The fixed point around which scaling occurs in world coordinates.</param>
+    /// <param name="currentMousePosition">The current mouse position in world coordinates.</param>
+    /// <param name="currentMatrix">The current transformation matrix of the element. If null or non-invertible, returns default scale values.</param>
+    /// <returns>A tuple containing (scaleX, scaleY) where one value represents the calculated scale factor and the other is 1.0f based on the active handle type.</returns>
     private (float scaleX, float scaleY) UpdateSingleScale(SKPoint transformationPoint, SKPoint currentMousePosition, CsXFL.Matrix? currentMatrix = null)
     {
-        float scaleX = 1.0F, scaleY = 1.0F;
+        if (currentMatrix == null || !TryInvertMatrix(currentMatrix, out var inverseMatrix))
+            return (1.0f, 1.0f);
 
-        if (currentMatrix == null)
-            return (scaleX, scaleY);
+        var localMousePos = TransformSKPoint(currentMousePosition, inverseMatrix);
+        var localTransformSKPoint = TransformSKPoint(transformationPoint, inverseMatrix);
 
-        // Transform mouse position and transformation point to local coordinates
-        if (!TryInvertMatrix(currentMatrix, out var inverseMatrix))
-            return (scaleX, scaleY);
+        float scale = 1.0f;
+        bool isHorizontal = _activeHandle == DrawingCanvas.TransformHandleType.RightCenter || _activeHandle == DrawingCanvas.TransformHandleType.LeftCenter;
 
-        var localMousePos = TransformPoint(currentMousePosition, inverseMatrix);
-        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
-
-        // Calculate scaling factor based on the active handle using local coordinates
-        if (_activeHandle == DrawingCanvas.TransformHandleType.RightCenter || _activeHandle == DrawingCanvas.TransformHandleType.LeftCenter)
+        if (Math.Abs(_initialDistance) > float.Epsilon)
         {
-            float currentDistance = localMousePos.X - localTransformPoint.X;
+            float currentDistance = isHorizontal ? localMousePos.X - localTransformSKPoint.X : localMousePos.Y - localTransformSKPoint.Y;
+            scale = currentDistance / _initialDistance;
 
-            // Prevent division by zero and ensure valid scale values
-            if (Math.Abs(_initialDistance) > float.Epsilon)
-            {
-                scaleX = currentDistance / _initialDistance;
-
-                // Clamp scale to prevent extreme values and NaN
-                if (float.IsNaN(scaleX) || float.IsInfinity(scaleX))
-                    scaleX = 1.0f;
-                else
-                    scaleX = Math.Max(Math.Min(scaleX, 1000f), -1000f); // Reasonable limits
-            }
-        }
-        else if (_activeHandle == DrawingCanvas.TransformHandleType.TopCenter || _activeHandle == DrawingCanvas.TransformHandleType.BottomCenter)
-        {
-            float currentDistance = localMousePos.Y - localTransformPoint.Y;
-
-            // Prevent division by zero and ensure valid scale values
-            if (Math.Abs(_initialDistance) > float.Epsilon)
-            {
-                scaleY = currentDistance / _initialDistance;
-
-                // Clamp scale to prevent extreme values and NaN
-                if (float.IsNaN(scaleY) || float.IsInfinity(scaleY))
-                    scaleY = 1.0f;
-                else
-                    scaleY = Math.Max(Math.Min(scaleY, 1000f), -1000f); // Reasonable limits
-            }
+            // Clamp scale to prevent extreme values and NaN
+            scale = float.IsNaN(scale) || float.IsInfinity(scale) ? 1.0f : Math.Max(Math.Min(scale, 1000f), -1000f);
         }
 
-        return (scaleX, scaleY);
+        return isHorizontal ? (scale, 1.0f) : (1.0f, scale);
     }
 
+    /// <summary>
+    /// Initializes dual-axis scaling transformation by calculating initial distances from the transformation point to the handle position in local coordinates.
+    /// </summary>
+    /// <param name="transformationPoint">The fixed point around which scaling occurs in world coordinates.</param>
+    /// <param name="handlePosition">The position of the corner transform handle being dragged in world coordinates.</param>
+    /// <param name="handleType">The type of corner handle that determines the scaling behavior.</param>
+    /// <param name="currentMatrix">The current transformation matrix of the element. If null or non-invertible, the operation is aborted.</param>
+    /// <remarks>
+    /// For uniform scaling, calculates the euclidean distance to the handle. For non-uniform scaling, calculates separate X and Y distances.
+    /// Ensures minimum distance values to prevent division by zero in subsequent scaling calculations.
+    /// </remarks>
     private void StartDoubleScale(SKPoint transformationPoint, SKPoint handlePosition, DrawingCanvas.TransformHandleType handleType, CsXFL.Matrix? currentMatrix = null)
     {
         _currentState = TransformationState.DoubleScaling;
 
-        if (currentMatrix == null)
+        if (currentMatrix == null || !TryInvertMatrix(currentMatrix, out var inverseMatrix))
             return;
 
-        // Transform points to local coordinates for consistent calculation
-        if (!TryInvertMatrix(currentMatrix, out var inverseMatrix))
-            return;
-
-        var localHandlePos = TransformPoint(handlePosition, inverseMatrix);
-        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
+        var localHandlePos = TransformSKPoint(handlePosition, inverseMatrix);
+        var localTransformSKPoint = TransformSKPoint(transformationPoint, inverseMatrix);
 
         if (_uniformDoubleScaling)
         {
-            // Calculate the initial distance from transformation point to handle in local coordinates
-            float deltaX = localHandlePos.X - localTransformPoint.X;
-            float deltaY = localHandlePos.Y - localTransformPoint.Y;
+            float deltaX = localHandlePos.X - localTransformSKPoint.X;
+            float deltaY = localHandlePos.Y - localTransformSKPoint.Y;
             _initialDistance = (float)Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
-
-            // Ensure minimum distance to prevent division by zero
             if (Math.Abs(_initialDistance) < float.Epsilon)
                 _initialDistance = float.Epsilon;
         }
         else
         {
-            // Calculate initial signed distances for each axis separately
-            _initialDistanceX = localHandlePos.X - localTransformPoint.X;
-            _initialDistanceY = localHandlePos.Y - localTransformPoint.Y;
+            _initialDistanceX = localHandlePos.X - localTransformSKPoint.X;
+            _initialDistanceY = localHandlePos.Y - localTransformSKPoint.Y;
 
-            // Ensure minimum distances to prevent division by zero
             if (Math.Abs(_initialDistanceX) < float.Epsilon)
                 _initialDistanceX = _initialDistanceX >= 0 ? float.Epsilon : -float.Epsilon;
             if (Math.Abs(_initialDistanceY) < float.Epsilon)
@@ -275,83 +181,56 @@ public class TransformationTool : IDrawingCanvasTool
         }
     }
 
+    /// <summary>
+    /// Calculates the current scaling factors for dual-axis scaling based on mouse movement from the initial handle position.
+    /// </summary>
+    /// <param name="transformationPoint">The fixed point around which scaling occurs in world coordinates.</param>
+    /// <param name="currentMousePosition">The current mouse position in world coordinates.</param>
+    /// <param name="currentMatrix">The current transformation matrix of the element. If null or non-invertible, returns default scale values.</param>
+    /// <returns>A tuple containing (scaleX, scaleY) where both values represent calculated scale factors. For uniform scaling, both values are identical. For non-uniform scaling, each axis is calculated independently.</returns>
     private (float scaleX, float scaleY) UpdateDoubleScale(SKPoint transformationPoint, SKPoint currentMousePosition, CsXFL.Matrix? currentMatrix = null)
     {
-        float scaleX = 1.0F, scaleY = 1.0F;
+        if (currentMatrix == null || !TryInvertMatrix(currentMatrix, out var inverseMatrix))
+            return (1.0f, 1.0f);
 
-        if (currentMatrix == null)
-            return (scaleX, scaleY);
+        var localMousePos = TransformSKPoint(currentMousePosition, inverseMatrix);
+        var localTransformSKPoint = TransformSKPoint(transformationPoint, inverseMatrix);
 
-        // Transform mouse position and transformation point to local coordinates
-        if (!TryInvertMatrix(currentMatrix, out var inverseMatrix))
-            return (scaleX, scaleY);
-
-        var localMousePos = TransformPoint(currentMousePosition, inverseMatrix);
-        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
+        float ClampScale(float scale) => float.IsNaN(scale) || float.IsInfinity(scale) ? 1.0f : Math.Max(Math.Min(scale, 1000f), -1000f);
 
         if (_uniformDoubleScaling)
         {
-            // Calculate current distance from transformation point to mouse position
-            float deltaX = localMousePos.X - localTransformPoint.X;
-            float deltaY = localMousePos.Y - localTransformPoint.Y;
+            if (Math.Abs(_initialDistance) <= float.Epsilon)
+                return (1.0f, 1.0f);
+
+            float deltaX = localMousePos.X - localTransformSKPoint.X;
+            float deltaY = localMousePos.Y - localTransformSKPoint.Y;
             float currentDistance = (float)Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
+            float uniformScale = ClampScale(currentDistance / _initialDistance);
 
-            // Prevent division by zero and ensure valid scale values
-            if (Math.Abs(_initialDistance) > float.Epsilon)
-            {
-                float uniformScale = currentDistance / _initialDistance;
-
-                // Clamp scale to prevent extreme values and NaN
-                if (float.IsNaN(uniformScale) || float.IsInfinity(uniformScale))
-                    uniformScale = 1.0f;
-                else
-                    uniformScale = Math.Max(Math.Min(uniformScale, 1000f), -1000f); // Reasonable limits
-
-                scaleX = uniformScale;
-                scaleY = uniformScale;
-            }
+            return (uniformScale, uniformScale);
         }
         else
         {
-            // Calculate current signed distances for each axis
-            float currentDistanceX = localMousePos.X - localTransformPoint.X;
-            float currentDistanceY = localMousePos.Y - localTransformPoint.Y;
+            float scaleX = Math.Abs(_initialDistanceX) > float.Epsilon ?
+                ClampScale((localMousePos.X - localTransformSKPoint.X) / _initialDistanceX) : 1.0f;
+            float scaleY = Math.Abs(_initialDistanceY) > float.Epsilon ?
+                ClampScale((localMousePos.Y - localTransformSKPoint.Y) / _initialDistanceY) : 1.0f;
 
-            // Calculate scale factors for each axis independently
-            if (Math.Abs(_initialDistanceX) > float.Epsilon)
-            {
-                scaleX = currentDistanceX / _initialDistanceX;
-
-                // Clamp scale to prevent extreme values and NaN
-                if (float.IsNaN(scaleX) || float.IsInfinity(scaleX))
-                    scaleX = 1.0f;
-                else
-                    scaleX = Math.Max(Math.Min(scaleX, 1000f), -1000f); // Reasonable limits
-            }
-
-            if (Math.Abs(_initialDistanceY) > float.Epsilon)
-            {
-                scaleY = currentDistanceY / _initialDistanceY;
-
-                // Clamp scale to prevent extreme values and NaN
-                if (float.IsNaN(scaleY) || float.IsInfinity(scaleY))
-                    scaleY = 1.0f;
-                else
-                    scaleY = Math.Max(Math.Min(scaleY, 1000f), -1000f); // Reasonable limits
-            }
+            return (scaleX, scaleY);
         }
-
-        return (scaleX, scaleY);
     }
     #endregion
 
     #region ROTATION LOGIC
+    // Initialize rotation by calculating the initial angle from the transformation origin to the start point
     private void StartRotation(SKPoint transformOrigin, SKPoint startPoint)
     {
         _transformOrigin = transformOrigin;
         _initialAngle = CalculateAngle(transformOrigin, startPoint);
     }
 
+    // Calculate the change in angle based on current mouse position
     private float UpdateRotation(SKPoint currentPoint)
     {
         float currentAngle = CalculateAngle(_transformOrigin, currentPoint);
@@ -360,6 +239,7 @@ public class TransformationTool : IDrawingCanvasTool
         return deltaAngle;
     }
 
+    // Calculate angle in degrees from origin to point
     private float CalculateAngle(SKPoint origin, SKPoint point)
     {
         // Convert to vector from origin
@@ -374,6 +254,12 @@ public class TransformationTool : IDrawingCanvasTool
         return (angleDegrees + 360) % 360;
     }
 
+    /// <summary>
+    /// Applies rotation transformation to a BlitzElement around a specified transformation point by updating both the element's transformation matrix and Picture.
+    /// </summary>
+    /// <param name="element">The BlitzElement to rotate. Must have valid Picture and Matrix properties.</param>
+    /// <param name="transformationPoint">The fixed point around which rotation occurs in world coordinates.</param>
+    /// <param name="angle">The rotation angle in degrees. Positive values rotate clockwise.</param>
     private void ApplyRotation(BlitzElement element, SKPoint transformationPoint, float angle)
     {
         if (element.Picture == null)
@@ -428,6 +314,7 @@ public class TransformationTool : IDrawingCanvasTool
         element.Picture = recorder.EndRecording();
     }
 
+    // Create a rotation matrix around a specific point
     private SKMatrix GetRotationMatrix(SKPoint transformationPoint, float angle)
     {
         var translateToPoint = SKMatrix.CreateTranslation(transformationPoint.X, transformationPoint.Y);
@@ -448,7 +335,6 @@ public class TransformationTool : IDrawingCanvasTool
         _currentState = TransformationState.Shearing;
         _transformOrigin = transformationPoint;
         _shearAxis = axis;
-        _initialShearPoint = startPoint;
         
         // Calculate initial offset from transformation point in world coordinates
         _initialShearOffsetX = startPoint.X - transformationPoint.X;
@@ -506,13 +392,13 @@ public class TransformationTool : IDrawingCanvasTool
             return;
 
         // Transform the transformation point to local coordinates
-        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
+        var localTransformSKPoint = TransformSKPoint(transformationPoint, inverseMatrix);
 
         // Create shear matrix around the local transformation point
         // This ensures the transformation point remains fixed during shearing
-        var translateToOrigin = SKMatrix.CreateTranslation(-localTransformPoint.X, -localTransformPoint.Y);
+        var translateToOrigin = SKMatrix.CreateTranslation(-localTransformSKPoint.X, -localTransformSKPoint.Y);
         var skewMatrix = SKMatrix.CreateSkew(shearX, shearY);
-        var translateBack = SKMatrix.CreateTranslation(localTransformPoint.X, localTransformPoint.Y);
+        var translateBack = SKMatrix.CreateTranslation(localTransformSKPoint.X, localTransformSKPoint.Y);
 
         // Combine the matrices in the correct order: translateBack * skewMatrix * translateToOrigin
         var shearMatrix = translateToOrigin;
@@ -585,134 +471,116 @@ public class TransformationTool : IDrawingCanvasTool
     }
     #endregion
 
-    #region TRANSFORMATION
     // MARK: Pressed
     public void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not DrawingCanvas canvas)
+        if (sender is not DrawingCanvas canvas || e.Handled || !e.GetCurrentPoint(canvas).Properties.IsLeftButtonPressed)
             return;
 
-        if (e.Handled)
+        var mousePosition = e.GetPosition(canvas);
+        var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
+
+        if (canvas.SelectedElement != null)
         {
-            return;
+            var transformHandles = canvas.GetTransformHandles(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
+            var transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
+
+            // Handle transformation point interaction
+            if (IsWithinMargin(skMousePosition, transformationPoint, (_TransformSKPointMargin / canvas.Scale)))
+            {
+                if (e.ClickCount == 2)
+                {
+                    Console.WriteLine("Transform Point Double Click - Centering");
+                    CenterTransformationPoint(canvas.SelectedElement);
+                    canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                    canvas.InvalidateVisual();
+                }
+                else
+                {
+                    Console.WriteLine("Transform Point Move Start");
+                    _currentState = TransformationState.MovingTransformSKPoint;
+                }
+                e.Handled = true;
+                return;
+            }
+
+            // Handle transform handles
+            foreach (var (handlePosition, handleType) in transformHandles)
+            {
+                bool isCorner = Array.Exists(cornerHandles, h => h == handleType);
+                bool isMiddle = Array.Exists(middleHandles, h => h == handleType);
+                bool withinHandle = IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale));
+                bool withinRotation = isCorner && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale) * _rotationMarginFactor);
+
+                // Corner handles for scaling
+                if (isCorner && withinHandle && !IsCornerTransformationPointInvalid(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
+                {
+                    Console.WriteLine("Double Axis Scaling Start.");
+                    _activeHandle = handleType;
+                    _currentState = TransformationState.DoubleScaling;
+                    StartDoubleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
+                    e.Handled = true;
+                    return;
+                }
+
+                // Middle handles for single-axis scaling
+                if (isMiddle && withinHandle && !IsTransformationPointOnEdge(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
+                {
+                    Console.WriteLine("Single Axis Scaling Start.");
+                    _activeHandle = handleType;
+                    _currentState = TransformationState.SingleScaling;
+                    StartSingleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
+                    e.Handled = true;
+                    return;
+                }
+
+                // Corner handles for rotation (wider margin)
+                if (withinRotation)
+                {
+                    Console.WriteLine("Rotation Start");
+                    _activeHandle = handleType;
+                    _currentState = TransformationState.Rotating;
+                    StartRotation(transformationPoint, skMousePosition);
+                    e.Handled = true;
+                    return;
+                }
+
+                // Handle blocked operations with single console output
+                if ((isCorner && withinHandle && IsCornerTransformationPointInvalid(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix)) ||
+                    (isMiddle && withinHandle && IsTransformationPointOnEdge(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix)))
+                {
+                    Console.WriteLine($"Scaling blocked: Transformation point invalidates {handleType} operation");
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // Handle edge regions for shearing
+            var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
+            foreach (var edge in edges.Where(edge => IsWithinEdge(skMousePosition, edge, (_edgeMargin / canvas.Scale))))
+            {
+                Console.WriteLine("Shearing Start");
+                _currentState = TransformationState.Shearing;
+                StartShearing(transformationPoint, skMousePosition, DetermineShearAxis(skMousePosition, edges.ToList()));
+                e.Handled = true;
+                return;
+            }
         }
 
-        if (e.GetCurrentPoint(canvas).Properties.IsLeftButtonPressed)
+        // Default selection logic
+        canvas.SelectedElement = canvas.HitTest(mousePosition);
+        bool hasSelection = canvas.SelectedElement != null;
+        
+        canvas.AdorningLayer.Visible = hasSelection;
+        if (hasSelection)
         {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
-
-            if (canvas.SelectedElement != null)
-            {
-                var transformHandles = canvas.GetTransformHandles(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
-                var transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
-
-                if (IsWithinMargin(skMousePosition, transformationPoint, (_transformPointMargin / canvas.Scale)))
-                {
-                    // Check for double click
-                    if (e.ClickCount == 2)
-                    {
-                        Console.WriteLine("Transform Point Double Click - Centering");
-                        CenterTransformationPoint(canvas.SelectedElement);
-                        canvas.UpdateAdorningLayer(canvas.SelectedElement);
-                        canvas.InvalidateVisual();
-                        e.Handled = true;
-                        return;
-                    }
-                    else
-                    {
-                        Console.WriteLine("Transform Point Move Start");
-                        _currentState = TransformationState.MovingTransformPoint;
-                        e.Handled = true;
-                        return;
-                    }
-                }
-
-                foreach (var (handlePosition, handleType) in transformHandles)
-                {
-                    // IF corner handles, DO Double Axis Scaling
-                    if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
-                    {
-                        // Check if transformation point invalidates this scaling operation
-                        if (IsCornerTransformationPointInvalid(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
-                        {
-                            Console.WriteLine($"Double scaling blocked: Transformation point is on an edge adjacent to corner handle ({handleType})");
-                            e.Handled = true;
-                            return;
-                        }
-                        Console.WriteLine("Double Axis Scaling Start.");
-                        _activeHandle = handleType;
-                        _currentState = TransformationState.DoubleScaling;
-                        StartDoubleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
-                        e.Handled = true;
-                        return;
-                    }
-
-                    // IF middle handles, DO Single Axis Scaling
-                    if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
-                    {
-                        // Check if transformation point invalidates this scaling operation
-                        if (IsTransformationPointOnEdge(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
-                        {
-                            Console.WriteLine($"Single scaling blocked: Transformation point is on the edge being scaled ({handleType})");
-                            e.Handled = true;
-                            return;
-                        }
-                        Console.WriteLine("Single Axis Scaling Start.");
-                        _activeHandle = handleType;
-                        _currentState = TransformationState.SingleScaling;
-                        StartSingleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
-                        e.Handled = true;
-                        return;
-                    }
-
-                    // IF 3x region around corner handles, DO Rotation
-                    if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale) * _rotationMarginFactor))
-                    {
-                        Console.WriteLine("Rotation Start");
-                        _activeHandle = handleType;
-                        _currentState = TransformationState.Rotating;
-                        StartRotation(transformationPoint, skMousePosition);
-                        e.Handled = true;
-                        return;
-                    }
-                }
-
-                //IF edge regions, DO Shearing
-                var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
-                foreach (var edge in edges)
-                {
-                    if (IsWithinEdge(skMousePosition, edge, (_edgeMargin / canvas.Scale)))
-                    {
-                        Console.WriteLine("Shearing Start");
-                        _currentState = TransformationState.Shearing;
-                        var shearAxis = DetermineShearAxis(skMousePosition, edges.ToList());
-                        StartShearing(transformationPoint, skMousePosition, shearAxis);
-                        e.Handled = true;
-                        return;
-                    }
-                }
-
-                // TODO: Add selection-drag logic.
-            }
-
-            // Default selection logic
-            canvas.SelectedElement = canvas.HitTest(mousePosition);
-
-            if (canvas.SelectedElement != null)
-            {
-                canvas.AdorningLayer.Visible = true;
-                canvas.UpdateAdorningLayer(canvas.SelectedElement);
-                canvas.InvalidateVisual();
-                e.Handled = true;
-            }
-            else
-            {
-                canvas.SelectedElement = null;
-                canvas.AdorningLayer.Elements.Clear();
-                canvas.AdorningLayer.Visible = false;
-                canvas.InvalidateVisual();
-            }
+            canvas.UpdateAdorningLayer(canvas.SelectedElement);
+            canvas.InvalidateVisual();
+            e.Handled = true;
+        }
+        else
+        {
+            canvas.AdorningLayer.Elements.Clear();
         }
     }
 
@@ -730,125 +598,70 @@ public class TransformationTool : IDrawingCanvasTool
             transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
         }
 
-        // IF Moving Transform Point
-        if (_currentState.Equals(TransformationState.MovingTransformPoint) && canvas.SelectedElement != null)
+        var mousePosition = e.GetPosition(canvas);
+        var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
+
+        // Handle transformation states
+        switch (_currentState)
         {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
+            case TransformationState.MovingTransformSKPoint when canvas.SelectedElement != null:
+                var snapPoint = GetSnapPoint(skMousePosition, transformHandles, canvas.Scale);
+                var targetPoint = snapPoint ?? skMousePosition;
 
-            // Check for snapping to transform handles first
-            var snapPoint = GetSnapPoint(skMousePosition, transformHandles, canvas.Scale);
-            var targetPoint = snapPoint ?? skMousePosition;
-
-            // Convert target position to local coordinates relative to the element
-            if (canvas.SelectedElement.Matrix != null && TryInvertMatrix(canvas.SelectedElement.Matrix, out var inverseMatrix))
-            {
-                var localPoint = TransformPoint(targetPoint, inverseMatrix);
-
-                // Update the transformation point
-                canvas.SelectedElement.TransformationPoint.X = localPoint.X;
-                canvas.SelectedElement.TransformationPoint.Y = localPoint.Y;
-
-                Console.WriteLine($"Transform Point moved to: {localPoint.X}, {localPoint.Y}" + (snapPoint.HasValue ? " (SNAPPED)" : ""));
-
-                canvas.UpdateAdorningLayer(canvas.SelectedElement);
-                canvas.InvalidateVisual();
+                if (canvas.SelectedElement.Matrix != null && TryInvertMatrix(canvas.SelectedElement.Matrix, out var inverseMatrix))
+                {
+                    var localPoint = TransformSKPoint(targetPoint, inverseMatrix);
+                    canvas.SelectedElement.TransformationPoint.X = localPoint.X;
+                    canvas.SelectedElement.TransformationPoint.Y = localPoint.Y;
+                    Console.WriteLine($"Transform Point moved to: {localPoint.X}, {localPoint.Y}" + (snapPoint.HasValue ? " (SNAPPED)" : ""));
+                    canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                    canvas.InvalidateVisual();
+                }
                 return;
-            }
+
+            case TransformationState.DoubleScaling when canvas.SelectedElement != null:
+                var (doubleScaleX, doubleScaleY) = UpdateDoubleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
+                Console.WriteLine($"Double Scaling X: {doubleScaleX}, Y: {doubleScaleY}");
+                ApplyScaling(canvas.SelectedElement, transformationPoint, doubleScaleX, doubleScaleY);
+                break;
+
+            case TransformationState.SingleScaling when canvas.SelectedElement != null:
+                var (singleScaleX, singleScaleY) = UpdateSingleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
+                Console.WriteLine($"Scaling X: {singleScaleX}, Y: {singleScaleY}");
+                ApplyScaling(canvas.SelectedElement, transformationPoint, singleScaleX, singleScaleY);
+                break;
+
+            case TransformationState.Rotating when canvas.SelectedElement != null:
+                float deltaRotation = UpdateRotation(skMousePosition);
+                ApplyRotation(canvas.SelectedElement, transformationPoint, deltaRotation);
+                break;
+
+            case TransformationState.Shearing when canvas.SelectedElement != null:
+                var (shearX, shearY) = UpdateShearing(skMousePosition, canvas.SelectedElement.Matrix);
+                Console.WriteLine($"Shearing X: {shearX}, Y: {shearY}");
+                ApplyShearing(canvas.SelectedElement, transformationPoint, shearX, shearY);
+                break;
+
+            default:
+                // Handle cursors or set default cursor
+                if (canvas.SelectedElement != null)
+                {
+                    TryHandleCursorAndRegions(canvas, skMousePosition, transformHandles);
+                }
+                else
+                {
+                    canvas.Cursor = new Cursor(StandardCursorType.Arrow);
+                }
+                return;
         }
 
-        // IF Double Scaling
-        if (_currentState.Equals(TransformationState.DoubleScaling) && canvas.SelectedElement != null)
-        {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
-
-            // Update scaling factors for both axes uniformly
-            var (scaleX, scaleY) = UpdateDoubleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
-
-            // Apply scaling relative to the transformation point
-            Console.WriteLine($"Double Scaling X: {scaleX}, Y: {scaleY}");
-            ApplyScaling(canvas.SelectedElement, transformationPoint, scaleX, scaleY);
-
-            canvas.UpdateAdorningLayer(canvas.SelectedElement);
-            canvas.CompositeLayersToRenderTarget();
-            canvas.InvalidateVisual();
-            return;
-        }
-
-        // IF Single Scaling
-        if (_currentState.Equals(TransformationState.SingleScaling) && canvas.SelectedElement != null)
-        {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
-
-            // Update scaling factors
-            var (scaleX, scaleY) = UpdateSingleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
-
-            // Apply scaling relative to the transformation point
-            Console.WriteLine($"Scaling X: {scaleX}, Y: {scaleY}");
-            ApplyScaling(canvas.SelectedElement, transformationPoint, scaleX, scaleY);
-
-            canvas.UpdateAdorningLayer(canvas.SelectedElement);
-            canvas.CompositeLayersToRenderTarget();
-            canvas.InvalidateVisual();
-            return;
-        }
-
-        // IF Rotating
-        if (_currentState.Equals(TransformationState.Rotating) && canvas.SelectedElement != null)
-        {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
-
-            // Calculate the transformation point (top-left of the bounding box + offset)
-            var bbox = canvas.SelectedElement.BBox;
-            var matrix = canvas.SelectedElement.Matrix;
-
-            // Get the delta rotation angle
-            float deltaRotation = UpdateRotation(skMousePosition);
-
-            // Apply the delta rotation
-            ApplyRotation(canvas.SelectedElement, transformationPoint, deltaRotation);
-
-            canvas.UpdateAdorningLayer(canvas.SelectedElement);
-            canvas.CompositeLayersToRenderTarget();
-            canvas.InvalidateVisual();
-            return;
-        }
-
-        // IF Shearing
-        if (_currentState.Equals(TransformationState.Shearing) && canvas.SelectedElement != null)
-        {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
-
-            // Update shearing factors
-            var (shearX, shearY) = UpdateShearing(skMousePosition, canvas.SelectedElement.Matrix);
-
-            //float shearX = 0.001F, shearY = 0.001F;
-
-            // Apply shearing relative to the transformation point
-            Console.WriteLine($"Shearing X: {shearX}, Y: {shearY}");
-            ApplyShearing(canvas.SelectedElement, transformationPoint, shearX, shearY);
-
-            canvas.UpdateAdorningLayer(canvas.SelectedElement);
-            canvas.CompositeLayersToRenderTarget();
-            canvas.InvalidateVisual();
-            return;
-        }
-
-        // Handle Cursors
+        // Common updates for transformation states (except MovingTransformSKPoint)
         if (canvas.SelectedElement != null)
         {
-            var mousePosition = e.GetPosition(canvas);
-            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
-            TryHandleCursorAndRegions(canvas, skMousePosition, transformHandles);
-            return;
+            canvas.UpdateAdorningLayer(canvas.SelectedElement);
+            canvas.CompositeLayersToRenderTarget();
+            canvas.InvalidateVisual();
         }
-
-        // Default cursor if no selection
-        canvas.Cursor = new Cursor(StandardCursorType.Arrow);
     }
 
     // MARK: Released
@@ -866,15 +679,21 @@ public class TransformationTool : IDrawingCanvasTool
             canvas.SelectedElement.Model.Matrix.Ty = canvas.SelectedElement.Matrix.Ty;
         }
     }
-    #endregion
 
     #region HELPERS
+    /// <summary>
+    /// Handles cursor updates and region detection for transformation operations based on mouse position relative to transform handles and element edges.
+    /// </summary>
+    /// <param name="canvas">The drawing canvas containing the selected element and cursor context.</param>
+    /// <param name="skMousePosition">The current mouse position in canvas coordinates.</param>
+    /// <param name="transformHandles">Collection of transform handle positions and types for hit testing.</param>
+    /// <returns>True if a cursor was set based on the mouse position; otherwise, false.</returns>
     private bool TryHandleCursorAndRegions(DrawingCanvas canvas, SKPoint skMousePosition, List<(SKPoint Center, DrawingCanvas.TransformHandleType Type)> transformHandles)
     {
         var transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
 
         // Handle transformation point region
-        if (IsWithinMargin(skMousePosition, transformationPoint, (_transformPointMargin / canvas.Scale)))
+        if (IsWithinMargin(skMousePosition, transformationPoint, (_TransformSKPointMargin / canvas.Scale)))
         {
             canvas.Cursor = new Cursor(StandardCursorType.SizeAll);
             return true;
@@ -921,6 +740,13 @@ public class TransformationTool : IDrawingCanvasTool
         return false;
     }
 
+    /// <summary>
+    /// Finds the closest transform handle within snapping distance of the mouse position for transformation point snapping.
+    /// </summary>
+    /// <param name="mousePosition">The current mouse position in canvas coordinates.</param>
+    /// <param name="transformHandles">Collection of transform handle positions and types to check for snapping.</param>
+    /// <param name="canvasScale">The current canvas scale factor used to adjust snap margin for zoom level.</param>
+    /// <returns>The position of the closest transform handle within snap distance, or null if no handle is close enough.</returns>
     private SKPoint? GetSnapPoint(SKPoint mousePosition, List<(SKPoint Center, DrawingCanvas.TransformHandleType Type)> transformHandles, double canvasScale)
     {
         double snapMargin = _transformationPointSnapMargin / canvasScale; // Adjust for zoom level
@@ -931,7 +757,7 @@ public class TransformationTool : IDrawingCanvasTool
         foreach (var (handlePosition, handleType) in transformHandles)
         {
             double distance = Math.Sqrt(
-                Math.Pow(mousePosition.X - handlePosition.X, 2) + 
+                Math.Pow(mousePosition.X - handlePosition.X, 2) +
                 Math.Pow(mousePosition.Y - handlePosition.Y, 2)
             );
 
@@ -945,13 +771,19 @@ public class TransformationTool : IDrawingCanvasTool
         return closestHandle;
     }
 
+    /// <summary>
+    /// Generates edge regions as rectangles around the transformed bounding box edges for hit testing during shearing operations.
+    /// </summary>
+    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
+    /// <param name="matrix">The transformation matrix used to convert bounding box points to world coordinates.</param>
+    /// <returns>An enumerable collection of SKRect objects representing the top, bottom, left, and right edge regions with appropriate thickness for interaction.</returns>
     public IEnumerable<SKRect> GetEdgeRegions(CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
     {
         // Transform the corners of the bounding box using the matrix
-        var topLeft = TransformPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
-        var topRight = TransformPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
-        var bottomLeft = TransformPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
-        var bottomRight = TransformPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
+        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
+        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
+        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
+        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
 
         // Calculate edge thickness that scales with zoom level
         float edgeThickness = (float)(_edgeMargin * 2); // Make edges thicker for easier hitting
@@ -995,6 +827,7 @@ public class TransformationTool : IDrawingCanvasTool
         return edgeRegions;
     }
 
+    // Invert a CsXFL.Matrix
     private bool TryInvertMatrix(CsXFL.Matrix matrix, out CsXFL.Matrix inverseMatrix)
     {
         inverseMatrix = new CsXFL.Matrix();
@@ -1012,6 +845,7 @@ public class TransformationTool : IDrawingCanvasTool
         return true;
     }
 
+    // Pre-concatenate a CsXFL.Matrix with an SKMatrix
     private CsXFL.Matrix PreConcatMatrix(CsXFL.Matrix matrix, SKMatrix skMatrix)
     {
         var result = new CsXFL.Matrix();
@@ -1024,27 +858,30 @@ public class TransformationTool : IDrawingCanvasTool
         return result;
     }
 
-    private SKPoint TransformPoint(SKPoint point, CsXFL.Matrix matrix)
+    // Apply a transformation matrix an SKPoint
+    private SKPoint TransformSKPoint(SKPoint point, CsXFL.Matrix matrix)
     {
-        // Apply the transformation matrix to the point
         return new SKPoint(
             (float)(matrix.A * point.X + matrix.C * point.Y + matrix.Tx),
             (float)(matrix.B * point.X + matrix.D * point.Y + matrix.Ty)
         );
     }
 
+    // Check if a point is within a certain margin of another point
     private bool IsWithinMargin(SKPoint mousePosition, SKPoint handlePosition, double margin)
     {
         return Math.Abs(mousePosition.X - handlePosition.X) <= margin &&
                Math.Abs(mousePosition.Y - handlePosition.Y) <= margin;
     }
 
+    // Check if a point is on a line segment within a certain margin
     private bool IsWithinEdge(SKPoint mousePosition, SKRect edge, double margin)
     {
         return mousePosition.X >= edge.Left - margin && mousePosition.X <= edge.Right + margin &&
             mousePosition.Y >= edge.Top - margin && mousePosition.Y <= edge.Bottom + margin;
     }
 
+    // Center the transformation point of an element to the center of its bounding box
     private void CenterTransformationPoint(BlitzElement element)
     {
         if (element?.BBox == null)
@@ -1060,13 +897,21 @@ public class TransformationTool : IDrawingCanvasTool
     }
     #endregion
     #region HANDLE INVALIDTY
+    /// <summary>
+    /// Determines if a transformation point lies on a specific edge of the element's bounding box based on the handle type.
+    /// </summary>
+    /// <param name="transformationPoint">The transformation point to test in world coordinates.</param>
+    /// <param name="handleType">The handle type that determines which edge to check against.</param>
+    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
+    /// <param name="matrix">The transformation matrix used to convert bounding box points to world coordinates.</param>
+    /// <returns>True if the transformation point lies on the edge corresponding to the handle type; otherwise, false.</returns>
     private bool IsTransformationPointOnEdge(SKPoint transformationPoint, DrawingCanvas.TransformHandleType handleType, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
     {
         // Transform bounding box corners to world coordinates
-        var topLeft = TransformPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
-        var topRight = TransformPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
-        var bottomLeft = TransformPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
-        var bottomRight = TransformPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
+        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
+        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
+        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
+        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
 
         double margin = _edgeMargin;
 
@@ -1097,16 +942,24 @@ public class TransformationTool : IDrawingCanvasTool
         }
     }
 
+    /// <summary>
+    /// Determines if a corner transformation point is positioned on either of the two edges adjacent to the specified corner handle, which would invalidate scaling operations.
+    /// </summary>
+    /// <param name="transformationPoint">The transformation point to test in world coordinates.</param>
+    /// <param name="handleType">The corner handle type that determines which adjacent edges to check.</param>
+    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
+    /// <param name="matrix">The transformation matrix used to convert bounding box points to world coordinates.</param>
+    /// <returns>True if the transformation point lies on either adjacent edge to the corner handle; otherwise, false.</returns>
     private bool IsCornerTransformationPointInvalid(SKPoint transformationPoint, DrawingCanvas.TransformHandleType handleType, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
     {
         // For corner handles, check if transformation point is on either adjacent edge
         double margin = _edgeMargin;
 
         // Transform bounding box corners to world coordinates
-        var topLeft = TransformPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
-        var topRight = TransformPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
-        var bottomLeft = TransformPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
-        var bottomRight = TransformPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
+        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
+        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
+        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
+        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
 
         switch (handleType)
         {
@@ -1135,6 +988,14 @@ public class TransformationTool : IDrawingCanvasTool
         }
     }
 
+    /// <summary>
+    /// Determines if a point lies within a specified margin distance from a line segment.
+    /// </summary>
+    /// <param name="point">The point to test.</param>
+    /// <param name="lineStart">The starting point of the line segment.</param>
+    /// <param name="lineEnd">The ending point of the line segment.</param>
+    /// <param name="margin">The maximum distance from the line segment for the point to be considered "on" the line.</param>
+    /// <returns>True if the point is within the margin distance from the line segment; otherwise, false.</returns>
     private bool IsPointOnLineSegment(SKPoint point, SKPoint lineStart, SKPoint lineEnd, double margin)
     {
         // Calculate the distance from point to the line segment
@@ -1145,7 +1006,7 @@ public class TransformationTool : IDrawingCanvasTool
 
         double dot = A * C + B * D;
         double lenSq = C * C + D * D;
-        
+
         if (lenSq < double.Epsilon) // Line segment is actually a point
             return Math.Sqrt(A * A + B * B) <= margin;
 
@@ -1172,5 +1033,42 @@ public class TransformationTool : IDrawingCanvasTool
         double dy = point.Y - yy;
         return Math.Sqrt(dx * dx + dy * dy) <= margin;
     }
+    
+    /// <summary>
+    /// Clamps the transformation matrix to ensure that its scale values do not fall below a minimum threshold.
+    /// </summary>
+    /// <param name="matrix">The transformation matrix to be clamped.</param>
+    /// <returns>
+    /// A <see cref="CsXFL.Matrix"/> object with adjusted scale values if they were below the minimum threshold.
+    /// </returns>
+    /// <remarks>
+    /// The method calculates the scale values along the X and Y axes using the determinant of the matrix.
+    /// If the scale values are smaller than the specified minimum scale value, the matrix components are adjusted
+    /// proportionally to meet the minimum scale requirement.
+    /// </remarks>
+    private CsXFL.Matrix ClampMatrix(CsXFL.Matrix matrix)
+    {
+        // Calculate the actual scale from the matrix determinant
+        double scaleX = Math.Sqrt(matrix.A * matrix.A + matrix.B * matrix.B);
+        double scaleY = Math.Sqrt(matrix.C * matrix.C + matrix.D * matrix.D);
+
+        // Only clamp if the actual scale is too small
+        if (scaleX < _matrixClampEpsilon)
+        {
+            double factor = _matrixClampEpsilon / scaleX;
+            matrix.A *= factor;
+            matrix.B *= factor;
+        }
+
+        if (scaleY < _matrixClampEpsilon)
+        {
+            double factor = _matrixClampEpsilon / scaleY;
+            matrix.C *= factor;
+            matrix.D *= factor;
+        }
+
+        return matrix;
+    }
+
     #endregion
 }
