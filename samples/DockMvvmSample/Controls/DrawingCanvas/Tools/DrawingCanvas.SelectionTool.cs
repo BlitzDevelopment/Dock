@@ -94,6 +94,7 @@ public class SelectionTool : IDrawingCanvasTool
         var canvas = recorder.BeginRecording(element.Picture.CullRect);
         canvas.Translate((float)deltaX, (float)deltaY);
         canvas.DrawPicture(element.Picture);
+        
         element.Picture = recorder.EndRecording();
     }
 }

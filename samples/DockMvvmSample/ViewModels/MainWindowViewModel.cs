@@ -37,6 +37,8 @@ public partial class MainWindowViewModel : ObservableObject
     public ICommand OpenDocumentCommand => _openDocumentCommand;
     private ICommand _saveDocumentCommand;
     public ICommand SaveDocumentCommand => _saveDocumentCommand;
+    private ICommand _saveAsDocumentCommand;
+    public ICommand SaveAsDocumentCommand => _saveAsDocumentCommand;
 
     private ICommand _renderVideoDialogCommand;
     public ICommand RenderVideoDialogCommand => _renderVideoDialogCommand;
@@ -112,6 +114,13 @@ public partial class MainWindowViewModel : ObservableObject
     {
         _workingCsXFLDocViewModel!.Dispose();
         WorkingCsXFLDoc!.Save();
+        _workingCsXFLDocViewModel.InitializeZipArchive();
+    }
+
+    private void SaveAsDocument()
+    {
+        _workingCsXFLDocViewModel!.Dispose();
+        // Save As
         _workingCsXFLDocViewModel.InitializeZipArchive();
     }
 
@@ -211,6 +220,7 @@ public partial class MainWindowViewModel : ObservableObject
         _newDocumentCommand = new RelayCommand(NewDocument);
         _openDocumentCommand = new RelayCommand(OpenDocument);
         _saveDocumentCommand = new RelayCommand(SaveDocument);
+        _saveAsDocumentCommand = new RelayCommand(SaveAsDocument);
         _renderVideoDialogCommand = new RelayCommand(RenderVideoDialog);
         _importToLibraryCommand = new RelayCommand(ImportToLibrary);
         _preferencesCommand = new RelayCommand(Preferences);

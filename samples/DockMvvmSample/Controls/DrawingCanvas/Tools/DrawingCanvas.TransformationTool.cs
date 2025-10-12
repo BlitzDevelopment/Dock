@@ -8,10 +8,9 @@ namespace Avalonia.Controls;
 // Todo:
 // - Implement Double Axis Scaling
 // - Implement Shearing
-// Scaling is incorrect when element is sheared
 // Flickering when click-drag transform past transformation point (causes sign change)
-// Hit test areas do not scale with DrawingCanvas scale
-// Matrix values can become NaN
+// Edge skewing regions are hard to hit when zoomed in
+// Does the matrix clamp intelligently when scaling?
 public class TransformationTool : IDrawingCanvasTool
 {
     private SKPoint _transformOrigin;
@@ -20,6 +19,7 @@ public class TransformationTool : IDrawingCanvasTool
     private const double _handleMargin = 10.0;
     private const double _rotationMarginFactor = 3;
     private const double _edgeMargin = 5;
+    private const double _transformPointMargin = 8.0;
     private float _initialDistance;
     private float _initialAngle;
 
@@ -29,7 +29,8 @@ public class TransformationTool : IDrawingCanvasTool
         DoubleScaling,
         SingleScaling,
         Rotating,
-        Shearing
+        Shearing,
+        MovingTransformPoint
     }
 
     private TransformationState _currentState = TransformationState.None;
@@ -53,11 +54,25 @@ public class TransformationTool : IDrawingCanvasTool
     #region SCALING LOGIC
     private CsXFL.Matrix ClampMatrix(CsXFL.Matrix matrix)
     {
-        // Ensure the scale values (A, D) do not go below the minimum value
-        matrix.A = Math.Max(matrix.A, _minScaleValue);
-        matrix.D = Math.Max(matrix.D, _minScaleValue);
+        // Calculate the actual scale from the matrix determinant
+        double scaleX = Math.Sqrt(matrix.A * matrix.A + matrix.B * matrix.B);
+        double scaleY = Math.Sqrt(matrix.C * matrix.C + matrix.D * matrix.D);
+        
+        // Only clamp if the actual scale is too small
+        if (scaleX < _minScaleValue)
+        {
+            double factor = _minScaleValue / scaleX;
+            matrix.A *= factor;
+            matrix.B *= factor;
+        }
+        
+        if (scaleY < _minScaleValue)
+        {
+            double factor = _minScaleValue / scaleY;
+            matrix.C *= factor;
+            matrix.D *= factor;
+        }
 
-        // Optionally clamp other values if needed
         return matrix;
     }
 
@@ -125,14 +140,24 @@ public class TransformationTool : IDrawingCanvasTool
     {
         _currentState = TransformationState.SingleScaling;
 
-        // Calculate the initial distance for scaling
+        if (currentMatrix == null)
+            return;
+
+        // Transform points to local coordinates for consistent calculation
+        if (!TryInvertMatrix(currentMatrix, out var inverseMatrix))
+            return;
+
+        var localHandlePos = TransformPoint(handlePosition, inverseMatrix);
+        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
+
+        // Calculate the initial SIGNED distance for scaling in local coordinates
         if (handleType == DrawingCanvas.TransformHandleType.RightCenter || handleType == DrawingCanvas.TransformHandleType.LeftCenter)
         {
-            _initialDistance = Math.Abs(handlePosition.X - transformationPoint.X);
+            _initialDistance = localHandlePos.X - localTransformPoint.X; // Keep the sign!
         }
         else if (handleType == DrawingCanvas.TransformHandleType.TopCenter || handleType == DrawingCanvas.TransformHandleType.BottomCenter)
         {
-            _initialDistance = Math.Abs(handlePosition.Y - transformationPoint.Y);
+            _initialDistance = localHandlePos.Y - localTransformPoint.Y; // Keep the sign!
         }
     }
 
@@ -140,40 +165,30 @@ public class TransformationTool : IDrawingCanvasTool
     {
         float scaleX = 1.0F, scaleY = 1.0F;
 
-        // Calculate the scaling factor based on the active handle
+        if (currentMatrix == null)
+            return (scaleX, scaleY);
+
+        // Transform mouse position and transformation point to local coordinates
+        if (!TryInvertMatrix(currentMatrix, out var inverseMatrix))
+            return (scaleX, scaleY);
+
+        var localMousePos = TransformPoint(currentMousePosition, inverseMatrix);
+        var localTransformPoint = TransformPoint(transformationPoint, inverseMatrix);
+
+        // Calculate scaling factor based on the active handle using local coordinates
         if (_activeHandle == DrawingCanvas.TransformHandleType.RightCenter || _activeHandle == DrawingCanvas.TransformHandleType.LeftCenter)
         {
-            // Horizontal scaling
-            float currentDistance = currentMousePosition.X - transformationPoint.X;
+            float currentDistance = localMousePos.X - localTransformPoint.X;
+            scaleX = currentDistance / _initialDistance; // Remove Math.Abs and handle sign properly
 
-            // Scale directly based on the current distance
-            scaleX = currentDistance / _initialDistance;
-
-            // Adjust for direction (negative scaling if moving left)
-            if (_activeHandle == DrawingCanvas.TransformHandleType.LeftCenter)
-            {
-                scaleX = -scaleX;
-            }
-
-            // Update _initialDistance to match the new position
-            _initialDistance = Math.Abs(currentDistance);
+            // Don't update _initialDistance here - it should remain constant!
         }
         else if (_activeHandle == DrawingCanvas.TransformHandleType.TopCenter || _activeHandle == DrawingCanvas.TransformHandleType.BottomCenter)
         {
-            // Vertical scaling
-            float currentDistance = currentMousePosition.Y - transformationPoint.Y;
+            float currentDistance = localMousePos.Y - localTransformPoint.Y;
+            scaleY = currentDistance / _initialDistance; // Remove Math.Abs and handle sign properly
 
-            // Scale directly based on the current distance
-            scaleY = currentDistance / _initialDistance;
-
-            // Adjust for direction (negative scaling if moving up)
-            if (_activeHandle == DrawingCanvas.TransformHandleType.TopCenter)
-            {
-                scaleY = -scaleY;
-            }
-
-            // Update _initialDistance to match the new position
-            _initialDistance = Math.Abs(currentDistance);
+            // Don't update _initialDistance here - it should remain constant!
         }
 
         return (scaleX, scaleY);
@@ -299,10 +314,31 @@ public class TransformationTool : IDrawingCanvasTool
                 var transformHandles = canvas.GetTransformHandles(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
                 var transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
 
+                if (IsWithinMargin(skMousePosition, transformationPoint, (_transformPointMargin/canvas.Scale)))
+                {
+                    // Check for double click
+                    if (e.ClickCount == 2)
+                    {
+                        Console.WriteLine("Transform Point Double Click - Centering");
+                        CenterTransformationPoint(canvas.SelectedElement);
+                        canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                        canvas.InvalidateVisual();
+                        e.Handled = true;
+                        return;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Transform Point Move Start");
+                        _currentState = TransformationState.MovingTransformPoint;
+                        e.Handled = true;
+                        return;
+                    }
+                }
+
                 foreach (var (handlePosition, handleType) in transformHandles)
                 {
                     // IF corner handles, DO Double Axis Scaling
-                    if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin))
+                    if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
                     {
                         Console.WriteLine("Double Axis Scaling NYI.");
                         _activeHandle = handleType;
@@ -312,7 +348,7 @@ public class TransformationTool : IDrawingCanvasTool
                     }
 
                     // IF middle handles, DO Single Axis Scaling
-                    if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin))
+                    if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
                     {
                         Console.WriteLine("Single Axis Scaling Start.");
                         _activeHandle = handleType;
@@ -323,7 +359,7 @@ public class TransformationTool : IDrawingCanvasTool
                     }
 
                     // IF 3x region around corner handles, DO Rotation
-                    if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin * _rotationMarginFactor))
+                    if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale) * _rotationMarginFactor))
                     {
                         Console.WriteLine("Rotation Start");
                         _activeHandle = handleType;
@@ -338,7 +374,7 @@ public class TransformationTool : IDrawingCanvasTool
                 var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
                 foreach (var edge in edges)
                 {
-                    if (IsWithinEdge(skMousePosition, edge, _edgeMargin))
+                    if (IsWithinEdge(skMousePosition, edge, (_edgeMargin/canvas.Scale)))
                     {
                         Console.WriteLine("Shearing NYI.");
                         _currentState = TransformationState.Shearing;
@@ -382,6 +418,29 @@ public class TransformationTool : IDrawingCanvasTool
         {
             transformHandles = canvas.GetTransformHandles(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
             transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
+        }
+
+        // IF Moving Transform Point
+        if (_currentState.Equals(TransformationState.MovingTransformPoint) && canvas.SelectedElement != null)
+        {
+            var mousePosition = e.GetPosition(canvas);
+            var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
+
+            // Convert mouse position to local coordinates relative to the element
+            if (canvas.SelectedElement.Matrix != null && TryInvertMatrix(canvas.SelectedElement.Matrix, out var inverseMatrix))
+            {
+                var localPoint = TransformPoint(skMousePosition, inverseMatrix);
+
+                // Update the transformation point
+                canvas.SelectedElement.TransformationPoint.X = localPoint.X;
+                canvas.SelectedElement.TransformationPoint.Y = localPoint.Y;
+
+                Console.WriteLine($"Transform Point moved to: {localPoint.X}, {localPoint.Y}");
+                
+                canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                canvas.InvalidateVisual();
+                return;
+            }
         }
 
         // IF Single Scaling
@@ -458,25 +517,34 @@ public class TransformationTool : IDrawingCanvasTool
     #region HELPERS
     private bool TryHandleCursorAndRegions(DrawingCanvas canvas, SKPoint skMousePosition, List<(SKPoint Center, DrawingCanvas.TransformHandleType Type)> transformHandles)
     {
+        var transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
+
+        // Handle transformation point region
+        if (IsWithinMargin(skMousePosition, transformationPoint, (_transformPointMargin / canvas.Scale)))
+        {
+            canvas.Cursor = new Cursor(StandardCursorType.SizeAll);
+            return true;
+        }
+
         // Handle transform handles (corners and middle handles)
         foreach (var (handlePosition, handleType) in transformHandles)
         {
             // Check for scaling regions (corner handles)
-            if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin))
+            if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
             {
                 canvas.Cursor = new Cursor(StandardCursorType.SizeAll);
                 return true;
             }
 
             // Check for rotation region
-            if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin * _rotationMarginFactor))
+            if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale) * _rotationMarginFactor))
             {
                 canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Rotate);
                 return true;
             }
 
             // Check for scaling regions (middle handles)
-            if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, _handleMargin))
+            if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
             {
                 canvas.Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
                 return true;
@@ -487,7 +555,7 @@ public class TransformationTool : IDrawingCanvasTool
         var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
         foreach (var edge in edges)
         {
-            if (IsWithinEdge(skMousePosition, edge, _edgeMargin))
+            if (IsWithinEdge(skMousePosition, edge, (_edgeMargin/canvas.Scale)))
             {
                 canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Skew);
                 return true;
@@ -567,6 +635,20 @@ public class TransformationTool : IDrawingCanvasTool
     {
         return mousePosition.X >= edge.Left - margin && mousePosition.X <= edge.Right + margin &&
             mousePosition.Y >= edge.Top - margin && mousePosition.Y <= edge.Bottom + margin;
+    }
+
+    private void CenterTransformationPoint(BlitzElement element)
+    {
+        if (element?.BBox == null)
+            return;
+
+        // Calculate the center of the element's bounding box in local coordinates
+        float centerX = (float)(element.BBox.Left + element.BBox.Right) / 2f;
+        float centerY = (float)(element.BBox.Top + element.BBox.Bottom) / 2f;
+
+        // Update the transformation point to the center
+        element.TransformationPoint.X = centerX;
+        element.TransformationPoint.Y = centerY;
     }
     #endregion
 }
