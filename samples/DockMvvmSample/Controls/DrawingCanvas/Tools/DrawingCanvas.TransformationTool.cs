@@ -362,7 +362,12 @@ public class TransformationTool : IDrawingCanvasTool
                 if (Math.Abs(_initialShearOffsetY) > float.Epsilon)
                 {
                     float deltaX = currentOffsetX - _initialShearOffsetX;
-                    shearX = deltaX / Math.Abs(_initialShearOffsetY);
+                    // Invert shear for top edge (negative Y offset)
+                    float shearMultiplier = _initialShearOffsetY < 0 ? -1.0f : 1.0f;
+                    shearX = (deltaX / Math.Abs(_initialShearOffsetY)) * shearMultiplier;
+                    
+                    // Update the initial offset to prevent accumulation
+                    _initialShearOffsetX = currentOffsetX;
                 }
                 break;
                 
@@ -371,7 +376,12 @@ public class TransformationTool : IDrawingCanvasTool
                 if (Math.Abs(_initialShearOffsetX) > float.Epsilon)
                 {
                     float deltaY = currentOffsetY - _initialShearOffsetY;
-                    shearY = deltaY / Math.Abs(_initialShearOffsetX);
+                    // Invert shear for left edge (negative X offset)
+                    float shearMultiplier = _initialShearOffsetX < 0 ? -1.0f : 1.0f;
+                    shearY = (deltaY / Math.Abs(_initialShearOffsetX)) * shearMultiplier;
+                    
+                    // Update the initial offset to prevent accumulation
+                    _initialShearOffsetY = currentOffsetY;
                 }
                 break;
         }
@@ -490,14 +500,12 @@ public class TransformationTool : IDrawingCanvasTool
             {
                 if (e.ClickCount == 2)
                 {
-                    Console.WriteLine("Transform Point Double Click - Centering");
                     CenterTransformationPoint(canvas.SelectedElement);
                     canvas.UpdateAdorningLayer(canvas.SelectedElement);
                     canvas.InvalidateVisual();
                 }
                 else
                 {
-                    Console.WriteLine("Transform Point Move Start");
                     _currentState = TransformationState.MovingTransformSKPoint;
                 }
                 e.Handled = true;
@@ -515,7 +523,6 @@ public class TransformationTool : IDrawingCanvasTool
                 // Corner handles for scaling
                 if (isCorner && withinHandle && !IsCornerTransformationPointInvalid(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
                 {
-                    Console.WriteLine("Double Axis Scaling Start.");
                     _activeHandle = handleType;
                     _currentState = TransformationState.DoubleScaling;
                     StartDoubleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
@@ -526,7 +533,6 @@ public class TransformationTool : IDrawingCanvasTool
                 // Middle handles for single-axis scaling
                 if (isMiddle && withinHandle && !IsTransformationPointOnEdge(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
                 {
-                    Console.WriteLine("Single Axis Scaling Start.");
                     _activeHandle = handleType;
                     _currentState = TransformationState.SingleScaling;
                     StartSingleScale(transformationPoint, handlePosition, handleType, canvas.SelectedElement.Matrix);
@@ -537,7 +543,6 @@ public class TransformationTool : IDrawingCanvasTool
                 // Corner handles for rotation (wider margin)
                 if (withinRotation)
                 {
-                    Console.WriteLine("Rotation Start");
                     _activeHandle = handleType;
                     _currentState = TransformationState.Rotating;
                     StartRotation(transformationPoint, skMousePosition);
@@ -559,9 +564,18 @@ public class TransformationTool : IDrawingCanvasTool
             var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
             foreach (var edge in edges.Where(edge => IsWithinEdge(skMousePosition, edge, (_edgeMargin / canvas.Scale))))
             {
-                Console.WriteLine("Shearing Start");
+                var shearAxis = DetermineShearAxis(skMousePosition, edges.ToList());
+                
+                // Check if transformation point invalidates shearing operation for the specific edge
+                if (IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
+                {
+                    Console.WriteLine($"Shearing blocked: Transformation point is on the target edge");
+                    e.Handled = true;
+                    return;
+                }
+                
                 _currentState = TransformationState.Shearing;
-                StartShearing(transformationPoint, skMousePosition, DetermineShearAxis(skMousePosition, edges.ToList()));
+                StartShearing(transformationPoint, skMousePosition, shearAxis);
                 e.Handled = true;
                 return;
             }
@@ -613,7 +627,6 @@ public class TransformationTool : IDrawingCanvasTool
                     var localPoint = TransformSKPoint(targetPoint, inverseMatrix);
                     canvas.SelectedElement.TransformationPoint.X = localPoint.X;
                     canvas.SelectedElement.TransformationPoint.Y = localPoint.Y;
-                    Console.WriteLine($"Transform Point moved to: {localPoint.X}, {localPoint.Y}" + (snapPoint.HasValue ? " (SNAPPED)" : ""));
                     canvas.UpdateAdorningLayer(canvas.SelectedElement);
                     canvas.InvalidateVisual();
                 }
@@ -621,13 +634,11 @@ public class TransformationTool : IDrawingCanvasTool
 
             case TransformationState.DoubleScaling when canvas.SelectedElement != null:
                 var (doubleScaleX, doubleScaleY) = UpdateDoubleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
-                Console.WriteLine($"Double Scaling X: {doubleScaleX}, Y: {doubleScaleY}");
                 ApplyScaling(canvas.SelectedElement, transformationPoint, doubleScaleX, doubleScaleY);
                 break;
 
             case TransformationState.SingleScaling when canvas.SelectedElement != null:
                 var (singleScaleX, singleScaleY) = UpdateSingleScale(transformationPoint, skMousePosition, canvas.SelectedElement.Matrix);
-                Console.WriteLine($"Scaling X: {singleScaleX}, Y: {singleScaleY}");
                 ApplyScaling(canvas.SelectedElement, transformationPoint, singleScaleX, singleScaleY);
                 break;
 
@@ -702,36 +713,45 @@ public class TransformationTool : IDrawingCanvasTool
         // Handle transform handles (corners and middle handles)
         foreach (var (handlePosition, handleType) in transformHandles)
         {
-            // Check for scaling regions (corner handles)
-            if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
+            bool isCorner = Array.Exists(cornerHandles, h => h == handleType);
+            bool isMiddle = Array.Exists(middleHandles, h => h == handleType);
+            bool withinHandle = IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale));
+            bool withinRotation = isCorner && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale) * _rotationMarginFactor);
+
+            // Check for scaling regions (corner handles) - only if valid
+            if (isCorner && withinHandle && !IsCornerTransformationPointInvalid(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
             {
                 canvas.Cursor = new Cursor(StandardCursorType.SizeAll);
                 return true;
             }
 
-            // Check for rotation region
-            if (Array.Exists(cornerHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale) * _rotationMarginFactor))
-            {
-                canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Rotate);
-                return true;
-            }
-
-            // Check for scaling regions (middle handles)
-            if (Array.Exists(middleHandles, h => h == handleType) && IsWithinMargin(skMousePosition, handlePosition, (_handleMargin / canvas.Scale)))
+            // Check for scaling regions (middle handles) - only if valid
+            if (isMiddle && withinHandle && !IsTransformationPointOnEdge(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
             {
                 canvas.Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
                 return true;
             }
+
+            // Check for rotation region - only show if scaling is not available or invalid
+            if (withinRotation)
+            {
+                canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Rotate);
+                return true;
+            }
         }
 
-        // Handle edge regions for shearing
+        // Handle edge regions for shearing - only if valid
         var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
         foreach (var edge in edges)
         {
             if (IsWithinEdge(skMousePosition, edge, (_edgeMargin / canvas.Scale)))
             {
-                canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Skew);
-                return true;
+                // Only show shear cursor if shearing is not invalid for this specific edge
+                if (!IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
+                {
+                    canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Skew);
+                    return true;
+                }
             }
         }
 
@@ -895,7 +915,44 @@ public class TransformationTool : IDrawingCanvasTool
         element.TransformationPoint.X = centerX;
         element.TransformationPoint.Y = centerY;
     }
+
+    /// <summary>
+    /// Clamps the transformation matrix to ensure that its scale values do not fall below a minimum threshold.
+    /// </summary>
+    /// <param name="matrix">The transformation matrix to be clamped.</param>
+    /// <returns>
+    /// A <see cref="CsXFL.Matrix"/> object with adjusted scale values if they were below the minimum threshold.
+    /// </returns>
+    /// <remarks>
+    /// The method calculates the scale values along the X and Y axes using the determinant of the matrix.
+    /// If the scale values are smaller than the specified minimum scale value, the matrix components are adjusted
+    /// proportionally to meet the minimum scale requirement.
+    /// </remarks>
+    private CsXFL.Matrix ClampMatrix(CsXFL.Matrix matrix)
+    {
+        // Calculate the actual scale from the matrix determinant
+        double scaleX = Math.Sqrt(matrix.A * matrix.A + matrix.B * matrix.B);
+        double scaleY = Math.Sqrt(matrix.C * matrix.C + matrix.D * matrix.D);
+
+        // Only clamp if the actual scale is too small
+        if (scaleX < _matrixClampEpsilon)
+        {
+            double factor = _matrixClampEpsilon / scaleX;
+            matrix.A *= factor;
+            matrix.B *= factor;
+        }
+
+        if (scaleY < _matrixClampEpsilon)
+        {
+            double factor = _matrixClampEpsilon / scaleY;
+            matrix.C *= factor;
+            matrix.D *= factor;
+        }
+
+        return matrix;
+    }
     #endregion
+
     #region HANDLE INVALIDTY
     /// <summary>
     /// Determines if a transformation point lies on a specific edge of the element's bounding box based on the handle type.
@@ -1033,42 +1090,49 @@ public class TransformationTool : IDrawingCanvasTool
         double dy = point.Y - yy;
         return Math.Sqrt(dx * dx + dy * dy) <= margin;
     }
-    
+
     /// <summary>
-    /// Clamps the transformation matrix to ensure that its scale values do not fall below a minimum threshold.
+    /// Determines if a shearing operation is invalid based on the transformation point's position relative to the specific edge being sheared.
+    /// Shearing is invalid when the transformation point lies on the specific edge that would be used for shearing.
     /// </summary>
-    /// <param name="matrix">The transformation matrix to be clamped.</param>
-    /// <returns>
-    /// A <see cref="CsXFL.Matrix"/> object with adjusted scale values if they were below the minimum threshold.
-    /// </returns>
-    /// <remarks>
-    /// The method calculates the scale values along the X and Y axes using the determinant of the matrix.
-    /// If the scale values are smaller than the specified minimum scale value, the matrix components are adjusted
-    /// proportionally to meet the minimum scale requirement.
-    /// </remarks>
-    private CsXFL.Matrix ClampMatrix(CsXFL.Matrix matrix)
+    /// <param name="transformationPoint">The transformation point to test in world coordinates.</param>
+    /// <param name="mousePosition">The mouse position to determine which specific edge is being targeted.</param>
+    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
+    /// <param name="matrix">The transformation matrix used to convert bounding box points to world coordinates.</param>
+    /// <returns>True if the transformation point lies on the specific edge being targeted for shearing; otherwise, false.</returns>
+    private bool IsShearingInvalid(SKPoint transformationPoint, SKPoint mousePosition, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
     {
-        // Calculate the actual scale from the matrix determinant
-        double scaleX = Math.Sqrt(matrix.A * matrix.A + matrix.B * matrix.B);
-        double scaleY = Math.Sqrt(matrix.C * matrix.C + matrix.D * matrix.D);
+        // Transform bounding box corners to world coordinates
+        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
+        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
+        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
+        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
 
-        // Only clamp if the actual scale is too small
-        if (scaleX < _matrixClampEpsilon)
+        double margin = _edgeMargin;
+        
+        // Get the edge regions and determine which specific edge is being targeted
+        var edges = GetEdgeRegions(boundingBox, matrix).ToList();
+        
+        for (int i = 0; i < edges.Count; i++)
         {
-            double factor = _matrixClampEpsilon / scaleX;
-            matrix.A *= factor;
-            matrix.B *= factor;
+            if (IsWithinEdge(mousePosition, edges[i], margin))
+            {
+                // Check if transformation point is on the specific edge being targeted
+                switch (i)
+                {
+                    case 0: // Top edge
+                        return IsPointOnLineSegment(transformationPoint, topLeft, topRight, margin);
+                    case 1: // Bottom edge
+                        return IsPointOnLineSegment(transformationPoint, bottomLeft, bottomRight, margin);
+                    case 2: // Left edge
+                        return IsPointOnLineSegment(transformationPoint, topLeft, bottomLeft, margin);
+                    case 3: // Right edge
+                        return IsPointOnLineSegment(transformationPoint, topRight, bottomRight, margin);
+                }
+            }
         }
-
-        if (scaleY < _matrixClampEpsilon)
-        {
-            double factor = _matrixClampEpsilon / scaleY;
-            matrix.C *= factor;
-            matrix.D *= factor;
-        }
-
-        return matrix;
+        
+        return false; // No edge is being targeted
     }
-
     #endregion
 }
