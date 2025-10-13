@@ -3,6 +3,7 @@ using SkiaSharp;
 using System.Collections.Generic;
 using Avalonia.Input;
 using System.Linq;
+using Serilog;
 
 namespace Avalonia.Controls;
 
@@ -25,12 +26,33 @@ public class TransformationToolConfig
     public float TransformPointSnapMargin { get; set; } = 15f;
     public float RotationHandleMultiplierFactor { get; set; } = 3f;
 
+    // Rotation modifiers
+    public KeyModifiers RotationSnapModifier { get; set; } = KeyModifiers.Shift;
+    public KeyModifiers RotationOppositeCornerModifier { get; set; } = KeyModifiers.Alt;
+    
+    // Middle scaling modifiers  
+    public KeyModifiers MiddleScaleAdjacentEdgesModifier { get; set; } = KeyModifiers.Alt;
+    
+    // Corner scaling modifiers
+    public KeyModifiers CornerScaleUniformModifier { get; set; } = KeyModifiers.Shift;
+    public KeyModifiers CornerScaleOppositeCornerModifier { get; set; } = KeyModifiers.Alt;
+    public KeyModifiers CornerPinModifier { get; set; } = KeyModifiers.Control | KeyModifiers.Shift;
+    
+    // Shearing modifiers
+    public KeyModifiers ShearSelectedAxisModifier { get; set; } = KeyModifiers.Alt;
 
     public static TransformationToolConfig Default => new();
 }
 
 public class TransformationTool : IDrawingCanvasTool
 {
+    private SelectionTool? _selectionTool;
+    public SelectionTool? SelectionTool 
+    { 
+        get => _selectionTool; 
+        set => _selectionTool = value; 
+    }
+
     // Transform state
     private SKPoint _transformOrigin;
     private ShearAxis _shearAxis;
@@ -45,7 +67,7 @@ public class TransformationTool : IDrawingCanvasTool
     private bool _uniformDoubleScaling = false;
 
     // Enums
-    private enum TransformationState { None, DoubleScaling, SingleScaling, Rotating, Shearing, MovingTransformSKPoint }
+    private enum TransformationState { None, DoubleScaling, SingleScaling, Rotating, Shearing, MovingTransformSKPoint, Selection }
     private enum ShearAxis { Horizontal, Vertical }
 
     // Handle collections
@@ -518,7 +540,7 @@ public class TransformationTool : IDrawingCanvasTool
         {
             var transformHandles = canvas.GetTransformHandles(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
             var transformationPoint = canvas.CalculateFixedTransformationPoint(canvas.SelectedElement.Matrix, canvas.SelectedElement.TransformationPoint);
-            
+
             // Handle transformation point interaction
             if (IsWithinMargin(skMousePosition, transformationPoint, (Config.TransformPointMargin / canvas.Scale)))
             {
@@ -603,9 +625,20 @@ public class TransformationTool : IDrawingCanvasTool
                 e.Handled = true;
                 return;
             }
-        }
 
-        // Default selection logic
+            // NEW: If we clicked on the selected element but not on any handles/edges,
+            // enter selection state and delegate to SelectionTool for dragging
+            var hitElement = canvas.HitTest(mousePosition);
+            if (hitElement == canvas.SelectedElement && _selectionTool != null)
+            {
+                _currentState = TransformationState.Selection;
+                _selectionTool.OnPointerPressed(sender, e);
+                return; // Don't set e.Handled here, let SelectionTool handle it
+            }
+
+        }
+        
+        // If no element is selected or we clicked outside the selected element, perform hit test
         canvas.SelectedElement = canvas.HitTest(mousePosition);
         bool hasSelection = canvas.SelectedElement != null;
 
@@ -638,6 +671,19 @@ public class TransformationTool : IDrawingCanvasTool
 
         var mousePosition = e.GetPosition(canvas);
         var skMousePosition = new SKPoint((float)mousePosition.X, (float)mousePosition.Y);
+
+        // Delegate to SelectionTool if in selection state
+        if (_currentState == TransformationState.Selection && _selectionTool != null)
+        {
+            _selectionTool.OnPointerMoved(sender, e);
+            // Update adorning layer after SelectionTool moves the element
+            if (canvas.SelectedElement != null)
+            {
+                canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                canvas.InvalidateVisual();
+            }
+            return;
+        }
 
         // Handle transformation states
         switch (_currentState)
@@ -704,6 +750,14 @@ public class TransformationTool : IDrawingCanvasTool
     {
         if (sender is not DrawingCanvas canvas)
             return;
+
+        // NEW: Handle selection state passthrough
+        if (_currentState == TransformationState.Selection && _selectionTool != null)
+        {
+            _selectionTool.OnPointerReleased(sender, e);
+            _currentState = TransformationState.None;
+            return;
+        }
 
         _currentState = TransformationState.None;
 

@@ -28,7 +28,7 @@ public partial class DrawingCanvas : UserControl
         _currentTool = toolType switch
         {
             DrawingCanvasToolType.Selection => new SelectionTool(),
-            DrawingCanvasToolType.Transformation => new TransformationTool(),
+            DrawingCanvasToolType.Transformation => new TransformationTool { SelectionTool = new SelectionTool() },
             _ => throw new ArgumentOutOfRangeException(nameof(toolType), "Unsupported tool type")
         };
 
