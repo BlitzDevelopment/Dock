@@ -20,6 +20,7 @@ using Blitz.ViewModels.Documents;
 using static Blitz.Models.Tools.Library;
 using Serilog;
 using ExCSS;
+using System.Reflection;
 
 namespace Blitz.ViewModels.Tools;
 
@@ -295,13 +296,45 @@ public partial class LibraryViewModel : Tool
         {
             string appDataFolder = App.BlitzAppData.GetTmpFolder();
             SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
+            XNamespace xlink = "http://www.w3.org/1999/xlink";
+            XNamespace svgNs = "http://www.w3.org/2000/svg";
 
             try
             {
-                // var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
-                // (XDocument renderedSVG, CsXFL.Rectangle bbox) = renderer.RenderSymbol(symbolToRender!.Timeline, 0);
-                // SvgData = renderedSVG;
-                // BoundingBox = bbox;
+                var symbolToRender = UserLibrarySelection[0] as CsXFL.SymbolItem;
+                var id = symbolToRender.Name;
+
+                Dictionary<string, XElement> defs;
+                List<XElement> body;
+
+                var bbox = renderer.GetTimelineBoundingBox(symbolToRender.Timeline, 0);
+                (defs, body) = renderer.RenderTimeline(symbolToRender.Timeline, 0, CsXFL.Color.DefaultColor(), false);
+                
+                double width = bbox != null ? Math.Abs(bbox.Right - bbox.Left) : 100;
+                double height = bbox != null ? Math.Abs(bbox.Bottom - bbox.Top) : 100;
+
+                XElement svg = new XElement(svgNs + "svg",
+                new XAttribute("version", "1.1"),
+                new XAttribute("preserveAspectRatio", "none"),
+                new XAttribute("x", "0px"),
+                new XAttribute("y", "0px"),
+                new XAttribute("width", $"{width}px"),
+                new XAttribute("height", $"{height}px"),
+                new XAttribute("viewBox", $"0 0 {width} {height}"),
+                new XAttribute(XNamespace.Xmlns + "xlink", xlink.ToString())
+                );
+
+                XElement defsElement = new XElement(svgNs + "defs");
+                foreach (XElement element in defs.Values)
+                {
+                    defsElement.Add(element);
+                }
+
+                svg.Add(defsElement);
+                svg.Add(body);
+
+                SvgData = new XDocument(svg);
+                BoundingBox = bbox;
             }
             catch (Exception ex)
             {

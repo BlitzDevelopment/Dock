@@ -42,7 +42,7 @@ public partial class DrawingCanvas
 
                 var localPoint = inverseMatrix.MapPoint(transformedPoint);
                 var bounds = new SKRect((float)element.BBox.Left, (float)element.BBox.Top, (float)element.BBox.Right, (float)element.BBox.Bottom);
-
+                
                 if (bounds.Contains(localPoint))
                 {
                     Console.WriteLine($"Hit Layer: {layer.Name}, Element: {element.ElementType}");

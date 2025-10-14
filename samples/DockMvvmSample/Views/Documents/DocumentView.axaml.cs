@@ -164,6 +164,7 @@ public partial class DocumentView : UserControl
 
                     // Render the element
                     CsXFL.Rectangle bbox = renderer.GetElementBoundingBox(element, operatingFrame);
+                    
                     (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(
                         element,
                         elementIdentifier,

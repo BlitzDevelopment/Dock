@@ -45,11 +45,24 @@ public class BlitzCanvasController
                 continue;
 
             using var recorder = new SKPictureRecorder();
-            var canvas = recorder.BeginRecording(new SKRect(float.MinValue / 2, float.MinValue / 2, float.MaxValue / 2, float.MaxValue / 2));
+            var canvas = recorder.BeginRecording(new SKRect(0, 0, float.MaxValue, float.MaxValue));
+
+            // Create paint for the debug red box
+            using var debugPaint = new SKPaint
+            {
+                Color = SKColors.Red.WithAlpha(64), // Quarter opacity (255 * 0.25 = 64)
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2.0f,
+                IsAntialias = true
+            };
 
             foreach (var element in layer.Elements)
             {
                 canvas.DrawPicture(element.Picture);
+                
+                // Draw the quarter opacity red box around the picture's cull rect
+                var cullRect = element.Picture.CullRect;
+                canvas.DrawRect(cullRect, debugPaint);
             }
 
             pictures.Add(recorder.EndRecording());

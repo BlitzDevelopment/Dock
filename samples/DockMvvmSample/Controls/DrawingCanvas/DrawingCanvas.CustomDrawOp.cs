@@ -34,7 +34,7 @@ class CustomDrawOp : Avalonia.Rendering.SceneGraph.ICustomDrawOperation
 
         if (canvas != null)
         {
-            canvas.DrawPicture(_compositedPicture, 0, 0);
+            canvas.DrawPicture(_compositedPicture);
         }
     }
 }
