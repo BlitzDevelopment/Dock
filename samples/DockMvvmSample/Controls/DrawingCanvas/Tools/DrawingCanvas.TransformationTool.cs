@@ -651,7 +651,9 @@ public class TransformationTool : IDrawingCanvasTool
         }
         else
         {
+            canvas.AdorningLayer.Visible = false;
             canvas.AdorningLayer.Elements.Clear();
+            canvas.InvalidateVisual();
         }
     }
 
@@ -764,8 +766,7 @@ public class TransformationTool : IDrawingCanvasTool
         if (canvas.SelectedElement != null && canvas.SelectedElement.Model != null)
         {
             // Update the model's matrix translation
-            canvas.SelectedElement.Model.Matrix.Tx = canvas.SelectedElement.Matrix.Tx;
-            canvas.SelectedElement.Model.Matrix.Ty = canvas.SelectedElement.Matrix.Ty;
+            canvas.SelectedElement.Model.Matrix = canvas.SelectedElement.Matrix;
         }
     }
 

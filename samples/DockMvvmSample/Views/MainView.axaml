@@ -45,98 +45,93 @@
 
         <MenuItem Header="Import" IsEnabled="{Binding IsDocumentLoaded}">
           <MenuItem Header="To Library" Command="{Binding ImportToLibraryCommand}" />
-          <MenuItem Header="To Stage" />
+          <MenuItem Header="To Stage" IsEnabled="False" />
         </MenuItem>
         <MenuItem Header="Export" IsEnabled="{Binding IsDocumentLoaded}">
-          <MenuItem Header="Image" />
+          <MenuItem Header="Image" IsEnabled="False" />
           <MenuItem Header="Video" Command="{Binding RenderVideoDialog}" />
         </MenuItem>
       </MenuItem>
       
       <MenuItem Header="_Edit">
-        <MenuItem Header="_Undo" />
-        <MenuItem Header="_Redo" />
+        <MenuItem Header="_Undo" IsEnabled="False" />
+        <MenuItem Header="_Redo" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Cut" />
-        <MenuItem Header="Copy" />
-        <MenuItem Header="Paste in Center" />
-        <MenuItem Header="Paste in Place" />
+        <MenuItem Header="Cut" IsEnabled="False" />
+        <MenuItem Header="Copy" IsEnabled="False" />
+        <MenuItem Header="Paste in Center" IsEnabled="False" />
+        <MenuItem Header="Paste in Place" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Duplicate" />
-        <MenuItem Header="Select All" />
-        <MenuItem Header="Deselect All" />
-        <MenuItem Header="Invert Selection" />
+        <MenuItem Header="Duplicate" IsEnabled="False" />
+        <MenuItem Header="Select All" IsEnabled="False" />
+        <MenuItem Header="Deselect All" IsEnabled="False" />
+        <MenuItem Header="Invert Selection" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Timeline" />
+        <MenuItem Header="Timeline" IsEnabled="False" />
         <Separator/>
         <MenuItem Header="Preferences" Command="{Binding PreferencesCommand}"/>
-        <MenuItem Header="Keyboard Mapping" />
-        <MenuItem Header="_Show Windows" />
+        <MenuItem Header="Keyboard Mapping" IsEnabled="False" />
       </MenuItem>
 
       <MenuItem Header="View">
-        <MenuItem Header="Zoom In" />
-        <MenuItem Header="Zoom Out" />
-        <MenuItem Header="Magnification" />
+        <MenuItem Header="Preview Quality" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Preview Quality" />
+        <MenuItem Header="Rulers" IsEnabled="False" />
+        <MenuItem Header="Grid" IsEnabled="False" />
+        <MenuItem Header="Guide" IsEnabled="False" />
+        <MenuItem Header="Snapping" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Rulers" />
-        <MenuItem Header="Grid" />
-        <MenuItem Header="Guide" />
-        <MenuItem Header="Snapping" />
-        <Separator/>
-        <MenuItem Header="Show Shape Hints" />
+        <MenuItem Header="Show Shape Hints" IsEnabled="False" />
       </MenuItem>
 
       <MenuItem Header="Insert">
-        <MenuItem Header="New Symbol" />
+        <MenuItem Header="New Symbol" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Classic Tween" />
-        <MenuItem Header="Motion Tween" />
-        <MenuItem Header="Shape Tween" />
+        <MenuItem Header="Classic Tween" IsEnabled="False" />
+        <MenuItem Header="Motion Tween" IsEnabled="False" />
+        <MenuItem Header="Shape Tween" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Timeline" />
+        <MenuItem Header="Timeline" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Scene" />
+        <MenuItem Header="Scene" IsEnabled="False" />
       </MenuItem>
 
       <MenuItem Header="Modify">
         <MenuItem Header="Document" />
         <Separator/>
-        <MenuItem Header="Convert to Symbol" />
-        <MenuItem Header="Convert to Bitmap" />
-        <MenuItem Header="Break Apart" />
-        <MenuItem Header="Break Apart Symbol to Layers" />
+        <MenuItem Header="Convert to Symbol" IsEnabled="False" />
+        <MenuItem Header="Convert to Bitmap" IsEnabled="False" />
+        <MenuItem Header="Break Apart" IsEnabled="False" />
+        <MenuItem Header="Break Apart Symbol to Layers" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Bitmap" />
-        <MenuItem Header="Symbol" />
-        <MenuItem Header="Shape" />
-        <MenuItem Header="Combine Objects" />
+        <MenuItem Header="Bitmap" IsEnabled="False" />
+        <MenuItem Header="Symbol" IsEnabled="False" />
+        <MenuItem Header="Shape" IsEnabled="False" />
+        <MenuItem Header="Combine Objects" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Timeline" />
+        <MenuItem Header="Timeline" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Transform" />
-        <MenuItem Header="Arrange" />
-        <MenuItem Header="Align" />
+        <MenuItem Header="Transform" IsEnabled="False" />
+        <MenuItem Header="Arrange" IsEnabled="False" />
+        <MenuItem Header="Align" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Group" />
-        <MenuItem Header="Ungroup" />
+        <MenuItem Header="Group" IsEnabled="False" />
+        <MenuItem Header="Ungroup" IsEnabled="False" />
       </MenuItem>
 
       <MenuItem Header="Text">
-        <MenuItem Header="Size" />
-        <MenuItem Header="Style" />
+        <MenuItem Header="Size" IsEnabled="False" />
+        <MenuItem Header="Style" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Align" />
-        <MenuItem Header="Letter Spacing" />
+        <MenuItem Header="Align" IsEnabled="False" />
+        <MenuItem Header="Letter Spacing" IsEnabled="False" />
         <Separator/>
-        <MenuItem Header="Scrollable" />
+        <MenuItem Header="Scrollable" IsEnabled="False" />
       </MenuItem>
 
       <MenuItem Header="Commands">
-        <MenuItem Header="Manage Saved Commands"/>
-        <MenuItem Header="Run Command"/>
+        <MenuItem Header="Manage Saved Commands" IsEnabled="False" />
+        <MenuItem Header="Run Command" IsEnabled="False" />
       </MenuItem>
 
       <MenuItem Header="Debug"/>

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Blitz.ViewModels.Documents;
 using Blitz.ViewModels.Tools;
 
 namespace Blitz
@@ -6,6 +7,7 @@ namespace Blitz
     public class ViewModelRegistry
     {
         public static string LibraryViewModel { get; } = "LibraryViewModel";
+        public static string DocumentViewModel { get; } = "DocumentViewModel";
         private static ViewModelRegistry _instance = new ViewModelRegistry();
 
         private ViewModelRegistry() { }
@@ -36,6 +38,11 @@ namespace Blitz
         public LibraryViewModel GetLibraryViewModel()
         {
             return (LibraryViewModel)GetViewModel(nameof(LibraryViewModel));
+        }
+
+        public DocumentViewModel GetDocumentViewModel()
+        {
+            return (DocumentViewModel)GetViewModel(nameof(DocumentViewModel));
         }
     }
 }

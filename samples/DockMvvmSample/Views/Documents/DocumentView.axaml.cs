@@ -163,7 +163,7 @@ public partial class DocumentView : UserControl
                     SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
 
                     // Render the element
-                    CsXFL.Rectangle bbox = renderer.GetElementBoundingBox(element, operatingFrame);
+                    CsXFL.Rectangle bbox = renderer.GetNormalizedElementBoundingBox(element, operatingFrame, false);
                     
                     (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(
                         element,
