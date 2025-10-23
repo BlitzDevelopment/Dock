@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Avalonia.Media;
 using SkiaSharp;
 
@@ -8,6 +9,8 @@ public partial class DrawingCanvas
 {
     public override void Render(DrawingContext context)
     {
+        var stopwatch = Stopwatch.StartNew();
+        
         if (_compositedPicture == null)
         {
             CompositeLayersToRenderTarget();
@@ -20,6 +23,10 @@ public partial class DrawingCanvas
         {
             context.Custom(new CustomDrawOp(new Rect(0, 0, Width, Height), adorningPicture));
         }
+        
+        stopwatch.Stop();
+        var elapsedMs = (double)stopwatch.ElapsedTicks / Stopwatch.Frequency * 1000;
+        Console.WriteLine($"DrawingCanvas.Render took: {elapsedMs:F3} ms");
     }
 
     public void CompositeLayersToRenderTarget()

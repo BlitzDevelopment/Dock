@@ -164,13 +164,14 @@ public partial class DocumentView : UserControl
 
                     // Render the element
                     CsXFL.Rectangle bbox = renderer.GetNormalizedElementBoundingBox(element, operatingFrame, false);
-                    
+
                     (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(
                         element,
                         elementIdentifier,
                         (operatingFrame - layer.GetFrame(operatingFrame).StartFrame),
                         CsXFL.Color.DefaultColor(),
-                        false
+                        insideMask: false,
+                        returnIdentityTransformation: true
                     );
 
                     // Create the root SVG element
@@ -207,7 +208,7 @@ public partial class DocumentView : UserControl
 
                     // Create a BlitzElement and add it to the layer
                     var blitzElement = ElementConverter.ConvertToBlitzElement(element);
-                    blitzElement.LoadSvg(renderedSvgDoc, _workingCsXFLDoc.Width, _workingCsXFLDoc.Height, bbox);
+                    blitzElement.LoadSvg(renderedSvgDoc, bbox);
                     blitzLayer.Elements.Add(blitzElement);
                 }
                 catch (Exception ex)

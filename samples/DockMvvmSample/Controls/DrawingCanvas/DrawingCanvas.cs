@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Avalonia.Controls;
 
+// This is my God object. There are many like it, but this one is mine.
 public partial class DrawingCanvas : UserControl
 {
     private IDrawingCanvasTool _currentTool;

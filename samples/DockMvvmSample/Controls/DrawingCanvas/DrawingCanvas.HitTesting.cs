@@ -17,7 +17,7 @@ public partial class DrawingCanvas
 
             foreach (var element in layer.Elements)
             {
-                if (element.Picture == null || element.Matrix == null)
+                if (element.Matrix == null)
                     continue;
 
                 var matrix = element.Matrix;

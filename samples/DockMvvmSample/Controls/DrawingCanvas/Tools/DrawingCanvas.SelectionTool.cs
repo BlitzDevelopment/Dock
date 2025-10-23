@@ -51,11 +51,11 @@ public class SelectionTool : IDrawingCanvasTool
             var deltaX = currentPosition.X - canvas.DragStartPosition.X;
             var deltaY = currentPosition.Y - canvas.DragStartPosition.Y;
 
-            ApplySkiaTranslation(canvas.SelectedElement, deltaX, deltaY);
-
             // Update the model's matrix translation
             canvas.SelectedElement.Matrix.Tx += deltaX;
             canvas.SelectedElement.Matrix.Ty += deltaY;
+            canvas.SelectedElement.UpdateTransform();
+            canvas.SelectedElement.SyncToModel();
 
             canvas.DragStartPosition = currentPosition;
 
@@ -76,25 +76,10 @@ public class SelectionTool : IDrawingCanvasTool
 
             if (canvas.SelectedElement != null && canvas.SelectedElement.Model != null)
             {
-                // Update the model's matrix translation
-                canvas.SelectedElement.Model.Matrix.Tx = canvas.SelectedElement.Matrix.Tx;
-                canvas.SelectedElement.Model.Matrix.Ty = canvas.SelectedElement.Matrix.Ty;
+                canvas.SelectedElement.SyncToModel();
             }
 
             e.Handled = true;
         }
-    }
-
-    private void ApplySkiaTranslation(BlitzElement element, double deltaX, double deltaY)
-    {
-        if (element.Picture == null)
-            return;
-
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(element.Picture.CullRect);
-        canvas.Translate((float)deltaX, (float)deltaY);
-        canvas.DrawPicture(element.Picture);
-        
-        element.Picture = recorder.EndRecording();
     }
 }

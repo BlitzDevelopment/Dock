@@ -89,45 +89,14 @@ public class TransformationTool : IDrawingCanvasTool
     /// <param name="verticalScale">The scaling factor for the vertical axis.</param>
     private void ApplyScaling(BlitzElement element, SKPoint transformationPoint, float horizontalScale, float verticalScale)
     {
-        if (element.Picture == null || element.Matrix == null || !TryInvertMatrix(element.Matrix, out var inverseMatrix))
+        if (element.Matrix == null || !TryInvertMatrix(element.Matrix, out var inverseMatrix))
             return;
 
         var localPivot = TransformSKPoint(transformationPoint, inverseMatrix);
         var localScaleMatrix = SKMatrix.CreateScale(horizontalScale, verticalScale, localPivot.X, localPivot.Y);
 
         element.Matrix = ClampMatrix(PreConcatMatrix(element.Matrix, localScaleMatrix));
-
-        // Helper method to create SKMatrix from CsXFL.Matrix
-        SKMatrix CreateSKMatrix(CsXFL.Matrix m) => new()
-        {
-            ScaleX = (float)m.A,
-            SkewY = (float)m.B,
-            SkewX = (float)m.C,
-            ScaleY = (float)m.D,
-            TransX = (float)m.Tx,
-            TransY = (float)m.Ty,
-            Persp0 = 0,
-            Persp1 = 0,
-            Persp2 = 1
-        };
-
-        // Reset picture with inverse matrix
-        using (var recorder = new SKPictureRecorder())
-        {
-            var canvas = recorder.BeginRecording(element.Picture.CullRect);
-            canvas.SetMatrix(CreateSKMatrix(inverseMatrix));
-            canvas.DrawPicture(element.Picture);
-            element.Picture = recorder.EndRecording();
-        }
-
-        // Apply scaled matrix to picture  
-        using (var scaledRecorder = new SKPictureRecorder())
-        {
-            var scaledCanvas = scaledRecorder.BeginRecording(element.Picture.CullRect);
-            scaledCanvas.SetMatrix(CreateSKMatrix(element.Matrix));
-            scaledCanvas.DrawPicture(element.Picture);
-            element.Picture = scaledRecorder.EndRecording();
-        }
+        element.UpdateTransform();
     }
 
     /// <summary>
@@ -348,30 +317,7 @@ public class TransformationTool : IDrawingCanvasTool
             Tx = rotatedTx,
             Ty = rotatedTy
         };
-
-        // Get the transformation matrix for the rotation
-        var skMatrix = GetRotationMatrix(transformationPoint, angle);
-
-        // Update the element's Picture using the SkiaSharp transformation
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(element.Picture.CullRect);
-        canvas.SetMatrix(skMatrix);
-        canvas.DrawPicture(element.Picture);
-        element.Picture = recorder.EndRecording();
-    }
-
-    // Create a rotation matrix around a specific point
-    private SKMatrix GetRotationMatrix(SKPoint transformationPoint, float angle)
-    {
-        var translateToPoint = SKMatrix.CreateTranslation(transformationPoint.X, transformationPoint.Y);
-        var rotationMatrix = SKMatrix.CreateRotationDegrees(angle);
-        var translateBack = SKMatrix.CreateTranslation(-transformationPoint.X, -transformationPoint.Y);
-
-        SKMatrix result = translateToPoint;
-        SKMatrix.Concat(ref result, result, rotationMatrix);
-        SKMatrix.Concat(ref result, result, translateBack);
-
-        return result;
+        element.UpdateTransform();
     }
     #endregion
 
@@ -463,45 +409,7 @@ public class TransformationTool : IDrawingCanvasTool
 
         // Apply shearing to the element's matrix using local coordinates
         element.Matrix = PreConcatMatrix(element.Matrix, shearMatrix);
-
-        // Apply the inverse matrix to reset the SKPicture to its original state
-        using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(element.Picture.CullRect);
-        var resetMatrix = new SKMatrix
-        {
-            ScaleX = (float)inverseMatrix.A,
-            SkewY = (float)inverseMatrix.B,
-            SkewX = (float)inverseMatrix.C,
-            ScaleY = (float)inverseMatrix.D,
-            TransX = (float)inverseMatrix.Tx,
-            TransY = (float)inverseMatrix.Ty,
-            Persp0 = 0,
-            Persp1 = 0,
-            Persp2 = 1
-        };
-        canvas.SetMatrix(resetMatrix);
-        canvas.DrawPicture(element.Picture);
-        element.Picture = recorder.EndRecording();
-
-        // Record the sheared picture according to the sheared element matrix
-        using var shearedRecorder = new SKPictureRecorder();
-        var shearedCanvas = shearedRecorder.BeginRecording(element.Picture.CullRect);
-
-        var shearedMatrix = new SKMatrix
-        {
-            ScaleX = (float)element.Matrix.A,
-            SkewY = (float)element.Matrix.B,
-            SkewX = (float)element.Matrix.C,
-            ScaleY = (float)element.Matrix.D,
-            TransX = (float)element.Matrix.Tx,
-            TransY = (float)element.Matrix.Ty,
-            Persp0 = 0,
-            Persp1 = 0,
-            Persp2 = 1
-        };
-        shearedCanvas.SetMatrix(shearedMatrix);
-        shearedCanvas.DrawPicture(element.Picture);
-        element.Picture = shearedRecorder.EndRecording();
+        element.UpdateTransform();
     }
 
     private ShearAxis DetermineShearAxis(SKPoint mousePosition, List<SKRect> edges)
@@ -752,7 +660,7 @@ public class TransformationTool : IDrawingCanvasTool
     {
         if (sender is not DrawingCanvas canvas)
             return;
-
+    
         // NEW: Handle selection state passthrough
         if (_currentState == TransformationState.Selection && _selectionTool != null)
         {
@@ -766,7 +674,7 @@ public class TransformationTool : IDrawingCanvasTool
         if (canvas.SelectedElement != null && canvas.SelectedElement.Model != null)
         {
             // Update the model's matrix translation
-            canvas.SelectedElement.Model.Matrix = canvas.SelectedElement.Matrix;
+            canvas.SelectedElement.SyncToModel();
         }
     }
 

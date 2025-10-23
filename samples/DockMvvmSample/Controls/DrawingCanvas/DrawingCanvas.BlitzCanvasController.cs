@@ -45,7 +45,12 @@ public class BlitzCanvasController
                 continue;
 
             using var recorder = new SKPictureRecorder();
-            var canvas = recorder.BeginRecording(new SKRect(0, 0, float.MaxValue, float.MaxValue));
+            // Hardcoded Andy
+            var maxZoom = 40f;
+            var baseWidth = 1920f;
+            var baseHeight = 1080f;
+            var recordingBounds = new SKRect(0, 0, baseWidth * maxZoom, baseHeight * maxZoom);
+            var canvas = recorder.BeginRecording(recordingBounds);
 
             // Create paint for the debug red box
             using var debugPaint = new SKPaint

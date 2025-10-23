@@ -10,6 +10,7 @@ public class BlitzElement
 {
     public SKImage Image { get; set; }
     public SKSurface Surface { get; set; }
+    private SKPicture _identityPicture;
     public SKPicture Picture { get; set; }
 
     public CsXFL.Element Model { get; set; }
@@ -26,7 +27,7 @@ public class BlitzElement
 
     public CsXFL.Rectangle BBox { get; private set; }
 
-    public void LoadSvg(XDocument svgDocument, int width, int height, CsXFL.Rectangle bbox)
+    public void LoadSvg(XDocument svgDocument, CsXFL.Rectangle bbox)
     {
         var svg = new SKSvg();
         using (var stream = new MemoryStream())
@@ -36,7 +37,13 @@ public class BlitzElement
             svg.Load(stream);
         }
 
-        Picture = svg.Picture;
+        _identityPicture = svg.Picture;
+        BBox = bbox;
+        UpdateTransform();
+
+        // Calculate width and height from bounding box
+        int width = (int)Math.Ceiling(bbox.Right - bbox.Left);
+        int height = (int)Math.Ceiling(bbox.Bottom - bbox.Top);
 
         var info = new SKImageInfo(width, height);
         Surface = SKSurface.Create(info);
@@ -47,9 +54,100 @@ public class BlitzElement
         canvas.Flush();
 
         Image = Surface.Snapshot();
-
-        BBox = bbox;
     }
+
+    public void UpdateTransform()
+    {
+        if (_identityPicture == null || Matrix == null)
+            return;
+        
+        var transformedCullRect = CalculateTransformedCullRect();
+
+        // Create new picture
+        using var recorder = new SKPictureRecorder();
+        var recordingCanvas = recorder.BeginRecording(transformedCullRect);
+        
+        // Apply transformation matrix
+        var skMatrix = ConvertToSKMatrix(Matrix);
+        recordingCanvas.SetMatrix(skMatrix);
+        recordingCanvas.DrawPicture(_identityPicture);
+        Picture?.Dispose();
+        Picture = recorder.EndRecording();
+
+        Console.WriteLine("BBox after UpdateTransform: " + BBox.Left + ", " + BBox.Top + ", " + BBox.Right + ", " + BBox.Bottom);
+    }
+
+    private SKRect CalculateTransformedCullRect()
+    {
+        if (_identityPicture == null)
+            return SKRect.Empty;
+            
+        var originalCull = _identityPicture.CullRect;
+        var skMatrix = ConvertToSKMatrix(Matrix);
+        
+        // Transform all four corners of the original cull rect
+        var corners = new SKPoint[]
+        {
+            new SKPoint(originalCull.Left, originalCull.Top),
+            new SKPoint(originalCull.Right, originalCull.Top),
+            new SKPoint(originalCull.Right, originalCull.Bottom),
+            new SKPoint(originalCull.Left, originalCull.Bottom)
+        };
+        
+        // Apply transformation to each corner
+        var transformedCorners = new SKPoint[corners.Length];
+        skMatrix.MapPoints(transformedCorners, corners);
+        
+        // Find the bounding rectangle of transformed corners
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        
+        foreach (var corner in transformedCorners)
+        {
+            minX = Math.Min(minX, corner.X);
+            minY = Math.Min(minY, corner.Y);
+            maxX = Math.Max(maxX, corner.X);
+            maxY = Math.Max(maxY, corner.Y);
+        }
+        
+        return new SKRect(minX, minY, maxX, maxY);
+    }
+    
+    private SKMatrix ConvertToSKMatrix(CsXFL.Matrix matrix)
+    {
+        // CsXFL Matrix format: A B C D Tx Ty
+        // SKMatrix format: ScaleX, SkewY, SkewX, ScaleY, TransX, TransY, Persp0, Persp1, Persp2
+        return new SKMatrix
+        {
+            ScaleX = (float)matrix.A,
+            SkewY = (float)matrix.B,
+            SkewX = (float)matrix.C,
+            ScaleY = (float)matrix.D,
+            TransX = (float)matrix.Tx,
+            TransY = (float)matrix.Ty,
+            Persp0 = 0,
+            Persp1 = 0,
+            Persp2 = 1
+        };
+    }
+
+    public void SyncToModel()
+    {
+        if (Model == null)
+            return;
+
+        // Can't and shouldn't change ElementType
+        Model.Name = Name;
+        Model.Width = Width;
+        Model.Height = Height;
+        Model.Selected = Selected;
+        Model.Matrix = Matrix;
+        Model.ScaleX = ScaleX;
+        Model.ScaleY = ScaleY;
+        Model.TransformationPoint.X = TransformationPoint.X;
+        Model.TransformationPoint.Y = TransformationPoint.Y;
+    }
+
 }
 
 public static class ElementConverter
