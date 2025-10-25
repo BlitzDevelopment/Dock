@@ -37,21 +37,10 @@ public partial class DrawingCanvas
 
     private SKPicture CreateSelectionAdorner(BlitzElement element)
     {
-        var bbox = element.BBox;
-        var matrix = element.Matrix;
-
-        var topLeft = TransformPoint(matrix, bbox.Left, bbox.Top);
-        var topRight = TransformPoint(matrix, bbox.Right, bbox.Top);
-        var bottomLeft = TransformPoint(matrix, bbox.Left, bbox.Bottom);
-        var bottomRight = TransformPoint(matrix, bbox.Right, bbox.Bottom);
-
-        float minX = Math.Min(Math.Min(topLeft.X, topRight.X), Math.Min(bottomLeft.X, bottomRight.X));
-        float maxX = Math.Max(Math.Max(topLeft.X, topRight.X), Math.Max(bottomLeft.X, bottomRight.X));
-        float minY = Math.Min(Math.Min(topLeft.Y, topRight.Y), Math.Min(bottomLeft.Y, bottomRight.Y));
-        float maxY = Math.Max(Math.Max(topLeft.Y, topRight.Y), Math.Max(bottomLeft.Y, bottomRight.Y));
+        var skRect = TransformBBox(element.BBox, element.Matrix);
 
         using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(new SKRect(minX, minY, maxX, maxY));
+        var canvas = recorder.BeginRecording(skRect);
 
         using var paint = new SKPaint
         {
@@ -61,7 +50,7 @@ public partial class DrawingCanvas
             IsAntialias = true
         };
 
-        canvas.DrawRect(new SKRect(minX, minY, maxX, maxY), paint);
+        canvas.DrawRect(skRect, paint);
 
         return recorder.EndRecording();
     }
@@ -71,15 +60,14 @@ public partial class DrawingCanvas
         var bbox = element.BBox;
         var matrix = element.Matrix;
 
-        // Calculate the width and height of the bounding box
-        var bboxWidth = bbox.Right - bbox.Left;
-        var bboxHeight = bbox.Bottom - bbox.Top;
+        // Get the transformed bounding box
+        var transformedRect = TransformBBox(bbox, matrix);
 
         // Get the transformation handles using the TransformHandleProvider
         var handles = GetTransformHandles(bbox, matrix);
 
         using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(new SKRect(0, 0, (float)Width, (float)Height));
+        var canvas = recorder.BeginRecording(transformedRect);
 
         // Draw the transformed bounding box
         using var paint = new SKPaint
@@ -98,6 +86,8 @@ public partial class DrawingCanvas
         path.Close();
 
         canvas.DrawPath(path, paint);
+
+        DrawZeroPointCrosshair(canvas, element);
 
         // Define the size of the scale-independent boxes
         float boxSize = TransformConfig.TransformAdornerHandleSize / (float)_scale;
@@ -138,8 +128,8 @@ public partial class DrawingCanvas
         var transformationPoint = CalculateFixedTransformationPoint(matrix, element.TransformationPoint);
 
         // Draw the circle at the element's transformation point
-        float circleRadius = TransformConfig.TransformationPointRadius / (float)_scale; // 5px radius
-        float circleStrokeWidth = TransformConfig.TransformAdornerStrokeWidth / (float)_scale; // 2px stroke width
+        float circleRadius = TransformConfig.TransformationPointRadius / (float)_scale;
+        float circleStrokeWidth = TransformConfig.TransformAdornerStrokeWidth / (float)_scale;
 
         using var circleFillPaint = new SKPaint
         {
@@ -162,13 +152,113 @@ public partial class DrawingCanvas
         return recorder.EndRecording();
     }
 
+    private void DrawZeroPointCrosshair(SKCanvas canvas, BlitzElement element)
+    {
+        // Get the zero point in parent coordinates
+        var zeroPoint = GetElementZeroPoint(element);
+        
+        using var debugPaint = new SKPaint
+        {
+            Color = TransformConfig.TransformAdornerInteriorColor,
+            StrokeWidth = 2.0f / (float)_scale, // Scale-independent stroke width
+            Style = SKPaintStyle.Stroke,
+            IsAntialias = true
+        };
+        
+        // Draw crosshairs at zero point
+        float crossSize = 10f / (float)_scale; // Scale-independent size
+        canvas.DrawLine(
+            zeroPoint.X - crossSize, zeroPoint.Y, 
+            zeroPoint.X + crossSize, zeroPoint.Y, 
+            debugPaint);
+        canvas.DrawLine(
+            zeroPoint.X, zeroPoint.Y - crossSize, 
+            zeroPoint.X, zeroPoint.Y + crossSize, 
+            debugPaint);
+        
+        // Draw a small circle with fill and border
+        using var fillPaint = new SKPaint
+        {
+            Color = TransformConfig.TransformAdornerInteriorColor,
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+        
+        using var borderPaint = new SKPaint
+        {
+            Color = TransformConfig.TransformAdornerBorderColor,
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.0f / (float)_scale,
+            IsAntialias = true
+        };
+        
+        canvas.DrawCircle(zeroPoint, 3f / (float)_scale, fillPaint);
+        canvas.DrawCircle(zeroPoint, 3f / (float)_scale, borderPaint);
+    }
+
+    private SKPoint GetElementZeroPoint(BlitzElement element)
+    {
+        // The zero point is always (0, 0) in the element's coordinate system
+        // Transform it through the current matrix to get parent coordinates
+        if (element.Matrix == null)
+            return new SKPoint(0, 0);
+        
+        // Transform the zero point through the current matrix
+        var zeroPoint = new SKPoint(0, 0);
+        var skMatrix = ConvertToSKMatrix(element.Matrix);
+        return skMatrix.MapPoint(zeroPoint);
+    }
+
+    private SKRect TransformBBox(CsXFL.Rectangle bbox, CsXFL.Matrix matrix)
+    {
+        if (matrix == null)
+            return new SKRect((float)bbox.Left, (float)bbox.Top, (float)bbox.Right, (float)bbox.Bottom);
+
+        // Get all four corners of the bounding box
+        var topLeft = new SKPoint((float)bbox.Left, (float)bbox.Top);
+        var topRight = new SKPoint((float)bbox.Right, (float)bbox.Top);
+        var bottomLeft = new SKPoint((float)bbox.Left, (float)bbox.Bottom);
+        var bottomRight = new SKPoint((float)bbox.Right, (float)bbox.Bottom);
+
+        // Transform all corners
+        var skMatrix = ConvertToSKMatrix(matrix);
+        var transformedTopLeft = skMatrix.MapPoint(topLeft);
+        var transformedTopRight = skMatrix.MapPoint(topRight);
+        var transformedBottomLeft = skMatrix.MapPoint(bottomLeft);
+        var transformedBottomRight = skMatrix.MapPoint(bottomRight);
+
+        // Find the axis-aligned bounding box of the transformed corners
+        float minX = Math.Min(Math.Min(transformedTopLeft.X, transformedTopRight.X), 
+                            Math.Min(transformedBottomLeft.X, transformedBottomRight.X));
+        float minY = Math.Min(Math.Min(transformedTopLeft.Y, transformedTopRight.Y), 
+                            Math.Min(transformedBottomLeft.Y, transformedBottomRight.Y));
+        float maxX = Math.Max(Math.Max(transformedTopLeft.X, transformedTopRight.X), 
+                            Math.Max(transformedBottomLeft.X, transformedBottomRight.X));
+        float maxY = Math.Max(Math.Max(transformedTopLeft.Y, transformedTopRight.Y), 
+                            Math.Max(transformedBottomLeft.Y, transformedBottomRight.Y));
+
+        return new SKRect(minX, minY, maxX, maxY);
+    }
+
+    private SKMatrix ConvertToSKMatrix(CsXFL.Matrix matrix)
+    {
+        return new SKMatrix
+        {
+            ScaleX = (float)matrix.A,
+            SkewY = (float)matrix.B,
+            SkewX = (float)matrix.C,
+            ScaleY = (float)matrix.D,
+            TransX = (float)matrix.Tx,
+            TransY = (float)matrix.Ty,
+            Persp0 = 0,
+            Persp1 = 0,
+            Persp2 = 1
+        };
+    }
+
     public SKPoint CalculateFixedTransformationPoint(CsXFL.Matrix matrix, CsXFL.Point originalTransformationPoint)
     {
-        // Apply the matrix transformations to the original transformation point
-        float transformedX = (float)(matrix.A * originalTransformationPoint.X + matrix.C * originalTransformationPoint.Y + matrix.Tx);
-        float transformedY = (float)(matrix.B * originalTransformationPoint.X + matrix.D * originalTransformationPoint.Y + matrix.Ty);
-
-        return new SKPoint(transformedX, transformedY);
+        return TransformPoint(matrix, originalTransformationPoint.X, originalTransformationPoint.Y);
     }
 
     private SKPoint TransformPoint(CsXFL.Matrix matrix, double x, double y)

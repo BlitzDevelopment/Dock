@@ -3,6 +3,7 @@ using System.IO;
 using System.Xml.Linq;
 using SkiaSharp;
 using Svg.Skia;
+using DockMvvmSample.Services;
 
 namespace Avalonia.Controls;
 
@@ -15,19 +16,19 @@ public class BlitzElement
 
     public CsXFL.Element Model { get; set; }
 
+    public CsXFL.Matrix Matrix { get; set; }
+
     public string ElementType { get; set; }
     public string Name { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
     public bool Selected { get; set; }
-    public CsXFL.Matrix Matrix { get; set; }
     public double ScaleX { get; set; }
     public double ScaleY { get; set; }
     public CsXFL.Point TransformationPoint { get; set; }
-
     public CsXFL.Rectangle BBox { get; private set; }
-
-    public void LoadSvg(XDocument svgDocument, CsXFL.Rectangle bbox)
+    
+    public void LoadSvg(XDocument svgDocument)
     {
         var svg = new SKSvg();
         using (var stream = new MemoryStream())
@@ -38,12 +39,14 @@ public class BlitzElement
         }
 
         _identityPicture = svg.Picture;
-        BBox = bbox;
+
+        // Get initial BBox from service
+        UpdateBBoxFromService();
         UpdateTransform();
 
         // Calculate width and height from bounding box
-        int width = (int)Math.Ceiling(bbox.Right - bbox.Left);
-        int height = (int)Math.Ceiling(bbox.Bottom - bbox.Top);
+        int width = (int)Math.Ceiling(BBox.Right - BBox.Left);
+        int height = (int)Math.Ceiling(BBox.Bottom - BBox.Top);
 
         var info = new SKImageInfo(width, height);
         Surface = SKSurface.Create(info);
@@ -56,25 +59,59 @@ public class BlitzElement
         Image = Surface.Snapshot();
     }
 
+    private void UpdateBBoxFromService()
+    {
+        if (Model != null)
+        {
+            try
+            {
+                // Get the dynamic BBox from the rendering service
+                // Use transformBBoxByMatrix: false to get the identity BBox, then we'll transform it ourselves
+                BBox = RenderingService.Instance.GetElementBBox(Model, frameIndex: 0, transformBBoxByMatrix: false);
+            }
+            catch (Exception ex)
+            {
+                // Fallback to a default bbox if service is not available
+                Console.WriteLine($"Failed to get BBox from RenderingService: {ex.Message}");
+                BBox = new CsXFL.Rectangle(0, 0, 100, 100); // Default fallback
+            }
+        }
+    }
+
     public void UpdateTransform()
     {
         if (_identityPicture == null || Matrix == null)
             return;
-        
-        var transformedCullRect = CalculateTransformedCullRect();
+
+        // Get the transformed BBox from the rendering service
+        CsXFL.Rectangle transformedBBox;
+        try
+        {
+            // Use transformBBoxByMatrix: true to get the already transformed bbox
+            transformedBBox = RenderingService.Instance.GetElementBBox(Model, frameIndex: 0, transformBBoxByMatrix: true);
+        }
+        catch (Exception ex)
+        {
+            // Fallback to calculating it ourselves if service fails
+            Console.WriteLine($"Failed to get transformed BBox from RenderingService: {ex.Message}");
+            var calculatedRect = CalculateTransformedCullRect();
+            transformedBBox = new CsXFL.Rectangle(calculatedRect.Left, calculatedRect.Top, 
+                                                calculatedRect.Right, calculatedRect.Bottom);
+        }
+
+        var transformedCullRect = new SKRect((float)transformedBBox.Left, (float)transformedBBox.Top, 
+                                            (float)transformedBBox.Right, (float)transformedBBox.Bottom);
 
         // Create new picture
         using var recorder = new SKPictureRecorder();
         var recordingCanvas = recorder.BeginRecording(transformedCullRect);
-        
+
         // Apply transformation matrix
         var skMatrix = ConvertToSKMatrix(Matrix);
         recordingCanvas.SetMatrix(skMatrix);
         recordingCanvas.DrawPicture(_identityPicture);
         Picture?.Dispose();
         Picture = recorder.EndRecording();
-
-        Console.WriteLine("BBox after UpdateTransform: " + BBox.Left + ", " + BBox.Top + ", " + BBox.Right + ", " + BBox.Bottom);
     }
 
     private SKRect CalculateTransformedCullRect()

@@ -17,6 +17,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using System.Linq;
+using DockMvvmSample.Services;
 
 namespace Blitz.Views.Documents;
 
@@ -46,6 +47,7 @@ public partial class DocumentView : UserControl
         _drawingCanvas = this.Find<DrawingCanvas>("DrawingCanvas");
         _zoomBorder = this.Find<ZoomBorder>("ZoomBorder");
         _zoomBorder.Background = new SolidColorBrush(Colors.Transparent);
+
         if (_zoomBorder != null)
         {
             _zoomBorder.ZoomChanged += ZoomBorder_ZoomChanged;
@@ -53,6 +55,7 @@ public partial class DocumentView : UserControl
 
         // ProgressRing control and flyout modal
         SetProgressRingState(true);
+
         Task.Run(async () =>
             {
                 await Task.Delay(5000);
@@ -97,6 +100,8 @@ public partial class DocumentView : UserControl
     private void OnActiveDocumentChanged(ActiveDocumentChangedEvent e)
     {
         _workingCsXFLDoc = An.GetDocument(e.Document.DocumentIndex);
+        RenderingService.Instance.Initialize(_workingCsXFLDoc);
+
         _documentViewModel = e.Document;
         PopulateSceneSelector();
 
@@ -158,57 +163,11 @@ public partial class DocumentView : UserControl
             {
                 try
                 {
-                    string appDataFolder = App.BlitzAppData.GetTmpFolder();
-                    string elementIdentifier = _workingCsXFLDoc.Timelines[0].Name + "_" + layer.Name + "_" + element.Name;
-                    SVGRenderer renderer = new SVGRenderer(_workingCsXFLDoc!, appDataFolder, true);
-
-                    // Render the element
-                    CsXFL.Rectangle bbox = renderer.GetNormalizedElementBoundingBox(element, operatingFrame, false);
-
-                    (Dictionary<string, XElement> d, List<XElement> b) = renderer.RenderElement(
-                        element,
-                        elementIdentifier,
-                        (operatingFrame - layer.GetFrame(operatingFrame).StartFrame),
-                        CsXFL.Color.DefaultColor(),
-                        insideMask: false,
-                        returnIdentityTransformation: true
-                    );
-
-                    // Create the root SVG element
-                    XNamespace svgNamespace = "http://www.w3.org/2000/svg";
-                    var svgRoot = new XElement(svgNamespace + "svg",
-                        new XAttribute("xmlns", svgNamespace.NamespaceName),
-                        new XAttribute("version", "1.1"),
-                        new XAttribute("width", "100%"),
-                        new XAttribute("height", "100%")
-                    );
-
-                    // Add the defs (d) to the SVG
-                    if (d != null)
-                    {
-                        var defsElement = new XElement(svgNamespace + "defs");
-                        foreach (var def in d.Values)
-                        {
-                            defsElement.Add(def);
-                        }
-                        svgRoot.Add(defsElement);
-                    }
-
-                    // Add the body (b) to the SVG
-                    if (b != null)
-                    {
-                        foreach (var bodyElement in b)
-                        {
-                            svgRoot.Add(bodyElement);
-                        }
-                    }
-
-                    // Create the XDocument
-                    XDocument renderedSvgDoc = new XDocument(svgRoot);
-
+                    var renderedElement = RenderingService.Instance.RenderElementAsSvg(element);
+                    
                     // Create a BlitzElement and add it to the layer
                     var blitzElement = ElementConverter.ConvertToBlitzElement(element);
-                    blitzElement.LoadSvg(renderedSvgDoc, bbox);
+                    blitzElement.LoadSvg(renderedElement);
                     blitzLayer.Elements.Add(blitzElement);
                 }
                 catch (Exception ex)
