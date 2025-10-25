@@ -68,7 +68,7 @@ public class TransformationTool : IDrawingCanvasTool
 
     // Enums
     private enum TransformationState { None, DoubleScaling, SingleScaling, Rotating, Shearing, MovingTransformSKPoint, Selection }
-    private enum ShearAxis { Horizontal, Vertical }
+    private enum ShearAxis { Left, Top, Bottom, Right }
 
     // Handle collections
     private static readonly DrawingCanvas.TransformHandleType[] cornerHandles =
@@ -346,16 +346,17 @@ public class TransformationTool : IDrawingCanvasTool
         float currentOffsetX = currentPoint.X - _transformOrigin.X;
         float currentOffsetY = currentPoint.Y - _transformOrigin.Y;
 
-        // Calculate shear based on axis and movement difference from initial position
+        // Calculate shear based on the specific edge being sheared
         switch (_shearAxis)
         {
-            case ShearAxis.Horizontal:
-                // Horizontal shear: X displacement relative to Y distance from transform origin
+            case ShearAxis.Top:
+            case ShearAxis.Bottom:
+                // Shearing along the X-axis (horizontal shearing)
                 if (Math.Abs(_initialShearOffsetY) > float.Epsilon)
                 {
                     float deltaX = currentOffsetX - _initialShearOffsetX;
-                    // Invert shear for top edge (negative Y offset)
-                    float shearMultiplier = _initialShearOffsetY < 0 ? -1.0f : 1.0f;
+                    // Invert shear for the top edge (negative Y offset)
+                    float shearMultiplier = (_shearAxis == ShearAxis.Top) ? -1.0f : 1.0f;
                     shearX = (deltaX / Math.Abs(_initialShearOffsetY)) * shearMultiplier;
 
                     // Update the initial offset to prevent accumulation
@@ -363,13 +364,14 @@ public class TransformationTool : IDrawingCanvasTool
                 }
                 break;
 
-            case ShearAxis.Vertical:
-                // Vertical shear: Y displacement relative to X distance from transform origin
+            case ShearAxis.Left:
+            case ShearAxis.Right:
+                // Shearing along the Y-axis (vertical shearing)
                 if (Math.Abs(_initialShearOffsetX) > float.Epsilon)
                 {
                     float deltaY = currentOffsetY - _initialShearOffsetY;
-                    // Invert shear for left edge (negative X offset)
-                    float shearMultiplier = _initialShearOffsetX < 0 ? -1.0f : 1.0f;
+                    // Invert shear for the left edge (negative X offset)
+                    float shearMultiplier = (_shearAxis == ShearAxis.Left) ? -1.0f : 1.0f;
                     shearY = (deltaY / Math.Abs(_initialShearOffsetX)) * shearMultiplier;
 
                     // Update the initial offset to prevent accumulation
@@ -412,26 +414,114 @@ public class TransformationTool : IDrawingCanvasTool
         element.UpdateTransform();
     }
 
-    private ShearAxis DetermineShearAxis(SKPoint mousePosition, List<SKRect> edges)
+    /// <summary>
+    /// Checks if a point is within the specified margin distance from any edge of the transformed bounding box.
+    /// </summary>
+    /// <param name="mousePosition">The mouse position to test.</param>
+    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
+    /// <param name="matrix">The transformation matrix.</param>
+    /// <param name="margin">The margin distance from the edge.</param>
+    /// <returns>True if the mouse is within margin distance of any edge; otherwise, false.</returns>
+    private bool IsWithinAnyEdge(SKPoint mousePosition, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix, double margin)
     {
-        // Determine which edge was clicked to set shear axis
-        // Top/Bottom edges = Horizontal shear, Left/Right edges = Vertical shear
-        for (int i = 0; i < edges.Count; i++)
-        {
-            if (IsWithinEdge(mousePosition, edges[i], Config.TransformEdgeMargin))
-            {
-                switch (i)
-                {
-                    case 0: // Top edge
-                    case 1: // Bottom edge
-                        return ShearAxis.Horizontal;
-                    case 2: // Left edge  
-                    case 3: // Right edge
-                        return ShearAxis.Vertical;
-                }
-            }
-        }
-        return ShearAxis.Horizontal; // Default
+        // Transform the corners of the bounding box using the matrix
+        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
+        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
+        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
+        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
+
+        // Check distance to each edge using point-to-line-segment distance
+        return IsPointNearLineSegment(mousePosition, topLeft, topRight, margin) ||      // Top edge
+            IsPointNearLineSegment(mousePosition, bottomLeft, bottomRight, margin) || // Bottom edge  
+            IsPointNearLineSegment(mousePosition, topLeft, bottomLeft, margin) ||     // Left edge
+            IsPointNearLineSegment(mousePosition, topRight, bottomRight, margin);     // Right edge
+    }
+
+    /// <summary>
+    /// Calculates the shortest distance from a point to a line segment and checks if it's within the specified margin.
+    /// </summary>
+    /// <param name="point">The point to test.</param>
+    /// <param name="lineStart">The starting point of the line segment.</param>
+    /// <param name="lineEnd">The ending point of the line segment.</param>
+    /// <param name="margin">The maximum distance for the point to be considered "near" the line.</param>
+    /// <returns>True if the point is within margin distance of the line segment; otherwise, false.</returns>
+    private bool IsPointNearLineSegment(SKPoint point, SKPoint lineStart, SKPoint lineEnd, double margin)
+    {
+        // Calculate the distance from point to the line segment
+        double A = point.X - lineStart.X;
+        double B = point.Y - lineStart.Y;
+        double C = lineEnd.X - lineStart.X;
+        double D = lineEnd.Y - lineStart.Y;
+
+        double dot = A * C + B * D;
+        double lenSq = C * C + D * D;
+
+        if (lenSq < double.Epsilon) // Line segment is actually a point
+            return Math.Sqrt(A * A + B * B) <= margin;
+
+        double param = Math.Max(0, Math.Min(1, dot / lenSq)); // Clamp to [0,1] to stay on segment
+
+        double xx = lineStart.X + param * C;
+        double yy = lineStart.Y + param * D;
+
+        double dx = point.X - xx;
+        double dy = point.Y - yy;
+        return Math.Sqrt(dx * dx + dy * dy) <= margin;
+    }
+
+    /// <summary>
+    /// Determines which specific edge (Left, Top, Bottom, Right) the mouse position is closest to for shearing operations.
+    /// </summary>
+    /// <param name="mousePosition">The current mouse position.</param>
+    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
+    /// <param name="matrix">The transformation matrix.</param>
+    /// <returns>The specific edge corresponding to the closest edge.</returns>
+    private ShearAxis DetermineShearAxisFromPosition(SKPoint mousePosition, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
+    {
+        // Transform the corners of the bounding box using the matrix
+        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
+        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
+        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
+        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
+
+        // Calculate distances to each edge
+        double topDistance = DistanceToLineSegment(mousePosition, topLeft, topRight);
+        double bottomDistance = DistanceToLineSegment(mousePosition, bottomLeft, bottomRight);
+        double leftDistance = DistanceToLineSegment(mousePosition, topLeft, bottomLeft);
+        double rightDistance = DistanceToLineSegment(mousePosition, topRight, bottomRight);
+
+        // Find the closest edge
+        double minDistance = Math.Min(Math.Min(topDistance, bottomDistance), Math.Min(leftDistance, rightDistance));
+
+        // Return the specific edge based on the closest distance
+        if (minDistance == topDistance) return ShearAxis.Top;
+        if (minDistance == bottomDistance) return ShearAxis.Bottom;
+        if (minDistance == leftDistance) return ShearAxis.Left;
+        return ShearAxis.Right;
+    }
+
+    /// <summary>
+    /// Calculates the shortest distance from a point to a line segment.
+    /// </summary>
+    private double DistanceToLineSegment(SKPoint point, SKPoint lineStart, SKPoint lineEnd)
+    {
+        double A = point.X - lineStart.X;
+        double B = point.Y - lineStart.Y;
+        double C = lineEnd.X - lineStart.X;
+        double D = lineEnd.Y - lineStart.Y;
+
+        double dot = A * C + B * D;
+        double lenSq = C * C + D * D;
+
+        if (lenSq < double.Epsilon)
+            return Math.Sqrt(A * A + B * B);
+
+        double param = Math.Max(0, Math.Min(1, dot / lenSq));
+        double xx = lineStart.X + param * C;
+        double yy = lineStart.Y + param * D;
+        double dx = point.X - xx;
+        double dy = point.Y - yy;
+        return Math.Sqrt(dx * dx + dy * dy);
     }
     #endregion
 
@@ -515,13 +605,12 @@ public class TransformationTool : IDrawingCanvasTool
             }
 
             // Handle edge regions for shearing
-            var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
-            foreach (var edge in edges.Where(edge => IsWithinEdge(skMousePosition, edge, (Config.TransformEdgeMargin / canvas.Scale))))
+            if (IsWithinAnyEdge(skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix, Config.TransformEdgeMargin / canvas.Scale))
             {
-                var shearAxis = DetermineShearAxis(skMousePosition, edges.ToList());
+                var shearAxis = DetermineShearAxisFromPosition(skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
 
                 // Check if transformation point invalidates shearing operation for the specific edge
-                if (IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
+                if (IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix, Config.TransformEdgeMargin / canvas.Scale))
                 {
                     Console.WriteLine($"Shearing blocked: Transformation point is on the target edge");
                     e.Handled = true;
@@ -646,6 +735,8 @@ public class TransformationTool : IDrawingCanvasTool
                 return;
         }
 
+        canvas.SelectedElement.SyncToModel();
+
         // Common updates for transformation states (except MovingTransformSKPoint)
         if (canvas.SelectedElement != null)
         {
@@ -728,17 +819,13 @@ public class TransformationTool : IDrawingCanvasTool
         }
 
         // Handle edge regions for shearing - only if valid
-        var edges = GetEdgeRegions(canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix);
-        foreach (var edge in edges)
+        if (IsWithinAnyEdge(skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix, Config.TransformEdgeMargin / canvas.Scale))
         {
-            if (IsWithinEdge(skMousePosition, edge, (Config.TransformEdgeMargin / canvas.Scale)))
+            // Only show shear cursor if shearing is valid for this specific edge
+            if (!IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix, Config.TransformEdgeMargin / canvas.Scale))
             {
-                // Only show shear cursor if shearing is not invalid for this specific edge
-                if (!IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
-                {
-                    canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Skew);
-                    return true;
-                }
+                canvas.Cursor = CustomCursorFactory.CreateCursor(CursorType.Skew);
+                return true;
             }
         }
 
@@ -776,62 +863,6 @@ public class TransformationTool : IDrawingCanvasTool
         }
 
         return closestHandle;
-    }
-
-    /// <summary>
-    /// Generates edge regions as rectangles around the transformed bounding box edges for hit testing during shearing operations.
-    /// </summary>
-    /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
-    /// <param name="matrix">The transformation matrix used to convert bounding box points to world coordinates.</param>
-    /// <returns>An enumerable collection of SKRect objects representing the top, bottom, left, and right edge regions with appropriate thickness for interaction.</returns>
-    public IEnumerable<SKRect> GetEdgeRegions(CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
-    {
-        // Transform the corners of the bounding box using the matrix
-        var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
-        var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
-        var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
-        var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
-
-        // Calculate edge thickness that scales with zoom level
-        float edgeThickness = (float)(Config.TransformEdgeMargin * 2); // Make edges thicker for easier hitting
-
-        // Define edge regions as rectangles with proper thickness along the edges
-        var edgeRegions = new List<SKRect>
-        {
-            // Top edge - horizontal rectangle
-            new SKRect(
-                Math.Min(topLeft.X, topRight.X),
-                Math.Min(topLeft.Y, topRight.Y) - edgeThickness/2,
-                Math.Max(topLeft.X, topRight.X),
-                Math.Max(topLeft.Y, topRight.Y) + edgeThickness/2
-            ),
-            
-            // Bottom edge - horizontal rectangle  
-            new SKRect(
-                Math.Min(bottomLeft.X, bottomRight.X),
-                Math.Min(bottomLeft.Y, bottomRight.Y) - edgeThickness/2,
-                Math.Max(bottomLeft.X, bottomRight.X),
-                Math.Max(bottomLeft.Y, bottomRight.Y) + edgeThickness/2
-            ),
-            
-            // Left edge - vertical rectangle
-            new SKRect(
-                Math.Min(topLeft.X, bottomLeft.X) - edgeThickness/2,
-                Math.Min(topLeft.Y, bottomLeft.Y),
-                Math.Max(topLeft.X, bottomLeft.X) + edgeThickness/2,
-                Math.Max(topLeft.Y, bottomLeft.Y)
-            ),
-            
-            // Right edge - vertical rectangle
-            new SKRect(
-                Math.Min(topRight.X, bottomRight.X) - edgeThickness/2,
-                Math.Min(topRight.Y, bottomRight.Y),
-                Math.Max(topRight.X, bottomRight.X) + edgeThickness/2,
-                Math.Max(topRight.Y, bottomRight.Y)
-            )
-        };
-
-        return edgeRegions;
     }
 
     // Invert a CsXFL.Matrix
@@ -1079,47 +1110,36 @@ public class TransformationTool : IDrawingCanvasTool
     }
 
     /// <summary>
-    /// Determines if a shearing operation is invalid based on the transformation point's position relative to the specific edge being sheared.
-    /// Shearing is invalid when the transformation point lies on the specific edge that would be used for shearing.
+    /// Checks if shearing is invalid based on the transformation point's position relative to the specific edge being sheared.
     /// </summary>
-    /// <param name="transformationPoint">The transformation point to test in world coordinates.</param>
-    /// <param name="mousePosition">The mouse position to determine which specific edge is being targeted.</param>
+    /// <param name="transformationPoint">The fixed transformation point in world coordinates.</param>
+    /// <param name="mousePosition">The current mouse position in world coordinates.</param>
     /// <param name="boundingBox">The element's bounding box in local coordinates.</param>
-    /// <param name="matrix">The transformation matrix used to convert bounding box points to world coordinates.</param>
-    /// <returns>True if the transformation point lies on the specific edge being targeted for shearing; otherwise, false.</returns>
-    private bool IsShearingInvalid(SKPoint transformationPoint, SKPoint mousePosition, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix)
+    /// <param name="matrix">The transformation matrix.</param>
+    /// <param name="margin">The margin distance from the edge to consider shearing invalid.</param>
+    /// <returns>True if shearing is invalid for the specific edge; otherwise, false.</returns>
+    private bool IsShearingInvalid(SKPoint transformationPoint, SKPoint mousePosition, CsXFL.Rectangle boundingBox, CsXFL.Matrix matrix, double margin)
     {
-        // Transform bounding box corners to world coordinates
+        // Transform the corners of the bounding box using the matrix
         var topLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Top), matrix);
         var topRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Top), matrix);
         var bottomLeft = TransformSKPoint(new SKPoint((float)boundingBox.Left, (float)boundingBox.Bottom), matrix);
         var bottomRight = TransformSKPoint(new SKPoint((float)boundingBox.Right, (float)boundingBox.Bottom), matrix);
 
-        double margin = Config.TransformEdgeMargin;
+        // Determine the specific edge being sheared based on the mouse position
+        var shearAxis = DetermineShearAxisFromPosition(mousePosition, boundingBox, matrix);
 
-        // Get the edge regions and determine which specific edge is being targeted
-        var edges = GetEdgeRegions(boundingBox, matrix).ToList();
+        Console.WriteLine($"Shear Axis: {shearAxis}");
 
-        for (int i = 0; i < edges.Count; i++)
+        // Check if the transformation point is near the relevant edge(s) based on the shear axis
+        return shearAxis switch
         {
-            if (IsWithinEdge(mousePosition, edges[i], margin))
-            {
-                // Check if transformation point is on the specific edge being targeted
-                switch (i)
-                {
-                    case 0: // Top edge
-                        return IsPointOnLineSegment(transformationPoint, topLeft, topRight, margin);
-                    case 1: // Bottom edge
-                        return IsPointOnLineSegment(transformationPoint, bottomLeft, bottomRight, margin);
-                    case 2: // Left edge
-                        return IsPointOnLineSegment(transformationPoint, topLeft, bottomLeft, margin);
-                    case 3: // Right edge
-                        return IsPointOnLineSegment(transformationPoint, topRight, bottomRight, margin);
-                }
-            }
-        }
-
-        return false; // No edge is being targeted
+            ShearAxis.Top => DistanceToLineSegment(transformationPoint, topLeft, topRight) <= margin,
+            ShearAxis.Bottom => DistanceToLineSegment(transformationPoint, bottomLeft, bottomRight) <= margin,
+            ShearAxis.Left => DistanceToLineSegment(transformationPoint, topLeft, bottomLeft) <= margin,
+            ShearAxis.Right => DistanceToLineSegment(transformationPoint, topRight, bottomRight) <= margin,
+            _ => false
+        };
     }
     #endregion
 }

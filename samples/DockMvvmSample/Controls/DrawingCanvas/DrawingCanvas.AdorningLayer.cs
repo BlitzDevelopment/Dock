@@ -37,7 +37,7 @@ public partial class DrawingCanvas
 
     private SKPicture CreateSelectionAdorner(BlitzElement element)
     {
-        var skRect = TransformBBox(element.BBox, element.Matrix);
+        var skRect = element.GetTransformedBBox();
 
         using var recorder = new SKPictureRecorder();
         var canvas = recorder.BeginRecording(skRect);
@@ -61,7 +61,7 @@ public partial class DrawingCanvas
         var matrix = element.Matrix;
 
         // Get the transformed bounding box
-        var transformedRect = TransformBBox(bbox, matrix);
+        var transformedRect = element.GetTransformedBBox();
 
         // Get the transformation handles using the TransformHandleProvider
         var handles = GetTransformHandles(bbox, matrix);
@@ -207,37 +207,6 @@ public partial class DrawingCanvas
         var zeroPoint = new SKPoint(0, 0);
         var skMatrix = ConvertToSKMatrix(element.Matrix);
         return skMatrix.MapPoint(zeroPoint);
-    }
-
-    private SKRect TransformBBox(CsXFL.Rectangle bbox, CsXFL.Matrix matrix)
-    {
-        if (matrix == null)
-            return new SKRect((float)bbox.Left, (float)bbox.Top, (float)bbox.Right, (float)bbox.Bottom);
-
-        // Get all four corners of the bounding box
-        var topLeft = new SKPoint((float)bbox.Left, (float)bbox.Top);
-        var topRight = new SKPoint((float)bbox.Right, (float)bbox.Top);
-        var bottomLeft = new SKPoint((float)bbox.Left, (float)bbox.Bottom);
-        var bottomRight = new SKPoint((float)bbox.Right, (float)bbox.Bottom);
-
-        // Transform all corners
-        var skMatrix = ConvertToSKMatrix(matrix);
-        var transformedTopLeft = skMatrix.MapPoint(topLeft);
-        var transformedTopRight = skMatrix.MapPoint(topRight);
-        var transformedBottomLeft = skMatrix.MapPoint(bottomLeft);
-        var transformedBottomRight = skMatrix.MapPoint(bottomRight);
-
-        // Find the axis-aligned bounding box of the transformed corners
-        float minX = Math.Min(Math.Min(transformedTopLeft.X, transformedTopRight.X), 
-                            Math.Min(transformedBottomLeft.X, transformedBottomRight.X));
-        float minY = Math.Min(Math.Min(transformedTopLeft.Y, transformedTopRight.Y), 
-                            Math.Min(transformedBottomLeft.Y, transformedBottomRight.Y));
-        float maxX = Math.Max(Math.Max(transformedTopLeft.X, transformedTopRight.X), 
-                            Math.Max(transformedBottomLeft.X, transformedBottomRight.X));
-        float maxY = Math.Max(Math.Max(transformedTopLeft.Y, transformedTopRight.Y), 
-                            Math.Max(transformedBottomLeft.Y, transformedBottomRight.Y));
-
-        return new SKRect(minX, minY, maxX, maxY);
     }
 
     private SKMatrix ConvertToSKMatrix(CsXFL.Matrix matrix)
