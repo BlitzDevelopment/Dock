@@ -4,6 +4,8 @@ using System.Xml.Linq;
 using SkiaSharp;
 using Svg.Skia;
 using DockMvvmSample.Services;
+using System.Linq;
+using CsXFL;
 
 namespace Avalonia.Controls;
 
@@ -83,24 +85,11 @@ public class BlitzElement
         if (_identityPicture == null || Matrix == null)
             return;
 
-        // Get the transformed BBox from the rendering service
-        CsXFL.Rectangle transformedBBox;
-        try
-        {
-            // Use transformBBoxByMatrix: true to get the already transformed bbox
-            transformedBBox = RenderingService.Instance.GetElementBBox(Model, frameIndex: 0, transformBBoxByMatrix: true);
-        }
-        catch (Exception ex)
-        {
-            // Fallback to calculating it ourselves if service fails
-            Console.WriteLine($"Failed to get transformed BBox from RenderingService: {ex.Message}");
-            var calculatedRect = CalculateTransformedCullRect();
-            transformedBBox = new CsXFL.Rectangle(calculatedRect.Left, calculatedRect.Top, 
-                                                calculatedRect.Right, calculatedRect.Bottom);
-        }
+        // Get the transformed BBox directly using GetTransformedBBox
+        var transformedBBox = GetTransformedBBox();
 
-        var transformedCullRect = new SKRect((float)transformedBBox.Left, (float)transformedBBox.Top, 
-                                            (float)transformedBBox.Right, (float)transformedBBox.Bottom);
+        var transformedCullRect = new SKRect(transformedBBox.Left, transformedBBox.Top, 
+                                            transformedBBox.Right, transformedBBox.Bottom);
 
         // Create new picture
         using var recorder = new SKPictureRecorder();
@@ -112,49 +101,15 @@ public class BlitzElement
         recordingCanvas.DrawPicture(_identityPicture);
         Picture?.Dispose();
         Picture = recorder.EndRecording();
+
+        this.SyncToModel();
     }
 
-    private SKRect CalculateTransformedCullRect()
-    {
-        if (_identityPicture == null)
-            return SKRect.Empty;
-
-        var originalCull = _identityPicture.CullRect;
-        var skMatrix = ConvertToSKMatrix(Matrix);
-
-        // Transform all four corners of the original cull rect
-        var corners = new SKPoint[]
-        {
-            new SKPoint(originalCull.Left, originalCull.Top),
-            new SKPoint(originalCull.Right, originalCull.Top),
-            new SKPoint(originalCull.Right, originalCull.Bottom),
-            new SKPoint(originalCull.Left, originalCull.Bottom)
-        };
-
-        // Apply transformation to each corner
-        var transformedCorners = new SKPoint[corners.Length];
-        skMatrix.MapPoints(transformedCorners, corners);
-
-        // Find the bounding rectangle of transformed corners
-        float minX = float.MaxValue, minY = float.MaxValue;
-        float maxX = float.MinValue, maxY = float.MinValue;
-
-        foreach (var corner in transformedCorners)
-        {
-            minX = Math.Min(minX, corner.X);
-            minY = Math.Min(minY, corner.Y);
-            maxX = Math.Max(maxX, corner.X);
-            maxY = Math.Max(maxY, corner.Y);
-        }
-
-        return new SKRect(minX, minY, maxX, maxY);
-    }
-    
     public SKRect GetTransformedBBox()
     {
         var matrix = Matrix;
         var bbox = BBox;
-        
+
         if (matrix == null)
             return new SKRect((float)bbox.Left, (float)bbox.Top, (float)bbox.Right, (float)bbox.Bottom);
 
@@ -172,16 +127,29 @@ public class BlitzElement
         var transformedBottomRight = skMatrix.MapPoint(bottomRight);
 
         // Find the axis-aligned bounding box of the transformed corners
-        float minX = Math.Min(Math.Min(transformedTopLeft.X, transformedTopRight.X), 
+        float minX = Math.Min(Math.Min(transformedTopLeft.X, transformedTopRight.X),
                             Math.Min(transformedBottomLeft.X, transformedBottomRight.X));
-        float minY = Math.Min(Math.Min(transformedTopLeft.Y, transformedTopRight.Y), 
+        float minY = Math.Min(Math.Min(transformedTopLeft.Y, transformedTopRight.Y),
                             Math.Min(transformedBottomLeft.Y, transformedBottomRight.Y));
-        float maxX = Math.Max(Math.Max(transformedTopLeft.X, transformedTopRight.X), 
+        float maxX = Math.Max(Math.Max(transformedTopLeft.X, transformedTopRight.X),
                             Math.Max(transformedBottomLeft.X, transformedBottomRight.X));
-        float maxY = Math.Max(Math.Max(transformedTopLeft.Y, transformedTopRight.Y), 
+        float maxY = Math.Max(Math.Max(transformedTopLeft.Y, transformedTopRight.Y),
                             Math.Max(transformedBottomLeft.Y, transformedBottomRight.Y));
 
         return new SKRect(minX, minY, maxX, maxY);
+    }
+    
+    public SKPoint GetZeroPoint()
+    {
+        // The zero point is always (0, 0) in the element's coordinate system
+        // Transform it through the current matrix to get parent coordinates
+        if (Matrix == null)
+            return new SKPoint(0, 0);
+        
+        // Transform the zero point through the current matrix
+        var zeroPoint = new SKPoint(0, 0);
+        var skMatrix = ConvertToSKMatrix(Matrix);
+        return skMatrix.MapPoint(zeroPoint);
     }
 
     private SKMatrix ConvertToSKMatrix(CsXFL.Matrix matrix)

@@ -87,7 +87,8 @@ public partial class DrawingCanvas
 
         canvas.DrawPath(path, paint);
 
-        DrawZeroPointCrosshair(canvas, element);
+        if (TransformConfig.DisplayZeroPoint)
+            DrawZeroPointCrosshair(canvas, element);
 
         // Define the size of the scale-independent boxes
         float boxSize = TransformConfig.TransformAdornerHandleSize / (float)_scale;
@@ -155,8 +156,19 @@ public partial class DrawingCanvas
     private void DrawZeroPointCrosshair(SKCanvas canvas, BlitzElement element)
     {
         // Get the zero point in parent coordinates
-        var zeroPoint = GetElementZeroPoint(element);
-        
+        var zeroPoint = element.GetZeroPoint();
+
+        // Get the transform handles and registration point
+        var handles = GetTransformHandles(element.BBox, element.Matrix);
+
+        // Check if the zero point is within 5px of any handle or the registration point
+        const float threshold = 5f;
+        foreach (var handle in handles)
+        {
+            if (Distance(zeroPoint, handle.Center) <= threshold)
+                return; // Skip drawing if too close to a handle
+        }
+
         using var debugPaint = new SKPaint
         {
             Color = TransformConfig.TransformAdornerInteriorColor,
@@ -164,18 +176,18 @@ public partial class DrawingCanvas
             Style = SKPaintStyle.Stroke,
             IsAntialias = true
         };
-        
+
         // Draw crosshairs at zero point
         float crossSize = 10f / (float)_scale; // Scale-independent size
         canvas.DrawLine(
-            zeroPoint.X - crossSize, zeroPoint.Y, 
-            zeroPoint.X + crossSize, zeroPoint.Y, 
+            zeroPoint.X - crossSize, zeroPoint.Y,
+            zeroPoint.X + crossSize, zeroPoint.Y,
             debugPaint);
         canvas.DrawLine(
-            zeroPoint.X, zeroPoint.Y - crossSize, 
-            zeroPoint.X, zeroPoint.Y + crossSize, 
+            zeroPoint.X, zeroPoint.Y - crossSize,
+            zeroPoint.X, zeroPoint.Y + crossSize,
             debugPaint);
-        
+
         // Draw a small circle with fill and border
         using var fillPaint = new SKPaint
         {
@@ -183,7 +195,7 @@ public partial class DrawingCanvas
             Style = SKPaintStyle.Fill,
             IsAntialias = true
         };
-        
+
         using var borderPaint = new SKPaint
         {
             Color = TransformConfig.TransformAdornerBorderColor,
@@ -191,38 +203,17 @@ public partial class DrawingCanvas
             StrokeWidth = 1.0f / (float)_scale,
             IsAntialias = true
         };
-        
+
         canvas.DrawCircle(zeroPoint, 3f / (float)_scale, fillPaint);
         canvas.DrawCircle(zeroPoint, 3f / (float)_scale, borderPaint);
     }
 
-    private SKPoint GetElementZeroPoint(BlitzElement element)
+    // Helper method to calculate the distance between two points
+    private float Distance(SKPoint p1, SKPoint p2)
     {
-        // The zero point is always (0, 0) in the element's coordinate system
-        // Transform it through the current matrix to get parent coordinates
-        if (element.Matrix == null)
-            return new SKPoint(0, 0);
-        
-        // Transform the zero point through the current matrix
-        var zeroPoint = new SKPoint(0, 0);
-        var skMatrix = ConvertToSKMatrix(element.Matrix);
-        return skMatrix.MapPoint(zeroPoint);
-    }
-
-    private SKMatrix ConvertToSKMatrix(CsXFL.Matrix matrix)
-    {
-        return new SKMatrix
-        {
-            ScaleX = (float)matrix.A,
-            SkewY = (float)matrix.B,
-            SkewX = (float)matrix.C,
-            ScaleY = (float)matrix.D,
-            TransX = (float)matrix.Tx,
-            TransY = (float)matrix.Ty,
-            Persp0 = 0,
-            Persp1 = 0,
-            Persp2 = 1
-        };
+        float dx = p1.X - p2.X;
+        float dy = p1.Y - p2.Y;
+        return MathF.Sqrt(dx * dx + dy * dy);
     }
 
     public SKPoint CalculateFixedTransformationPoint(CsXFL.Matrix matrix, CsXFL.Point originalTransformationPoint)

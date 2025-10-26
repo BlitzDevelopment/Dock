@@ -13,6 +13,7 @@ namespace Avalonia.Controls;
 /// </summary>
 public class TransformationToolConfig
 {
+    public bool DisplayZeroPoint { get; set; } = true;
     public SKColor TransformAdornerInteriorColor { get; set; } = SKColors.Black;
     public SKColor TransformAdornerBorderColor { get; set; } = SKColors.White;
 
@@ -319,6 +320,24 @@ public class TransformationTool : IDrawingCanvasTool
         };
         element.UpdateTransform();
     }
+
+    /// <summary>
+    /// Resets the rotation of the selected element by calculating the inverse of its current rotation
+    /// and applying it to the transformation matrix.
+    /// </summary>
+    /// <param name="element">The element whose rotation will be reset.</param>
+    /// <param name="transformationPoint">The fixed point around which the rotation is reset.</param>
+    private void ZeroOutRotation(BlitzElement element, SKPoint transformationPoint)
+    {
+        if (element.Matrix == null)
+            return;
+
+        // Calculate the current rotation angle
+        float currentAngle = (float)Math.Atan2(element.Matrix.B, element.Matrix.A) * (180 / (float)Math.PI);
+
+        // Apply the inverse rotation to reset the rotation
+        ApplyRotation(element, transformationPoint, -currentAngle);
+    }
     #endregion
 
     #region SHEARING LOGIC
@@ -523,6 +542,40 @@ public class TransformationTool : IDrawingCanvasTool
         double dy = point.Y - yy;
         return Math.Sqrt(dx * dx + dy * dy);
     }
+
+    /// <summary>
+    /// Resets the shear transformation of the selected element to identity for the specified axis.
+    /// </summary>
+    /// <param name="element">The element whose shear will be reset.</param>
+    /// <param name="shearAxis">The axis (horizontal or vertical) to reset the shear for.</param>
+    private void ResetShearToIdentity(BlitzElement element, ShearAxis shearAxis)
+    {
+        if (element.Matrix == null)
+            return;
+
+        // Extract the current matrix values
+        var matrix = element.Matrix;
+
+        // Reset shear based on the axis
+        switch (shearAxis)
+        {
+            case ShearAxis.Left:
+            case ShearAxis.Right:
+                // Reset vertical shear (C component)
+                matrix.C = 0;
+                break;
+
+            case ShearAxis.Top:
+            case ShearAxis.Bottom:
+                // Reset horizontal shear (B component)
+                matrix.B = 0;
+                break;
+        }
+
+        // Apply the updated matrix and refresh the element
+        element.Matrix = matrix;
+        element.UpdateTransform();
+    }
     #endregion
 
     // MARK: Pressed
@@ -564,6 +617,40 @@ public class TransformationTool : IDrawingCanvasTool
                 bool withinHandle = IsWithinMargin(skMousePosition, handlePosition, (Config.TransformHandleMargin / canvas.Scale));
                 bool withinRotation = isCorner && IsWithinMargin(skMousePosition, handlePosition, (Config.TransformHandleMargin / canvas.Scale) * Config.RotationHandleMultiplierFactor);
 
+                // NEW: Handle double-click to reset scaling to identity
+                if (withinHandle && e.ClickCount == 2)
+                {
+                    if (isCorner)
+                    {
+                        // Reset double-axis scaling to identity
+                        canvas.SelectedElement.Matrix.A = 1.0;
+                        canvas.SelectedElement.Matrix.D = 1.0;
+                        canvas.SelectedElement.UpdateTransform();
+                    }
+                    else if (isMiddle)
+                    {
+                        // Reset single-axis scaling to identity
+                        if (handleType == DrawingCanvas.TransformHandleType.LeftCenter || handleType == DrawingCanvas.TransformHandleType.RightCenter)
+                        {
+                            // Reset horizontal scaling to identity
+                            canvas.SelectedElement.Matrix.A = 1.0;
+                            canvas.SelectedElement.UpdateTransform();
+                        }
+                        else if (handleType == DrawingCanvas.TransformHandleType.TopCenter || handleType == DrawingCanvas.TransformHandleType.BottomCenter)
+                        {
+                            // Reset vertical scaling to identity
+                            canvas.SelectedElement.Matrix.D = 1.0;
+                            canvas.SelectedElement.UpdateTransform();
+                        }
+                    }
+
+                    canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                    canvas.CompositeLayersToRenderTarget();
+                    canvas.InvalidateVisual();
+                    e.Handled = true;
+                    return;
+                }
+
                 // Corner handles for scaling
                 if (isCorner && withinHandle && !IsCornerTransformationPointInvalid(transformationPoint, handleType, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix))
                 {
@@ -587,6 +674,16 @@ public class TransformationTool : IDrawingCanvasTool
                 // Corner handles for rotation (wider margin)
                 if (withinRotation)
                 {
+                    if (e.ClickCount == 2) // Double-click to reset rotation
+                    {
+                        ZeroOutRotation(canvas.SelectedElement, transformationPoint);
+                        canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                        canvas.CompositeLayersToRenderTarget();
+                        canvas.InvalidateVisual();
+                        e.Handled = true;
+                        return;
+                    }
+
                     _activeHandle = handleType;
                     _currentState = TransformationState.Rotating;
                     StartRotation(transformationPoint, skMousePosition);
@@ -613,6 +710,17 @@ public class TransformationTool : IDrawingCanvasTool
                 if (IsShearingInvalid(transformationPoint, skMousePosition, canvas.SelectedElement.BBox, canvas.SelectedElement.Matrix, Config.TransformEdgeMargin / canvas.Scale))
                 {
                     Console.WriteLine($"Shearing blocked: Transformation point is on the target edge");
+                    e.Handled = true;
+                    return;
+                }
+
+                // NEW: Handle double-click to reset shear to identity
+                if (e.ClickCount == 2)
+                {
+                    ResetShearToIdentity(canvas.SelectedElement, shearAxis);
+                    canvas.UpdateAdorningLayer(canvas.SelectedElement);
+                    canvas.CompositeLayersToRenderTarget();
+                    canvas.InvalidateVisual();
                     e.Handled = true;
                     return;
                 }
@@ -688,7 +796,7 @@ public class TransformationTool : IDrawingCanvasTool
         switch (_currentState)
         {
             case TransformationState.MovingTransformSKPoint when canvas.SelectedElement != null:
-                var snapPoint = GetSnapPoint(skMousePosition, transformHandles, canvas.Scale);
+                var snapPoint = GetSnapPoint(skMousePosition, transformHandles, canvas);
                 var targetPoint = snapPoint ?? skMousePosition;
 
                 if (canvas.SelectedElement.Matrix != null && TryInvertMatrix(canvas.SelectedElement.Matrix, out var inverseMatrix))
@@ -734,8 +842,6 @@ public class TransformationTool : IDrawingCanvasTool
                 }
                 return;
         }
-
-        canvas.SelectedElement.SyncToModel();
 
         // Common updates for transformation states (except MovingTransformSKPoint)
         if (canvas.SelectedElement != null)
@@ -841,9 +947,9 @@ public class TransformationTool : IDrawingCanvasTool
     /// <param name="transformHandles">Collection of transform handle positions and types to check for snapping.</param>
     /// <param name="canvasScale">The current canvas scale factor used to adjust snap margin for zoom level.</param>
     /// <returns>The position of the closest transform handle within snap distance, or null if no handle is close enough.</returns>
-    private SKPoint? GetSnapPoint(SKPoint mousePosition, List<(SKPoint Center, DrawingCanvas.TransformHandleType Type)> transformHandles, double canvasScale)
+    private SKPoint? GetSnapPoint(SKPoint mousePosition, List<(SKPoint Center, DrawingCanvas.TransformHandleType Type)> transformHandles, DrawingCanvas canvas)
     {
-        double snapMargin = Config.TransformPointSnapMargin / canvasScale; // Adjust for zoom level
+        double snapMargin = Config.TransformPointSnapMargin / canvas.Scale; // Adjust for zoom level
         SKPoint? closestHandle = null;
         double closestDistance = double.MaxValue;
 
@@ -859,6 +965,22 @@ public class TransformationTool : IDrawingCanvasTool
             {
                 closestDistance = distance;
                 closestHandle = handlePosition;
+            }
+        }
+
+        // Check snapping to the zero point if enabled
+        if (Config.DisplayZeroPoint && canvas.SelectedElement != null)
+        {
+            var zeroPoint = canvas.SelectedElement.GetZeroPoint();
+            double zeroPointDistance = Math.Sqrt(
+                Math.Pow(mousePosition.X - zeroPoint.X, 2) +
+                Math.Pow(mousePosition.Y - zeroPoint.Y, 2)
+            );
+
+            if (zeroPointDistance <= snapMargin && zeroPointDistance < closestDistance)
+            {
+                closestDistance = zeroPointDistance;
+                closestHandle = zeroPoint;
             }
         }
 
